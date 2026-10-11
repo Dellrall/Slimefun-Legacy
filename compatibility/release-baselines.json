@@ -2,16 +2,16 @@
   "schema": 1,
   "project": "Slimefun Legacy",
   "candidate": {
-    "version": "4.1.72"
+    "version": "4.1.73"
   },
   "previous_stable": {
-    "version": "4.1.71",
+    "version": "4.1.72",
     "source": {
       "mode": "git-ref",
-      "ref": "f68544e47d8489704d0e9d34adc65f0114b07153"
+      "ref": "504db79c4ce82358c8a74968d7fbab3f4af1d017"
     },
     "release_blocking": true,
-    "purpose": "Primary regression baseline: the exact published 4.1.71 core source, not a later master build. Required addon regressions against that stable release block 4.1.72. The earlier 4.1.69-to-4.1.70 persistence fixture remains historical and unchanged."
+    "purpose": "Primary regression baseline: exact published Slimefun Legacy 4.1.72 source. Required addon regressions against that stable release block candidate 4.1.73. Earlier published upgrade fixtures remain historical and unchanged."
   },
   "legacy_floor": {
     "version": "4.1.15",
