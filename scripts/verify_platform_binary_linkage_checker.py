@@ -31,13 +31,14 @@ def compile_jar(
     work: Path,
     name: str,
     sources: list[Path],
-    classpath: Path | None = None,
+    classpath: Path | list[Path] | None = None,
 ) -> Path:
     classes = work / f"{name}-classes"
     classes.mkdir(parents=True)
     command = ["javac", "--release", "21", "-d", str(classes)]
     if classpath:
-        command.extend(["-classpath", str(classpath)])
+        entries = classpath if isinstance(classpath, list) else [classpath]
+        command.extend(["-classpath", os.pathsep.join(str(entry) for entry in entries)])
     command.extend(str(source) for source in sources)
     run(command, work)
     jar = work / f"{name}.jar"
@@ -146,7 +147,12 @@ def main() -> int:
                 "public class SenderUser { public void send(org.bukkit.command.CommandSender sender) { "
                 "sender.sendMessage(\"hello\"); } }",
             )
-            sender_user = compile_jar(work, "sender-user", [sender_user_source], modern_sender)
+            sender_user = compile_jar(
+                work,
+                "sender-user",
+                [sender_user_source],
+                [modern_sender, adventure],
+            )
             inherited_external = analyze_platform_linkage(
                 sender_user,
                 [floor_sender, adventure],
