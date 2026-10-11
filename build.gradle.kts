@@ -26,6 +26,21 @@ java {
     withSourcesJar()
 }
 
+tasks.register("writeCompatibilityCompileClasspath") {
+    val outputPath = providers.gradleProperty("compatibilityClasspathOutput")
+
+    doLast {
+        val output = file(outputPath.get())
+        output.parentFile.mkdirs()
+        output.writeText(
+            configurations.compileClasspath.get().files
+                .map { it.absolutePath }
+                .sorted()
+                .joinToString(separator = System.lineSeparator(), postfix = System.lineSeparator())
+        )
+    }
+}
+
 tasks.compileJava {
     options.encoding = "UTF-8"
     options.release.set(21)
