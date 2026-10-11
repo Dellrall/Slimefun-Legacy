@@ -1,16 +1,16 @@
-name: Refresh v4.1.73 addon bundle with Networks 1.0.51
+name: Refresh v4.1.73 addon bundle with Networks 1.0.52
 
 on:
   pull_request:
     paths:
-      - '.github/workflows/refresh-v4.1.73-networks-1.0.51.yml'
+      - '.github/workflows/refresh-v4.1.73-networks-1.0.52.yml'
       - 'compatibility/bundle-refresh-r131.json'
       - 'scripts/refresh_release_addon.py'
       - 'scripts/test_refresh_release_addon.py'
   push:
     branches: [master]
     paths:
-      - '.github/workflows/refresh-v4.1.73-networks-1.0.51.yml'
+      - '.github/workflows/refresh-v4.1.73-networks-1.0.52.yml'
       - 'compatibility/bundle-refresh-r131.json'
       - 'scripts/refresh_release_addon.py'
       - 'scripts/test_refresh_release_addon.py'
@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   prepare:
-    if: github.event_name == 'pull_request' || contains(github.event.head_commit.message, 'Publish addon bundle r131 with Networks 1.0.51')
+    if: github.event_name == 'pull_request' || contains(github.event.head_commit.message, 'Publish addon bundle r131 with Networks 1.0.52')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     outputs:
@@ -42,8 +42,8 @@ jobs:
           mkdir -p work/current work/new
           gh release download v4.1.73 --repo "$GITHUB_REPOSITORY" \
             --pattern SF_Addons_1.21.11-26.3.zip --pattern Slimefun-Legacy4.1.73.jar --dir work/current
-          gh release download v1.0.51 --repo wickidcow/SF_NetworksExp \
-            --pattern SF_Networks1.0.51.jar --dir work/new
+          gh release download v1.0.52 --repo wickidcow/SF_NetworksExp \
+            --pattern SF_Networks1.0.52.jar --dir work/new
           python3 - <<'PY'
           import hashlib, json
           from pathlib import Path
@@ -60,7 +60,7 @@ jobs:
             --config compatibility/bundle-refresh-r131.json \
             --matrix compatibility/sfl-addon-release-matrix.json \
             --original work/current/SF_Addons_1.21.11-26.3.zip \
-            --addon work/new/SF_Networks1.0.51.jar \
+            --addon work/new/SF_Networks1.0.52.jar \
             --output work/SF_Addons_1.21.11-26.3.zip | tee work/validation.json
           python3 - <<'PY'
           import json, os
@@ -81,7 +81,7 @@ jobs:
 
   publish:
     needs: prepare
-    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Publish addon bundle r131 with Networks 1.0.51')
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Publish addon bundle r131 with Networks 1.0.52')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -134,7 +134,7 @@ jobs:
               'Until then, this file describes the **4.1.73 candidate**, not an installed fix\n'
               'or a published downloadable JAR.',
               'Slimefun Legacy **4.1.73** is published. The addon ZIP is now at **revision 131**,\n'
-              'including **Networks 1.0.51**. See the targeted refresh details below;\n'
+              'including **Networks 1.0.52**. See the targeted refresh details below;\n'
               'the original revision-130 release notes are retained as historical context.')
           marker = '## Addon bundle refresh — revision 131'
           note = Path('docs/addon-bundle-r131.md').read_text()

@@ -13,13 +13,13 @@
   "slug": "networksexp",
   "old_jar": "SF_Networks1.0.50.jar",
   "old_commit": "c320adcaec21b945b25e33b303a42ea18007a7fb",
-  "new_jar": "SF_Networks1.0.51.jar",
-  "new_commit": "9d301906edfd44add8d549a2e98d72cf8fa40648",
-  "new_version": "1.0.51",
-  "new_sha256": "c32a975dba92a4329aeb3845dbfc711d81a10cea4636edf52176ec5111a884c2",
+  "new_jar": "SF_Networks1.0.52.jar",
+  "new_commit": "e89ab7da8a2d963db3f987a5c4ccb21626f69b1e",
+  "new_version": "1.0.52",
+  "new_sha256": "cf03859b25f85754d9fa849378e0a099d843a8ae9cd13107921db42f5df6ffe5",
   "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
   "new_build_core_version": "4.1.73",
   "new_paper_26_3_api": "26.3.build.175-stable",
-  "compatibility_note": "Bundle refresh r131: Networks 1.0.51 fixes Crafter Manager display updates passing a nested SlimefunItemStack delegate into CraftInventory on Paper/Purpur 1.21.11. The checksum-pinned standalone JAR uses the Paper 1.21.11 baseline and Java 21 bytecode. Its source passed the Legacy, United and Gugu compatibility jobs; the native Purpur 1.21.11 build 2568 regression exercises repeated real menu writes, metadata preservation, click handlers, dirty tracking and ordinary items. Separate canonical bundle CI checks the pinned source against Paper 26.3. The other 44 addon JARs, published Slimefun Legacy 4.1.73 core and optional resource pack are unchanged. Existing validation files in this archive describe the original revision-130 build; this refresh does not certify arbitrary historical worlds, the user's complete 82-plugin stack, or Folia region behavior.",
-  "candidate_bundle_sha256": "c9bd7c2da7787f6a12ea8935fa487077b9a75395bdb337c43c41ccd30f32d4d5"
+  "compatibility_note": "Bundle refresh r131: Networks 1.0.52 includes the Crafter Manager fix and extends safe display writes to Quantum Manager, Drawer Manager, both Item Flow Viewer screens and Linker Grid. The checksum-pinned standalone JAR uses the Paper 1.21.11 baseline and Java 21 bytecode. Legacy, United and Gugu compatibility jobs passed, along with 129 Legacy tests and all nine native Purpur 1.21.11 build 2568 display cases. Those cases exercise real menus/inventories, stored metadata/count preservation, custom icons, drawer/Quantum previews and the Quantum world display. Linker testing covers rendering without the third-party provider. Separate canonical bundle CI checks the pinned source against Paper 26.3. The other 44 addon JARs, published Slimefun Legacy 4.1.73 core and optional resource pack are unchanged. Existing validation files describe the original revision-130 build; this refresh does not certify arbitrary historical worlds, the full reported 82-plugin stack or Folia region behavior.",
+  "candidate_bundle_sha256": "34b7c151c013d18a0d9da872b54fd0ca6a4502eeeb74ed1989d8e935a75b9d4b"
 }
