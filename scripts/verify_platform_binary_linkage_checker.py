@@ -93,7 +93,7 @@ def main() -> int:
                 "public Object read(org.bukkit.event.PotionEvent event) { return event.getEntity(); } }",
             )
             unsafe_core = compile_jar(work, "unsafe-core", [unsafe_source], modern_api)
-            unsafe = analyze_platform_linkage(unsafe_core, floor_api)
+            unsafe = analyze_platform_linkage(unsafe_core, floor_api, modern_api)
             if unsafe.passed:
                 raise AssertionError("Covariant-return floor mismatch was not detected")
             if not any(
@@ -113,7 +113,7 @@ def main() -> int:
                 "return ((org.bukkit.event.BaseEvent) event).getEntity(); } }",
             )
             safe_core = compile_jar(work, "safe-core", [safe_source], modern_api)
-            safe = analyze_platform_linkage(safe_core, floor_api)
+            safe = analyze_platform_linkage(safe_core, floor_api, modern_api)
             if not safe.passed:
                 raise AssertionError(f"Stable inherited descriptor unexpectedly failed: {safe.to_json()}")
 
