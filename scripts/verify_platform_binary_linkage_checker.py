@@ -93,7 +93,7 @@ def main() -> int:
                 "public Object read(org.bukkit.event.PotionEvent event) { return event.getEntity(); } }",
             )
             unsafe_core = compile_jar(work, "unsafe-core", [unsafe_source], modern_api)
-            unsafe = analyze_platform_linkage(unsafe_core, floor_api, modern_api)
+            unsafe = analyze_platform_linkage(unsafe_core, [floor_api], [modern_api])
             if unsafe.passed:
                 raise AssertionError("Covariant-return floor mismatch was not detected")
             if not any(
@@ -113,9 +113,50 @@ def main() -> int:
                 "return ((org.bukkit.event.BaseEvent) event).getEntity(); } }",
             )
             safe_core = compile_jar(work, "safe-core", [safe_source], modern_api)
-            safe = analyze_platform_linkage(safe_core, floor_api, modern_api)
+            safe = analyze_platform_linkage(safe_core, [floor_api], [modern_api])
             if not safe.passed:
                 raise AssertionError(f"Stable inherited descriptor unexpectedly failed: {safe.to_json()}")
+
+            audience_source = write_java(
+                work / "audience-src",
+                "net.kyori.adventure.audience",
+                "Audience",
+                "public interface Audience { default void sendMessage(String message) {} }",
+            )
+            adventure = compile_jar(work, "adventure-api", [audience_source])
+            floor_sender_source = write_java(
+                work / "floor-sender-src",
+                "org.bukkit.command",
+                "CommandSender",
+                "public interface CommandSender extends net.kyori.adventure.audience.Audience {}",
+            )
+            floor_sender = compile_jar(work, "floor-sender", [floor_sender_source], adventure)
+            modern_sender_source = write_java(
+                work / "modern-sender-src",
+                "org.bukkit.command",
+                "CommandSender",
+                "public interface CommandSender extends net.kyori.adventure.audience.Audience { "
+                "@Override default void sendMessage(String message) {} }",
+            )
+            modern_sender = compile_jar(work, "modern-sender", [modern_sender_source], adventure)
+            sender_user_source = write_java(
+                work / "sender-user-src",
+                "example.core",
+                "SenderUser",
+                "public class SenderUser { public void send(org.bukkit.command.CommandSender sender) { "
+                "sender.sendMessage(\"hello\"); } }",
+            )
+            sender_user = compile_jar(work, "sender-user", [sender_user_source], modern_sender)
+            inherited_external = analyze_platform_linkage(
+                sender_user,
+                [floor_sender, adventure],
+                [modern_sender, adventure],
+            )
+            if not inherited_external.passed:
+                raise AssertionError(
+                    "External inherited platform member was misclassified: "
+                    f"{inherited_external.to_json()}"
+                )
 
         print("Platform binary-linkage checker regression verification passed.")
         return 0
