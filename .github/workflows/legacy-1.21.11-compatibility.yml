@@ -138,29 +138,24 @@ jobs:
       - name: Verify platform binary-linkage checker
         run: python3 scripts/verify_platform_binary_linkage_checker.py
 
-      - name: Resolve modern and Paper 1.21.11 APIs for production-JAR linkage audit
+      - name: Resolve modern and Paper 1.21.11 classpaths for production-JAR linkage audit
         shell: bash
         run: |
           set -euo pipefail
+          REPORT_DIR="build/legacy-1.21.11-runtime-smoke/platform-linkage"
+          mkdir -p "$REPORT_DIR"
 
-          MODERN_VERSION="$(./gradlew dependencies --configuration compileClasspath --no-daemon --console=plain \
-            | sed -nE 's/.*io\.papermc\.paper:paper-api:[^ ]+ -> ([^ ]+).*/\1/p' \
-            | head -n 1)"
-          test -n "$MODERN_VERSION"
-          MODERN_API="$(find "$HOME/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api/$MODERN_VERSION" \
-            -name '*.jar' ! -name '*sources*' ! -name '*javadoc*' -print -quit)"
-          test -n "$MODERN_API"
-          test -s "$MODERN_API"
+          ./gradlew writeCompatibilityCompileClasspath \
+            -PcompatibilityClasspathOutput="$REPORT_DIR/modern-classpath.txt" \
+            --no-daemon
 
-          ./gradlew compileJava -PpaperApiVersion="${LEGACY_PAPER_API_VERSION}" --no-daemon
-          FLOOR_API="$(find "$HOME/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api" \
-            -path '*1.21.11-R0.1-SNAPSHOT*' -name '*.jar' ! -name '*sources*' ! -name '*javadoc*' \
-            -print -quit)"
-          test -n "$FLOOR_API"
-          test -s "$FLOOR_API"
+          ./gradlew writeCompatibilityCompileClasspath \
+            -PpaperApiVersion="${LEGACY_PAPER_API_VERSION}" \
+            -PcompatibilityClasspathOutput="$REPORT_DIR/floor-classpath.txt" \
+            --no-daemon
 
-          echo "MODERN_PAPER_API=$MODERN_API" >> "$GITHUB_ENV"
-          echo "FLOOR_PAPER_API=$FLOOR_API" >> "$GITHUB_ENV"
+          test -s "$REPORT_DIR/modern-classpath.txt"
+          test -s "$REPORT_DIR/floor-classpath.txt"
 
       - name: Enforce production-JAR Bukkit/Paper linkage against 1.21.11
         shell: bash
@@ -168,7 +163,10 @@ jobs:
           set -euo pipefail
           REPORT_DIR="build/legacy-1.21.11-runtime-smoke/platform-linkage"
           python3 scripts/check_platform_binary_linkage.py \
-            "${{ steps.candidate.outputs.jar }}" "$FLOOR_PAPER_API" "$MODERN_PAPER_API" "$REPORT_DIR"
+            "${{ steps.candidate.outputs.jar }}" \
+            "$REPORT_DIR/floor-classpath.txt" \
+            "$REPORT_DIR/modern-classpath.txt" \
+            "$REPORT_DIR"
           cat "$REPORT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 21 runtime
