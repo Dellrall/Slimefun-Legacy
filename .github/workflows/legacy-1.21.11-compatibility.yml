@@ -135,21 +135,29 @@ jobs:
           test -s "$JAR"
           echo "jar=$JAR" >> "$GITHUB_OUTPUT"
 
-      - name: Enforce Shulker Helmet potion-effect ABI compatibility
+      - name: Verify platform binary-linkage checker
+        run: python3 scripts/verify_platform_binary_linkage_checker.py
+
+      - name: Resolve Paper 1.21.11 API for production-JAR linkage audit
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p build/legacy-1.21.11-runtime-smoke
-          javap -classpath "${{ steps.candidate.outputs.jar }}" -c -p \
-            'io.github.thebusybiscuit.slimefun4.implementation.items.armor.LegacyShulkerHelmet$1' \
-            > build/legacy-1.21.11-runtime-smoke/shulker-helmet-bytecode.txt
-          grep -Fq 'org/bukkit/event/entity/EntityEvent.getEntity:()Lorg/bukkit/entity/Entity;' \
-            build/legacy-1.21.11-runtime-smoke/shulker-helmet-bytecode.txt
-          if grep -Fq 'org/bukkit/event/entity/EntityPotionEffectEvent.getEntity:()Lorg/bukkit/entity/LivingEntity;' \
-            build/legacy-1.21.11-runtime-smoke/shulker-helmet-bytecode.txt; then
-            echo 'Shulker Helmet contains a Paper 26.3-only EntityPotionEffectEvent#getEntity method reference.' >&2
-            exit 1
-          fi
+          ./gradlew compileJava -PpaperApiVersion="${LEGACY_PAPER_API_VERSION}" --no-daemon
+          FLOOR_API="$(find "$HOME/.gradle/caches/modules-2/files-2.1/io.papermc.paper/paper-api" \
+            -path '*1.21.11-R0.1-SNAPSHOT*' -name '*.jar' ! -name '*sources*' ! -name '*javadoc*' \
+            -print -quit)"
+          test -n "$FLOOR_API"
+          test -s "$FLOOR_API"
+          echo "FLOOR_PAPER_API=$FLOOR_API" >> "$GITHUB_ENV"
+
+      - name: Enforce production-JAR Bukkit/Paper linkage against 1.21.11
+        shell: bash
+        run: |
+          set -euo pipefail
+          REPORT_DIR="build/legacy-1.21.11-runtime-smoke/platform-linkage"
+          python3 scripts/check_platform_binary_linkage.py \
+            "${{ steps.candidate.outputs.jar }}" "$FLOOR_PAPER_API" "$REPORT_DIR"
+          cat "$REPORT_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Set up Java 21 runtime
         uses: actions/setup-java@v5
@@ -196,4 +204,5 @@ jobs:
             build/legacy-1.21.11-runtime-smoke/*.console.log
             build/legacy-1.21.11-runtime-smoke/runtime-build.txt
             build/legacy-1.21.11-runtime-smoke/smoke-result.txt
+            build/legacy-1.21.11-runtime-smoke/platform-linkage/**
           if-no-files-found: warn
