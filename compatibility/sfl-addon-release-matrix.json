@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bundle_revision": 129,
+  "bundle_revision": 130,
   "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
@@ -59,7 +59,7 @@
     {
       "repository": "wickidcow/SF_BetterChests",
       "slug": "betterchests",
-      "source_commit": "5c830e845d2849e0d8aea53414be8cba80af6775"
+      "source_commit": "51fd6616d8ad6d8a6153237d5274235f61a6f277"
     },
     {
       "repository": "wickidcow/SF_BetterFarming",
@@ -69,7 +69,7 @@
     {
       "repository": "wickidcow/SF_BuildingStaff",
       "slug": "buildingstaff",
-      "source_commit": "9f017f4ca4cec5997c14ccd1e564a21b21ed16a0"
+      "source_commit": "290c14bc4822c81598a267b7191731bcf5f23a0b"
     },
     {
       "repository": "wickidcow/SF_CultivationLegacy",
@@ -172,7 +172,7 @@
       "repository": "wickidcow/SF_InfinityExpansion2",
       "slug": "infinityexpansion2",
       "artifact_base": "InfinityExpansion",
-      "source_commit": "a66a534406bf81222549458213313816dbdfb98f"
+      "source_commit": "c9ad8394ee65e5577c3e031e24b562a8a7b2d0f5"
     },
     {
       "repository": "wickidcow/SF_LiteXpansion",
@@ -214,7 +214,7 @@
       "repository": "wickidcow/SF_NetworksExp",
       "slug": "networksexp",
       "artifact_base": "Networks",
-      "source_commit": "839a66c39a355371ea17ecafd29366d1de0b872e"
+      "source_commit": "c320adcaec21b945b25e33b303a42ea18007a7fb"
     },
     {
       "repository": "wickidcow/SF_RelicsOfCthonia",
@@ -224,7 +224,7 @@
     {
       "repository": "wickidcow/SF_RykenSlimeCustomizer",
       "slug": "rykenslimecustomizer",
-      "source_commit": "9fc2dc5f9cf3bf650602b70095da44a57f42172b"
+      "source_commit": "e62b10423a64d1940ee4bc87947e2ff42b0ee3df"
     },
     {
       "repository": "wickidcow/SF_SlimeEasy",
@@ -256,7 +256,7 @@
       "repository": "wickidcow/SF_SlimeTinkerIE2",
       "slug": "slimetinkerie2",
       "artifact_base": "SlimeTinker",
-      "source_commit": "bdb2ba51ad946de686c50dc1745ba89053b4535d"
+      "source_commit": "bfb072fedb9f9135a27a93483d69da2bcdfb927a"
     },
     {
       "repository": "wickidcow/SF_SlimyTreeTaps",
@@ -276,7 +276,7 @@
     {
       "repository": "wickidcow/SF_Supreme",
       "slug": "supreme",
-      "source_commit": "118eb72e84a9975681805749447d436a26b40103"
+      "source_commit": "ed79026880b127d40d24cfe6b9fcabc2888e9562"
     },
     {
       "repository": "wickidcow/WorldEditSlimefun",
