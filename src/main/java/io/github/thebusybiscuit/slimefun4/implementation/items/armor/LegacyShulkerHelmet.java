@@ -12,6 +12,7 @@ import org.bukkit.entity.EntityType;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityEvent;
 import org.bukkit.event.entity.EntityPotionEffectEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.potion.PotionEffectType;
@@ -68,7 +69,9 @@ public final class LegacyShulkerHelmet {
 
             @EventHandler(ignoreCancelled = true)
             public void onLevitation(EntityPotionEffectEvent event) {
-                if (event.getEntity() instanceof Player player
+                // Paper 26.3 overrides getEntity() with a LivingEntity return type, while 1.21.11 does not.
+                // Resolve the stable EntityEvent#getEntity():Entity descriptor on every supported server.
+                if (((EntityEvent) event).getEntity() instanceof Player player
                         && wearing(player)
                         && event.getNewEffect() != null
                         && event.getNewEffect().getType().equals(PotionEffectType.LEVITATION)) {
