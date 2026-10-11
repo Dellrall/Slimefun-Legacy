@@ -31,8 +31,8 @@ DEFAULT_PREFIXES = ("org/bukkit/", "io/papermc/paper/")
 @dataclass
 class PlatformLinkageResult:
     core_jar: str
-    platform_api_jar: str
-    modern_platform_api_jar: str
+    platform_classpath: list[str]
+    modern_platform_classpath: list[str]
     core_classes: int
     checked_class_references: int
     checked_member_references: int
@@ -56,8 +56,8 @@ class PlatformLinkageResult:
         return {
             "status": "PASS" if self.passed else "FAIL",
             "core_jar": self.core_jar,
-            "platform_api_jar": self.platform_api_jar,
-            "modern_platform_api_jar": self.modern_platform_api_jar,
+            "platform_classpath": self.platform_classpath,
+            "modern_platform_classpath": self.modern_platform_classpath,
             "core_classes": self.core_classes,
             "checked_class_references": self.checked_class_references,
             "checked_member_references": self.checked_member_references,
@@ -72,15 +72,33 @@ def is_platform_name(name: str, prefixes: tuple[str, ...]) -> bool:
     return normalized is not None and normalized.startswith(prefixes)
 
 
+def load_classpath(paths: list[Path]) -> dict[str, object]:
+    classes: dict[str, object] = {}
+    for jar in paths:
+        for name, info in load_classes(jar).items():
+            classes.setdefault(name, info)
+    return classes
+
+
+def read_classpath(path: Path) -> list[Path]:
+    entries = [Path(line.strip()) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    if not entries:
+        raise OSError(f"Empty classpath file: {path}")
+    missing = [entry for entry in entries if not entry.is_file()]
+    if missing:
+        raise OSError(f"Missing classpath entries from {path}: {missing}")
+    return entries
+
+
 def analyze_platform_linkage(
     core_jar: Path,
-    platform_api_jar: Path,
-    modern_platform_api_jar: Path,
+    platform_classpath: list[Path],
+    modern_platform_classpath: list[Path],
     prefixes: tuple[str, ...] = DEFAULT_PREFIXES,
 ) -> PlatformLinkageResult:
     core_classes = load_classes(core_jar)
-    platform_classes = load_classes(platform_api_jar)
-    modern_platform_classes = load_classes(modern_platform_api_jar)
+    platform_classes = load_classpath(platform_classpath)
+    modern_platform_classes = load_classpath(modern_platform_classpath)
 
     missing_classes: set[str] = set()
     missing_methods: set[MemberRef] = set()
@@ -146,8 +164,8 @@ def analyze_platform_linkage(
 
     return PlatformLinkageResult(
         core_jar=str(core_jar),
-        platform_api_jar=str(platform_api_jar),
-        modern_platform_api_jar=str(modern_platform_api_jar),
+        platform_classpath=[str(path) for path in platform_classpath],
+        modern_platform_classpath=[str(path) for path in modern_platform_classpath],
         core_classes=len(core_classes),
         checked_class_references=len(checked_classes),
         checked_member_references=len(checked_members),
@@ -199,23 +217,23 @@ def write_report(result: PlatformLinkageResult, report_dir: Path) -> None:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("core_jar", type=Path)
-    parser.add_argument("platform_api_jar", type=Path)
-    parser.add_argument("modern_platform_api_jar", type=Path)
+    parser.add_argument("platform_classpath_file", type=Path)
+    parser.add_argument("modern_platform_classpath_file", type=Path)
     parser.add_argument("report_dir", type=Path)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    for path in (args.core_jar, args.platform_api_jar, args.modern_platform_api_jar):
+    for path in (args.core_jar, args.platform_classpath_file, args.modern_platform_classpath_file):
         if not path.is_file():
-            print(f"Missing JAR: {path}", file=sys.stderr)
+            print(f"Missing input: {path}", file=sys.stderr)
             return 2
     try:
         result = analyze_platform_linkage(
             args.core_jar.resolve(),
-            args.platform_api_jar.resolve(),
-            args.modern_platform_api_jar.resolve(),
+            read_classpath(args.platform_classpath_file.resolve()),
+            read_classpath(args.modern_platform_classpath_file.resolve()),
         )
         write_report(result, args.report_dir.resolve())
     except (OSError, zipfile.BadZipFile, ClassFormatError) as error:
