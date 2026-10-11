@@ -6,7 +6,7 @@ can therefore bind to covariant overrides or other descriptors that do not exist
 the supported 1.21.11 floor even when the same Java source also compiles there.
 
 This checker inspects the production JAR's constant-pool references and resolves every
-Bukkit/Paper class, method, and field against the real floor API JAR.
+Bukkit/Paper class, method, and field against the resolved modern and floor platform classpaths.
 """
 from __future__ import annotations
 
@@ -25,7 +25,7 @@ from check_addon_binary_linkage import (
     resolves_member,
 )
 
-DEFAULT_PREFIXES = ("org/bukkit/", "io/papermc/paper/")
+DEFAULT_PREFIXES = ("org/bukkit/", "io/papermc/paper/", "com/destroystokyo/paper/")
 
 
 @dataclass
