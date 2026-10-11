@@ -32,6 +32,7 @@ DEFAULT_PREFIXES = ("org/bukkit/", "io/papermc/paper/")
 class PlatformLinkageResult:
     core_jar: str
     platform_api_jar: str
+    modern_platform_api_jar: str
     core_classes: int
     checked_class_references: int
     checked_member_references: int
@@ -56,6 +57,7 @@ class PlatformLinkageResult:
             "status": "PASS" if self.passed else "FAIL",
             "core_jar": self.core_jar,
             "platform_api_jar": self.platform_api_jar,
+            "modern_platform_api_jar": self.modern_platform_api_jar,
             "core_classes": self.core_classes,
             "checked_class_references": self.checked_class_references,
             "checked_member_references": self.checked_member_references,
@@ -73,10 +75,12 @@ def is_platform_name(name: str, prefixes: tuple[str, ...]) -> bool:
 def analyze_platform_linkage(
     core_jar: Path,
     platform_api_jar: Path,
+    modern_platform_api_jar: Path,
     prefixes: tuple[str, ...] = DEFAULT_PREFIXES,
 ) -> PlatformLinkageResult:
     core_classes = load_classes(core_jar)
     platform_classes = load_classes(platform_api_jar)
+    modern_platform_classes = load_classes(modern_platform_api_jar)
 
     missing_classes: set[str] = set()
     missing_methods: set[MemberRef] = set()
@@ -90,7 +94,7 @@ def analyze_platform_linkage(
             if name is None or not name.startswith(prefixes):
                 continue
             checked_classes.add(name)
-            if name not in platform_classes:
+            if name not in platform_classes and name in modern_platform_classes:
                 missing_classes.add(name)
 
         for raw_reference in core_class.references:
@@ -107,11 +111,27 @@ def analyze_platform_linkage(
             checked_members.add(reference)
 
             if owner not in platform_classes:
-                missing_classes.add(owner)
+                if owner in modern_platform_classes:
+                    missing_classes.add(owner)
                 continue
 
             if resolves_member(
                 platform_classes,
+                owner,
+                reference.name,
+                reference.descriptor,
+                reference.kind,
+            ):
+                continue
+
+            # Methods such as Enum#ordinal, Object#equals, Audience#sendMessage,
+            # or ObjectInputStream#readObject are inherited from dependencies that
+            # are not bundled inside paper-api.jar. Only classify a floor-missing
+            # member when the exact descriptor resolves inside the modern Paper API
+            # that produced the Slimefun bytecode. This retains detection of modern
+            # covariant overrides while avoiding external-inheritance false positives.
+            if not resolves_member(
+                modern_platform_classes,
                 owner,
                 reference.name,
                 reference.descriptor,
@@ -127,6 +147,7 @@ def analyze_platform_linkage(
     return PlatformLinkageResult(
         core_jar=str(core_jar),
         platform_api_jar=str(platform_api_jar),
+        modern_platform_api_jar=str(modern_platform_api_jar),
         core_classes=len(core_classes),
         checked_class_references=len(checked_classes),
         checked_member_references=len(checked_members),
@@ -179,13 +200,14 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("core_jar", type=Path)
     parser.add_argument("platform_api_jar", type=Path)
+    parser.add_argument("modern_platform_api_jar", type=Path)
     parser.add_argument("report_dir", type=Path)
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
-    for path in (args.core_jar, args.platform_api_jar):
+    for path in (args.core_jar, args.platform_api_jar, args.modern_platform_api_jar):
         if not path.is_file():
             print(f"Missing JAR: {path}", file=sys.stderr)
             return 2
@@ -193,6 +215,7 @@ def main() -> int:
         result = analyze_platform_linkage(
             args.core_jar.resolve(),
             args.platform_api_jar.resolve(),
+            args.modern_platform_api_jar.resolve(),
         )
         write_report(result, args.report_dir.resolve())
     except (OSError, zipfile.BadZipFile, ClassFormatError) as error:
