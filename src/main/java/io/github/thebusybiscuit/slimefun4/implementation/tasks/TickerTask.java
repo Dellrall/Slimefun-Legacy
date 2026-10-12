@@ -289,6 +289,7 @@ public class TickerTask implements Runnable {
 
         BlockTicker ticker = item.getBlockTicker();
         boolean owedProfilerEntry = false;
+        AtomicBoolean scheduledTickClaimed = null;
 
         try {
             if (regionOwned) {
@@ -327,7 +328,14 @@ public class TickerTask implements Runnable {
                 }
                 ticker.update();
 
-                Slimefun.getSchedulerService().runAt(location, () -> {
+                // Either the callback or rejected-dispatch cleanup owns this tick, never both.
+                AtomicBoolean claimed = new AtomicBoolean();
+                scheduledTickClaimed = claimed;
+                TaskHandle handle = Slimefun.getSchedulerService().runAt(location, () -> {
+                    if (!claimed.compareAndSet(false, true)) {
+                        return;
+                    }
+
                     try {
                         if (!data.isDataLoaded() || data.isPendingRemove()) {
                             clearFailureState(position);
@@ -357,6 +365,12 @@ public class TickerTask implements Runnable {
                         queuedSynchronousTicks.remove(position);
                     }
                 });
+                if (handle.isCancelled() && claimed.compareAndSet(false, true)) {
+                    queuedSynchronousTicks.remove(position);
+                    if (profilerScheduled) {
+                        Slimefun.getProfiler().cancelScheduledEntry();
+                    }
+                }
                 owedProfilerEntry = false;
             } else {
                 if (isTargetedPaused(position, item.getId())) {
@@ -374,9 +388,11 @@ public class TickerTask implements Runnable {
 
             tickers.add(ticker);
         } catch (Exception | LinkageError throwable) {
-            queuedSynchronousTicks.remove(position);
-            if (owedProfilerEntry) {
-                Slimefun.getProfiler().cancelScheduledEntry();
+            if (scheduledTickClaimed == null || scheduledTickClaimed.compareAndSet(false, true)) {
+                queuedSynchronousTicks.remove(position);
+                if (owedProfilerEntry) {
+                    Slimefun.getProfiler().cancelScheduledEntry();
+                }
             }
             reportErrors(location, item, throwable);
         }
