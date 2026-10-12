@@ -26,19 +26,35 @@ java {
     withSourcesJar()
 }
 
-tasks.register("writeCompatibilityCompileClasspath") {
-    val outputPath = providers.gradleProperty("compatibilityClasspathOutput")
+abstract class WriteCompatibilityCompileClasspath : DefaultTask() {
+    // Absolute paths are the report's contents, so moving an unchanged JAR must
+    // invalidate this task too. Do not normalize paths with @Classpath.
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.ABSOLUTE)
+    abstract val compileClasspath: ConfigurableFileCollection
 
-    doLast {
-        val output = file(outputPath.get())
+    @get:OutputFile
+    abstract val outputFile: RegularFileProperty
+
+    @TaskAction
+    fun writeClasspath() {
+        val output = outputFile.get().asFile
         output.parentFile.mkdirs()
         output.writeText(
-            configurations.compileClasspath.get().files
+            compileClasspath.files
                 .map { it.absolutePath }
                 .sorted()
                 .joinToString(separator = System.lineSeparator(), postfix = System.lineSeparator())
         )
     }
+}
+
+tasks.register<WriteCompatibilityCompileClasspath>("writeCompatibilityCompileClasspath") {
+    compileClasspath.from(configurations.compileClasspath)
+    outputFile.set(layout.projectDirectory.file(
+        providers.gradleProperty("compatibilityClasspathOutput")
+            .orElse("build/compatibility/compile-classpath.txt").get()
+    ))
 }
 
 tasks.compileJava {

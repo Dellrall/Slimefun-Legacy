@@ -12,6 +12,9 @@ on:
       - 'compatibility/**'
       - 'scripts/legacy_1_21_11_runtime_smoke.sh'
       - 'scripts/verify_legacy.py'
+      - 'scripts/check_addon_binary_linkage.py'
+      - 'scripts/check_platform_binary_linkage.py'
+      - 'scripts/verify_platform_binary_linkage_checker.py'
       - '.github/workflows/legacy-1.21.11-compatibility.yml'
   workflow_dispatch:
   schedule:
@@ -147,12 +150,22 @@ jobs:
 
           ./gradlew writeCompatibilityCompileClasspath \
             -PcompatibilityClasspathOutput="$REPORT_DIR/modern-classpath.txt" \
-            --no-daemon
+            --configuration-cache --configuration-cache-problems=fail --no-daemon
+
+          # Exercise the task action after restoring the configuration cache too.
+          ./gradlew writeCompatibilityCompileClasspath \
+            -PcompatibilityClasspathOutput="$REPORT_DIR/modern-classpath.txt" \
+            --configuration-cache --configuration-cache-problems=fail --rerun-tasks --no-daemon
 
           ./gradlew writeCompatibilityCompileClasspath \
             -PpaperApiVersion="${LEGACY_PAPER_API_VERSION}" \
             -PcompatibilityClasspathOutput="$REPORT_DIR/floor-classpath.txt" \
-            --no-daemon
+            --configuration-cache --configuration-cache-problems=fail --no-daemon
+
+          ./gradlew writeCompatibilityCompileClasspath \
+            -PpaperApiVersion="${LEGACY_PAPER_API_VERSION}" \
+            -PcompatibilityClasspathOutput="$REPORT_DIR/floor-classpath.txt" \
+            --configuration-cache --configuration-cache-problems=fail --rerun-tasks --no-daemon
 
           test -s "$REPORT_DIR/modern-classpath.txt"
           test -s "$REPORT_DIR/floor-classpath.txt"
