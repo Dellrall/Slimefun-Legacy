@@ -188,8 +188,15 @@ public class TickerTask implements Runnable {
             }
 
             Location anchor = locations.iterator().next().getLocation();
+            // Cancellation can race a callback that already started on its owning region.
+            // Claim each chunk once so the cycle cannot finish while other regions are still ticking.
+            AtomicBoolean claimed = new AtomicBoolean();
             try {
                 TaskHandle handle = Slimefun.getSchedulerService().runAt(anchor, () -> {
+                    if (!claimed.compareAndSet(false, true)) {
+                        return;
+                    }
+
                     try {
                         tickChunk(entry.getKey(), cycle.tickers, locations, true);
                     } finally {
@@ -197,12 +204,14 @@ public class TickerTask implements Runnable {
                     }
                 });
 
-                if (handle.isCancelled()) {
+                if (handle.isCancelled() && claimed.compareAndSet(false, true)) {
                     cycle.completeChunk();
                 }
             } catch (RuntimeException | LinkageError throwable) {
                 Slimefun.logger().log(Level.SEVERE, "Failed to schedule a Folia-owned machine chunk tick.", throwable);
-                cycle.completeChunk();
+                if (claimed.compareAndSet(false, true)) {
+                    cycle.completeChunk();
+                }
             }
         }
     }
