@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bundle_revision": 132,
+  "bundle_revision": 133,
   "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
@@ -276,7 +276,7 @@
     {
       "repository": "wickidcow/SF_Supreme",
       "slug": "supreme",
-      "source_commit": "ed79026880b127d40d24cfe6b9fcabc2888e9562"
+      "source_commit": "17693b1eec0ef15f198c86a5803f6e5dbd085074"
     },
     {
       "repository": "wickidcow/WorldEditSlimefun",
