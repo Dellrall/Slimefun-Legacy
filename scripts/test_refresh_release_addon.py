@@ -78,6 +78,32 @@ class RefreshReleaseAddonTest(unittest.TestCase):
             self.assertEqual(self.manifest['addons'][1], m['addons'][1])
             self.assertEqual('a' * 40, m['core_source_commit'])
 
+    def test_same_filename_can_replace_exactly_one_changed_addon_without_duplication(self):
+        # Supreme 1.0.20 keeps the same file name after its October fixes.
+        modified = io.BytesIO(self.jar('1.1.7'))
+        with zipfile.ZipFile(modified, 'a') as jar:
+            jar.writestr('fix-marker.txt', 'soulbound and effects')
+        self.addon.write_bytes(modified.getvalue())
+        self.config['new_jar'] = self.old_name
+        self.config['new_version'] = '1.1.7'
+        self.config['new_sha256'] = self.sha(self.addon.read_bytes())
+
+        result = self.run_refresh()
+        self.assertEqual(1, result['unchanged_addons'])
+        self.assertEqual(self.old_name, result['new_jar'])
+        with zipfile.ZipFile(self.output) as archive:
+            self.assertEqual(1, archive.namelist().count(self.old_name))
+            self.assertEqual(modified.getvalue(), archive.read(self.old_name))
+            self.assertEqual(self.members[self.other_name], archive.read(self.other_name))
+            manifest = json.loads(archive.read('SF_ADDON_MANIFEST.json'))
+            self.assertEqual('c' * 40, manifest['addons'][0]['commit'])
+            self.assertEqual(self.config['new_sha256'], manifest['addons'][0]['sha256'])
+
+    def test_same_name_guard_rejects_collision_with_another_addon(self):
+        self.config['new_jar'] = self.other_name
+        with self.assertRaisesRegex(ValueError, 'already bundled'):
+            self.run_refresh()
+
     def test_changed_published_zip_is_rejected_before_output(self):
         self.config['old_bundle_sha256'] = '0' * 64
         with self.assertRaisesRegex(ValueError, 'bundle changed'):
