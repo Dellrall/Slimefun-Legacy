@@ -42,7 +42,11 @@ def refresh(config: dict, matrix: dict, original: Path, addon: Path, output: Pat
     require(len(rows) == 1, "Expected exactly one addon manifest row")
     row = rows[0]
     require(row['jar'] == config['old_jar'] and row['commit'] == config['old_commit'], "Old addon identity changed")
-    require(config['new_jar'] not in members, "New addon is already bundled")
+    # An addon may receive a safety hotfix while keeping the same public version
+    # and canonical filename. Only permit that in-place substitution for the one
+    # explicitly selected old JAR; a collision with any other addon is rejected.
+    require(config['new_jar'] == config['old_jar'] or config['new_jar'] not in members,
+            "New addon is already bundled")
     locked = {r['repository']: r['source_commit'] for r in matrix['addons']}
     expected = {r['repository']: r['commit'] for r in manifest['addons']}
     expected[config['repository']] = config['new_commit']
