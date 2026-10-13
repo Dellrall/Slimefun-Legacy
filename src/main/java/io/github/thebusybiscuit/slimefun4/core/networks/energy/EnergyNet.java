@@ -70,6 +70,8 @@ public class EnergyNet extends Network implements HologramOwner {
 
     private boolean transportStateDirty = true;
     private boolean transportPowered;
+    // Presentation only. A deadline cannot phase-lock against fixed-interval block tickers.
+    private long nextTransportStateRevalidateTick = -1L;
 
     /*
      * Energy regulator labels are presentation-only. Avoid re-entering the hologram service every
@@ -572,9 +574,7 @@ public class EnergyNet extends Network implements HologramOwner {
 
     private void syncNetworkTransportState(boolean powered) {
         long gameTime = regulator.getWorld().getGameTime();
-        boolean periodicRevalidation = Math.floorMod(
-                        gameTime + regulator.hashCode(), TRANSPORT_STATE_REVALIDATE_INTERVAL)
-                == 0;
+        boolean periodicRevalidation = isTransportRefreshDue(gameTime, nextTransportStateRevalidateTick);
 
         if (!transportStateDirty && transportPowered == powered && !periodicRevalidation) {
             return;
@@ -582,6 +582,11 @@ public class EnergyNet extends Network implements HologramOwner {
 
         transportStateDirty = false;
         transportPowered = powered;
+        // Stagger the first revalidation by regulator position; afterward, schedule from the
+        // actual last check. A 20-tick block ticker must never miss every periodic check.
+        nextTransportStateRevalidateTick = gameTime + (nextTransportStateRevalidateTick < 0L
+                ? 1L + Math.floorMod(regulator.hashCode(), TRANSPORT_STATE_REVALIDATE_INTERVAL)
+                : TRANSPORT_STATE_REVALIDATE_INTERVAL);
 
         if (isEnergyLocationAccessible(regulator)) {
             VanillaPowerStateBridge.sync(regulator, powered);
@@ -592,6 +597,12 @@ public class EnergyNet extends Network implements HologramOwner {
                 VanillaPowerStateBridge.sync(loc, powered);
             }
         }
+    }
+
+    static boolean isTransportRefreshDue(long gameTime, long nextRevalidationTick) {
+        return nextRevalidationTick < 0L
+                || gameTime >= nextRevalidationTick
+                || nextRevalidationTick - gameTime > TRANSPORT_STATE_REVALIDATE_INTERVAL;
     }
 
     private boolean isEnergyLocationAccessible(@Nonnull Location location) {
