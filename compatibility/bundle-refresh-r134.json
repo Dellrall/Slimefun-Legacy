@@ -1,0 +1,56 @@
+{
+  "release_tag": "v4.1.73",
+  "core_source_commit": "6c3cd1e561f1231701d6de3256a8e808243c1370",
+  "core_jar": "Slimefun-Legacy4.1.73.jar",
+  "core_sha256": "21a6fed16d673083d09c390ca6dee012802ca003163b27ddf4effba375f20a86",
+  "resource_pack": "SlimefunLegacyRP.zip",
+  "resource_pack_sha256": "1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83",
+  "bundle_name": "SF_Addons_1.21.11-26.3.zip",
+  "published_old_bundle_sha256": "6dc5dfa680a86640ff70558966c1d413940e9f745de75e1911ef07f0e35dcd1e",
+  "expected_addons": 45,
+  "bundle_revision": 134,
+  "replacements": [
+    {
+      "repository": "wickidcow/SF_NetworksExp",
+      "slug": "networksexp",
+      "old_jar": "SF_Networks1.0.52.jar",
+      "old_commit": "e89ab7da8a2d963db3f987a5c4ccb21626f69b1e",
+      "new_jar": "SF_Networks1.0.53.jar",
+      "new_commit": "cda18edd882194607d7fd65b8815afdedad52abc",
+      "new_version": "1.0.53",
+      "new_sha256": "ebf6a5fc082b56626459ba6af36f0938d084b2a42cc0ea71dac8508facb08cd9",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.73",
+      "new_paper_26_3_api": "26.3.build.176-stable",
+      "compatibility_note": "r134 Networks 1.0.53 protects partial-deposit accounting, live Quantum identity, tick/break and manual transfers, and two-JVM saved Quantum recovery, without changing storage IDs."
+    },
+    {
+      "repository": "wickidcow/SF_MagicExpansion",
+      "slug": "magicexpansion",
+      "old_jar": "SF_MagicExpansion1.1.9.jar",
+      "old_commit": "d24e2d1458010ba2082db95e5c6103a267aab406",
+      "new_jar": "SF_MagicExpansion1.1.11.jar",
+      "new_commit": "8fbd796bd139829c1df8aacd24e50497f06bad20",
+      "new_version": "1.1.11",
+      "new_sha256": "cf2d2481d5e965e0eedbfcd1a3432abcc58d9fbd7a4ab475b5a14d8e40e7d9a5",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.61",
+      "new_paper_26_3_api": "26.3-rc-3.build.1-alpha",
+      "compatibility_note": "r134 Magic Expansion 1.1.11 persists Black Market cycles and purchase receipts, protects reward transactions, and disables public rare-fish coordinates unless explicitly enabled."
+    },
+    {
+      "repository": "wickidcow/SF_LuckyBlocks",
+      "slug": "luckyblocks",
+      "old_jar": "SF_LuckyBlocks1.0.4.jar",
+      "old_commit": "02b12f2e9249a548017150302b7c281aac55cf09",
+      "new_jar": "SF_LuckyBlocks1.0.5.jar",
+      "new_commit": "75705ac24dbda146dc8c0557e6aba4c03fab022b",
+      "new_version": "1.0.5",
+      "new_sha256": "fa228deab333047a7f52f5cf21f83711a3e439d226e6a76ccfdb02b241b06341",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "Legacy-SNAPSHOT",
+      "new_paper_26_3_api": "26.3-rc-3.build.1-alpha",
+      "compatibility_note": "r134 Lucky Blocks 1.0.5 adds OP-only /luckygive with inventory safety, tab completion and Folia-aware item delivery while retaining its existing item IDs and gameplay."
+    }
+  ]
+}
