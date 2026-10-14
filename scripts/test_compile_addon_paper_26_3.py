@@ -55,6 +55,13 @@ def test_transient_repository_classification() -> None:
         "Received status code 503 from server: Service Unavailable"
     )
     assert probe.is_transient_repository_failure("HTTP 429 Too Many Requests")
+    # A provider that truncates a Maven API JAR after advertising Content-Length is
+    # an interrupted download, not a compile/linkage error. Retry the exact artifact.
+    assert probe.is_transient_repository_failure(
+        "Could not transfer artifact WildStackerAPI:2023.2: "
+        "Premature end of Content-Length delimited message body "
+        "(expected: 41,270; received: 15,837)"
+    )
     assert not probe.is_transient_repository_failure(
         "COMPILATION ERROR: cannot find symbol SlimefunItem"
     )

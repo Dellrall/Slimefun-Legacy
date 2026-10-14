@@ -223,6 +223,12 @@ jobs:
         run: |
           chmod +x scripts/full_stack_runtime_smoke.sh
           bash scripts/full_stack_runtime_smoke.sh             candidate/Slimefun-Legacy-full-stack.jar             bundle/SF_Addons_1.21.11-26.3.zip             "build/full-stack-${{ matrix.minecraft }}"
+      - name: Probe native Networks + Fluffy Barrel conservation on r135
+        if: matrix.minecraft == '26.3'
+        run: |
+          python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
+            --runtime-dir build/full-stack-26.3 \
+            --bundle bundle/SF_Addons_1.21.11-26.3.zip
       - name: Publish result
         if: always()
         run: |
@@ -246,6 +252,9 @@ jobs:
             build/full-stack-${{ matrix.minecraft }}/expected-addons.txt
             build/full-stack-${{ matrix.minecraft }}/dependency-gated-addons.txt
             build/full-stack-${{ matrix.minecraft }}/smoke-result.txt
+            build/full-stack-${{ matrix.minecraft }}/native-r135-result.json
+            build/full-stack-${{ matrix.minecraft }}/native-r135-compile.log
+            build/full-stack-${{ matrix.minecraft }}/native-r135.console.log
             build/full-stack-${{ matrix.minecraft }}/plugins/worldedit-runtime.json
           if-no-files-found: warn
 
