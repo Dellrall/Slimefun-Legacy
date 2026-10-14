@@ -26,14 +26,17 @@ public final class AddonDoctorService {
     public List<RegisteredServiceProvider<AddonDoctor>> getProviders() {
         List<RegisteredServiceProvider<AddonDoctor>> providers =
                 new ArrayList<>(Bukkit.getServicesManager().getRegistrations(AddonDoctor.class));
-        providers.removeIf(provider ->
-                provider.getPlugin() == null || !provider.getPlugin().isEnabled());
+        providers.removeIf(provider -> !isProviderEnabled(provider));
         // A comparator must not repeatedly invoke mutable third-party code. Resolve each
         // registration once for this listing, retaining the existing safe fallback behavior.
         Map<RegisteredServiceProvider<AddonDoctor>, String> names = new IdentityHashMap<>();
         for (RegisteredServiceProvider<AddonDoctor> provider : providers) {
-            names.put(provider, getProviderName(provider));
+            if (isProviderEnabled(provider)) {
+                names.put(provider, getProviderName(provider));
+            }
         }
+        // A name callback may disable its own plugin or another provider from this snapshot.
+        providers.removeIf(provider -> !names.containsKey(provider) || !isProviderEnabled(provider));
         providers.sort(Comparator.comparing(names::get, String.CASE_INSENSITIVE_ORDER));
         return providers;
     }
@@ -59,11 +62,19 @@ public final class AddonDoctorService {
     public List<AddonDoctorReport> runAll(boolean repair) {
         List<AddonDoctorReport> reports = new ArrayList<>();
         for (RegisteredServiceProvider<AddonDoctor> registration : getProviders()) {
+            // An earlier provider can disable a later provider after the list was captured.
+            if (!isProviderEnabled(registration)) {
+                continue;
+            }
             AddonDoctor provider = registration.getProvider();
             String addonName = getProviderName(registration);
             String pluginName = registration.getPlugin() == null
                     ? "unknown plugin"
                     : registration.getPlugin().getName();
+            // The name callback above is third-party code too; it may disable this plugin.
+            if (!isProviderEnabled(registration)) {
+                continue;
+            }
             try {
                 AddonDoctorReport report = provider.runDoctor(repair);
                 if (report == null) {
@@ -88,5 +99,9 @@ public final class AddonDoctorService {
             }
         }
         return reports;
+    }
+
+    private static boolean isProviderEnabled(@Nonnull RegisteredServiceProvider<AddonDoctor> registration) {
+        return registration.getPlugin() != null && registration.getPlugin().isEnabled();
     }
 }
