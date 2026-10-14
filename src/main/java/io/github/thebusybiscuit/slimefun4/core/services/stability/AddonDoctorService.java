@@ -41,15 +41,21 @@ public final class AddonDoctorService {
         return providers;
     }
 
-    /** Returns a provider name without trusting third-party code to behave during status output. */
+    /** Returns a safe name, using the owning plugin's name when the registration is no longer active. */
     @Nonnull
     public String getProviderName(@Nonnull RegisteredServiceProvider<AddonDoctor> registration) {
         String fallback = registration.getPlugin() == null
                 ? "Unknown addon"
                 : registration.getPlugin().getName();
+        // Status output calls this public helper again after getProviders() returns.
+        // Its captured handle can already be stale, even when the owner remains enabled.
+        if (!isProviderActive(registration)) {
+            return fallback;
+        }
         try {
             String name = registration.getProvider().getAddonName();
-            if (name != null && !name.isBlank()) {
+            // The name callback itself may withdraw, replace or disable its registration.
+            if (name != null && !name.isBlank() && isProviderActive(registration)) {
                 return name.trim();
             }
         } catch (Throwable throwable) {
