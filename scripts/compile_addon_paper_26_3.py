@@ -56,6 +56,8 @@ TRANSIENT_REPOSITORY_FAILURE_MARKERS = (
     "service unavailable",
     "gateway timeout",
     "connection reset",
+    "premature end of content-length delimited message body",
+    "premature end of content-length",
     "read timed out",
     "connection timed out",
     "remote host terminated",
