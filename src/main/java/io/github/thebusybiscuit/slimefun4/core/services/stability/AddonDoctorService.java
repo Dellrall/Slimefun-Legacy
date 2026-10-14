@@ -4,7 +4,9 @@ import io.github.thebusybiscuit.slimefun4.api.diagnostics.AddonDoctor;
 import io.github.thebusybiscuit.slimefun4.api.diagnostics.AddonDoctorReport;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
 import org.bukkit.Bukkit;
@@ -26,7 +28,13 @@ public final class AddonDoctorService {
                 new ArrayList<>(Bukkit.getServicesManager().getRegistrations(AddonDoctor.class));
         providers.removeIf(provider ->
                 provider.getPlugin() == null || !provider.getPlugin().isEnabled());
-        providers.sort(Comparator.comparing(this::getProviderName, String.CASE_INSENSITIVE_ORDER));
+        // A comparator must not repeatedly invoke mutable third-party code. Resolve each
+        // registration once for this listing, retaining the existing safe fallback behavior.
+        Map<RegisteredServiceProvider<AddonDoctor>, String> names = new IdentityHashMap<>();
+        for (RegisteredServiceProvider<AddonDoctor> provider : providers) {
+            names.put(provider, getProviderName(provider));
+        }
+        providers.sort(Comparator.comparing(names::get, String.CASE_INSENSITIVE_ORDER));
         return providers;
     }
 
