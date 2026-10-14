@@ -1,0 +1,12 @@
+name: R135FluffyNetworksProbe
+version: '1.0.0'
+main: audit.R135FluffyNetworksProbe
+api-version: '1.21.11'
+depend: [Slimefun, Networks, FluffyMachines]
+commands:
+  r135probe:
+    description: Disposable native r135 Networks-Fluffy item conservation check
+    permission: r135probe.run
+permissions:
+  r135probe.run:
+    default: op
