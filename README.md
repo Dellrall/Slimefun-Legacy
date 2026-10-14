@@ -22,7 +22,7 @@ Slimefun Legacy turns a normal Minecraft server into a modpack-like experience w
 [Report a Bug](https://github.com/wickidcow/Slimefun-Legacy/issues) ·
 [Release History](EVERYTHING_THAT_CHANGED.md)
 
-Next release candidate: **4.1.73 — Shulker Helmet 1.21.11 ABI Fix & Latest Stable Addons**. The previous published stable release remains **4.1.72**. This candidate preserves the complete Slimefun Legacy feature set, adds the Purpur/Paper 1.21.11 Shulker Helmet potion-event linkage fix, and refreshes seven of the **45 addons** to their latest published stable versions in canonical bundle **revision 130**. See the [4.1.73 readiness notes](docs/release-candidates/addon-bundle-r130.md); only [GitHub Releases](https://github.com/wickidcow/Slimefun-Legacy/releases) identifies published artifacts. ·
+Current published stable release: **4.1.73**, with the 45-addon **r134** ZIP. The next candidate is **4.1.74 — Energy Network Refresh Reliability**, which corrects fixed-phase regulator transport-state revalidation without changing energy transfer or saved worlds. The separately tested Networks 1.0.54 and FluffyMachines 26.2.16 fixes are not yet in the stable addon bundle. See [4.1.74 candidate notes](docs/releases/4.1.74.md); only [GitHub Releases](https://github.com/wickidcow/Slimefun-Legacy/releases) identifies published assets. ·
 [Contributing](CONTRIBUTING.md)
 
 </div>
