@@ -12,7 +12,7 @@ import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordSet;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.ScopeKey;
-import com.xzavier0722.mc.plugin.slimefun4/storage/util/ItemStackDataCodec;
+import com.xzavier0722.mc.plugin.slimefun4.storage.util.ItemStackDataCodec;
 import io.github.thebusybiscuit.slimefun4.api.player.PlayerBackpack;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationTargetException;
