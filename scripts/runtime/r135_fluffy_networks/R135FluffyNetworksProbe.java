@@ -70,7 +70,7 @@ public final class R135FluffyNetworksProbe extends JavaPlugin {
 
     private void runNativeCase() {
         requireVersion("Slimefun", "4.1.74");
-        requireVersion("Networks", "1.0.54");
+        requireVersion("Networks", System.getProperty("albion.probe.networks.version"));
         requireVersion("FluffyMachines", "26.2.16");
 
         World world = Bukkit.getWorlds().getFirst();
@@ -158,7 +158,8 @@ public final class R135FluffyNetworksProbe extends JavaPlugin {
     private void requireVersion(String name, String expected) {
         Plugin plugin = Bukkit.getPluginManager().getPlugin(name);
         check(plugin != null && plugin.isEnabled(), name + " must be enabled in the disposable server");
-        check(expected.equals(plugin.getPluginMeta().getVersion()), name + " version is not " + expected);
+        check(expected != null && expected.equals(plugin.getPluginMeta().getVersion()),
+                name + " version is not " + expected);
     }
 
     private void tick(Barrel barrel, SlimefunItem item, Block block, SlimefunBlockData data) {

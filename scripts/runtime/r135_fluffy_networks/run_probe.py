@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a test-only Networks↔Fluffy integration probe on the disposable r135 Paper 26.3 full-stack directory.
+"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136 Paper 26.3 full-stack data.
 
 The regular full-stack smoke has already booted and shut down cleanly twice.
 This runner adds only a temporary test plugin, starts one more offline local Paper
@@ -21,7 +21,10 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 EXPECTED_VERSIONS = {
     "wickidcow/SF_FluffyMachines": ("SF_FluffyMachines26.2.16.jar", "3d5286877e2307b4b9bc48be886d14d75e6889c6"),
-    "wickidcow/SF_NetworksExp": ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d"),
+}
+NETWORK_VERSIONS = {
+    135: ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d"),
+    136: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
 }
 
 
@@ -33,9 +36,10 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
     with zipfile.ZipFile(bundle) as archive:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
-    if revision != 135:
-        print(f"R135 native test skipped: bundle revision {revision} is not 135", flush=True)
-        return None
+    if revision not in NETWORK_VERSIONS:
+        raise RuntimeError(f"Native conservation test requires r135 or r136; found bundle revision {revision!r}")
+    expected_versions = dict(EXPECTED_VERSIONS)
+    expected_versions["wickidcow/SF_NetworksExp"] = NETWORK_VERSIONS[revision]
 
     workspace = (Path.cwd() / "build").resolve()
     if not work.is_relative_to(workspace) or work.name != "full-stack-26.3":
@@ -49,10 +53,10 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
 
     rows = {row["repository"]: row for row in manifest["addons"]}
     resolved = {}
-    for repo, (filename, commit) in EXPECTED_VERSIONS.items():
+    for repo, (filename, commit) in expected_versions.items():
         row = rows.get(repo)
         if not row or row.get("jar") != filename or row.get("commit") != commit:
-            raise RuntimeError(f"Exact r135 addon source mismatch: {repo}")
+            raise RuntimeError(f"Exact r{revision} addon source mismatch: {repo}")
         binary = work / "plugins" / filename
         if not binary.is_file() or sha256(binary) != row.get("sha256"):
             raise RuntimeError(f"Staged addon JAR digest mismatch: {binary}")
@@ -88,7 +92,7 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
         for item in sorted(classes.rglob("*.class")):
             archive.write(item, item.relative_to(classes).as_posix())
     return {
-        "status": "STARTED", "schema": 1, "bundle_revision": 135,
+        "status": "STARTED", "schema": 1, "bundle_revision": revision,
         "plugin_jar_sha256": sha256(plugin_jar), "tested_addons": resolved,
         "core_jar_sha256": sha256(work / "plugins" / "Slimefun-Legacy-full-stack.jar"),
         "paper_server_sha256": sha256(work / "server.jar"),
@@ -100,7 +104,9 @@ def run(work: Path, java: Path, evidence: dict, timeout: int) -> None:
     result_file = work / "plugins" / "R135FluffyNetworksProbe" / "result.txt"
     if result_file.exists():
         raise RuntimeError("Stale probe evidence is forbidden")
-    command = [str(java), "-Dterminal.jline=false", "-Dterminal.ansi=false",
+    version = "1.0.54" if evidence["bundle_revision"] == 135 else "1.0.55"
+    command = [str(java), f"-Dalbion.probe.networks.version={version}",
+               "-Dterminal.jline=false", "-Dterminal.ansi=false",
                "-Xms768M", "-Xmx3G", "-jar", "server.jar", "--nogui"]
 
     with log_file.open("w", encoding="utf-8") as output:
@@ -162,8 +168,6 @@ def main() -> int:
     if not java.is_file():
         raise RuntimeError("The native r135 test requires a complete JDK 25")
     evidence = prepare(work, args.bundle.resolve(), java)
-    if evidence is None:
-        return 0
     out = work / "native-r135-result.json"
     try:
         run(work, java, evidence, args.timeout)
@@ -181,5 +185,5 @@ if __name__ == "__main__":
     try:
         sys.exit(main())
     except (OSError, ValueError, RuntimeError, zipfile.BadZipFile) as error:
-        print(f"R135 native integration FAILED: {error}", file=sys.stderr)
+        print(f"Native Networks-Fluffy conservation FAILED: {error}", file=sys.stderr)
         sys.exit(1)
