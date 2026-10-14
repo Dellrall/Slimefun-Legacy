@@ -20,8 +20,8 @@ import zipfile
 
 HERE = Path(__file__).resolve().parent
 EXPECTED_VERSIONS = {
-    "wickidcow/SF_FluffyMachines": ("SF_FluffyMachines26.2.16.jar", "5a41cbd4b156c560f6d35cbcffd9b8e22f026c2a"),
-    "wickidcow/SF_NetworksExp": ("SF_Networks1.0.54.jar", "c2e6c6779374ade77d5e2dc07fcc60cc42f788b8"),
+    "wickidcow/SF_FluffyMachines": ("SF_FluffyMachines26.2.16.jar", "3d5286877e2307b4b9bc48be886d14d75e6889c6"),
+    "wickidcow/SF_NetworksExp": ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d"),
 }
 
 
