@@ -1,17 +1,21 @@
 package com.xzavier0722.mc.plugin.slimefun4.storage.controller;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordSet;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.ScopeKey;
-import com.xzavier0722.mc.plugin.slimefun4.storage.util.ItemStackDataCodec;
+import com.xzavier0722.mc.plugin.slimefun4/storage/util/ItemStackDataCodec;
 import io.github.thebusybiscuit.slimefun4.api.player.PlayerBackpack;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -85,10 +89,14 @@ class BackpackMixedFormatLoadTest {
     @AfterEach
     void tearDown() throws Exception {
         try {
-            if (profiles != null) profiles.close();
+            if (profiles != null) {
+                profiles.close();
+            }
         } finally {
             try {
-                if (fixture != null) fixture.close();
+                if (fixture != null) {
+                    fixture.close();
+                }
             } finally {
                 MockBukkit.unmock();
             }
@@ -112,8 +120,12 @@ class BackpackMixedFormatLoadTest {
         for (int read = 0; read < 2; read++) {
             ItemStack[] contents = profiles.readNormally(id);
             assertEquals(9, contents.length);
-            for (int slot = 0; slot < 4; slot++) assertItem(expected, contents[slot]);
-            for (int slot = 4; slot < 9; slot++) assertNull(contents[slot]);
+            for (int slot = 0; slot < 4; slot++) {
+                assertItem(expected, contents[slot]);
+            }
+            for (int slot = 4; slot < 9; slot++) {
+                assertNull(contents[slot]);
+            }
             assertFalse(profiles.getInventoryRecoverySnapshot().hasEntries());
             assertEquals(0, profiles.submittedWrites);
             assertEquals(before, profiles.snapshot(), "Loading must not normalize or rewrite stored rows");
@@ -141,7 +153,9 @@ class BackpackMixedFormatLoadTest {
         assertEquals(before, profiles.snapshot());
 
         assertItem(expected, profiles.readNormally(healthyId)[0]);
-        assertEquals(1, profiles.getInventoryRecoverySnapshot().totalEntries(),
+        assertEquals(
+                1,
+                profiles.getInventoryRecoverySnapshot().totalEntries(),
                 "Loading a different backpack must not clear the original hold");
         assertTrue(profiles.saveBackpackInventoryAsync(unverified).isCompletedExceptionally());
         profiles.reopen();
@@ -153,23 +167,38 @@ class BackpackMixedFormatLoadTest {
         profiles.put(heldId, "8", encoding.valid(expected));
         List<String> restoredRows = profiles.snapshot();
         ItemStack[] recovered = profiles.readNormally(heldId);
-        for (int slot : new int[] {0, 4, 8}) assertItem(expected, recovered[slot]);
+        for (int slot : new int[] {0, 4, 8}) {
+            assertItem(expected, recovered[slot]);
+        }
         assertFalse(profiles.getInventoryRecoverySnapshot().hasEntries());
         assertEquals(restoredRows, profiles.snapshot());
+        assertEquals(0, profiles.submittedWrites, "A successful recovery read must remain read-only");
         PlayerBackpack recoveredBackpack =
                 new PlayerBackpack(server.addPlayer(), heldId, "Recovered backpack", 1, 9, recovered);
-        assertFalse(profiles.saveBackpackInventoryAsync(recoveredBackpack).isCompletedExceptionally());
+        CompletableFuture<Void> saved = profiles.saveBackpackInventoryAsync(recoveredBackpack);
+        assertTrue(saved.isDone(), "The fixture completes every intercepted write submission immediately");
+        assertFalse(saved.isCompletedExceptionally(), "Complete recovery must release the save hold");
+        saved.join();
+        assertTrue(profiles.submittedWrites > 0, "The recovered save must reach the write submission boundary");
+        int writesAfterRecoverySave = profiles.submittedWrites;
         assertItem(expected, profiles.readNormally(healthyId)[0]);
+        assertEquals(writesAfterRecoverySave, profiles.submittedWrites, "Reading another backpack must remain read-only");
         assertEquals(restoredRows, profiles.snapshot());
     }
 
     private static ItemStack existingItem() {
         ItemStack item = StoredInventoryReaderTest.item();
         var meta = item.getItemMeta();
-        meta.getPersistentDataContainer().set(NamespacedKey.fromString("slimefun:b_uuid"),
-                PersistentDataType.STRING, "1f017f3a-8442-4ef2-9fba-456789abcdef");
-        meta.getPersistentDataContainer().set(NamespacedKey.fromString("oldaddon:owner_uuid"),
-                PersistentDataType.STRING, "2f017f3a-8442-4ef2-9fba-456789abcdef");
+        meta.getPersistentDataContainer()
+                .set(
+                        NamespacedKey.fromString("slimefun:b_uuid"),
+                        PersistentDataType.STRING,
+                        "1f017f3a-8442-4ef2-9fba-456789abcdef");
+        meta.getPersistentDataContainer()
+                .set(
+                        NamespacedKey.fromString("oldaddon:owner_uuid"),
+                        PersistentDataType.STRING,
+                        "2f017f3a-8442-4ef2-9fba-456789abcdef");
         item.setItemMeta(meta);
         return item;
     }
@@ -209,10 +238,15 @@ class BackpackMixedFormatLoadTest {
             try (var statement = connection.prepareStatement("INSERT OR REPLACE INTO saved_inventory VALUES (?, ?, ?)")) {
                 statement.setString(1, id.toString());
                 statement.setString(2, slot);
-                if (raw instanceof byte[] bytes) statement.setBytes(3, bytes);
-                else if (raw instanceof String text) statement.setString(3, text);
-                else if (raw == null) statement.setNull(3, Types.BLOB);
-                else throw new IllegalArgumentException("Unexpected fixture representation");
+                if (raw instanceof byte[] bytes) {
+                    statement.setBytes(3, bytes);
+                } else if (raw instanceof String text) {
+                    statement.setString(3, text);
+                } else if (raw == null) {
+                    statement.setNull(3, Types.BLOB);
+                } else {
+                    throw new IllegalArgumentException("Unexpected fixture representation");
+                }
                 statement.executeUpdate();
             }
         }
@@ -223,8 +257,8 @@ class BackpackMixedFormatLoadTest {
                     var rows = statement.executeQuery(
                             "SELECT backpack,slot,typeof(item),hex(item) FROM saved_inventory ORDER BY backpack,slot")) {
                 while (rows.next()) {
-                    result.add(rows.getString(1) + "/" + rows.getString(2) + "/"
-                            + rows.getString(3) + "/" + rows.getString(4));
+                    result.add(rows.getString(1) + "/" + rows.getString(2) + "/" + rows.getString(3) + "/"
+                            + rows.getString(4));
                 }
             }
             return result;
@@ -241,7 +275,9 @@ class BackpackMixedFormatLoadTest {
             try {
                 return (ItemStack[]) method.invoke(this, id.toString(), 9);
             } catch (InvocationTargetException failure) {
-                if (failure.getCause() instanceof RuntimeException runtime) throw runtime;
+                if (failure.getCause() instanceof RuntimeException runtime) {
+                    throw runtime;
+                }
                 throw failure;
             }
         }
@@ -252,7 +288,8 @@ class BackpackMixedFormatLoadTest {
             String id = key.getConditions().stream()
                     .filter(condition -> condition.getFirstValue() == FieldKey.BACKPACK_ID)
                     .map(condition -> condition.getSecondValue())
-                    .findFirst().orElseThrow();
+                    .findFirst()
+                    .orElseThrow();
             var result = new ArrayList<RecordSet>();
             try (var statement = connection.prepareStatement(
                     "SELECT slot,item FROM saved_inventory WHERE backpack=? ORDER BY slot")) {
