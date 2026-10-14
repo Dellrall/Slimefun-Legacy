@@ -1,3 +1,17 @@
+# Slimefun Legacy 4.1.74 — Energy Reliability & Coordinated r135 Addons
+
+**Published October 14, 2026.** [Download Slimefun Legacy 4.1.74](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.74) with one Java-21-bytecode core JAR, the matching 45-addon ZIP and an optional separately verified resource pack. Previous [4.1.73/r134](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.73) remains available for rollback.
+
+- **Energy-network refresh reliability:** replaced fixed-modulo connector visual update timing with per-network deadlines, avoiding a missed update on certain stable regulator tick phases. Generation, routing, charge amounts, recipes, registered IDs and saved formats are unchanged.
+- **Networks 1.0.54:** protects network-deposit source inventory, cursor and menu entries when callbacks change a source after the detached offer. Attempts compensation and records unrecovered items rather than silently overwriting another item. Invalid zero/negative Fluffy Barrel withdrawal requests are rejected.
+- **FluffyMachines 26.2.16:** reduces cosmetic barrel `ItemDisplay` inspection to a 20-world-tick deadline while preserving original item transfer/refill cadence, rich metadata and saved storage. Empty icon caches can expire and externally deleted icons self-heal.
+- **Exactly 45 addons, 43 unchanged:** canonical r135 includes two changed addon source commits compared with r134. No unrelated addon JAR was silently updated.
+- **Release validation:** exact-source 45-addon build and deterministic core output, two clean server boots on Paper 1.21.11/26.2/26.3 and experimental Purpur 26.3; real Paper 26.3 Networks↔Fluffy native test preserved custom PDC metadata and 17+9=12+14 items.
+
+This maintenance release reduces known loss/duping and visual-refresh failure cases, but does not guarantee global transaction atomicity or a measured TPS improvement. To upgrade, **stop and back up** the world, player data and plugin databases, replace duplicate old plugin JARs, start normally (not `/reload`), run `/sf versions` and `/sf doctor status`, check saved storage quantities after restart and retain the matching previous JARs and backup. Source details and server requirements are in [4.1.74 release notes](docs/releases/4.1.74.md).
+
+---
+
 # Slimefun Legacy 4.1.63
 
 This release candidate combines the unreleased 4.1.62 compatibility work with the coordinated existing-item and addon-preservation fixes. The previous published stable baseline remains 4.1.61. Do not treat a candidate version or a passing compile as permission to skip backups and staging-server verification.

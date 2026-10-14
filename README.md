@@ -22,7 +22,7 @@ Slimefun Legacy turns a normal Minecraft server into a modpack-like experience w
 [Report a Bug](https://github.com/wickidcow/Slimefun-Legacy/issues) ·
 [Release History](EVERYTHING_THAT_CHANGED.md)
 
-Current published stable release: **4.1.73**, with the 45-addon **r134** ZIP. The next candidate is **4.1.74 — Energy Network Refresh Reliability**, which corrects fixed-phase regulator transport-state revalidation without changing energy transfer or saved worlds. The separately tested Networks 1.0.54 and FluffyMachines 26.2.16 fixes are not yet in the stable addon bundle. See [4.1.74 candidate notes](docs/releases/4.1.74.md); only [GitHub Releases](https://github.com/wickidcow/Slimefun-Legacy/releases) identifies published assets. ·
+**Latest stable:** [Slimefun Legacy 4.1.74](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.74) (October 14, 2026), with the full **45-addon r135 ZIP**. Fixes energy-network display refresh starvation and includes **Networks 1.0.54** source-commit protections and **FluffyMachines 26.2.16** barrel display optimization. The other 43 addons and existing stored-item formats are preserved. Keep [4.1.73/r134](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.73) for rollback. See the [4.1.74 release notes](docs/releases/4.1.74.md). ·
 [Contributing](CONTRIBUTING.md)
 
 </div>
@@ -120,7 +120,7 @@ Test representative machines, backpacks, Cargo networks, recipes, protections, a
 
 ### Velocity / proxy support
 
-Slimefun Legacy 4.1.74 candidate builds retain **Velocity modern forwarding** with Paper 26.3 as the primary API/support target. Proxy CI uses a real Minecraft 26.2 client session to verify that the UUID presented through Velocity reaches Bukkit/Slimefun unchanged and that Slimefun research remains attached to the same profile after disconnect/reconnect.
+Slimefun Legacy 4.1.74 retains **Velocity modern forwarding** with Paper 26.3 as the primary API/support target. Proxy CI uses a real Minecraft 26.2 client session to verify that the UUID presented through Velocity reaches Bukkit/Slimefun unchanged and that Slimefun research remains attached to the same profile after disconnect/reconnect.
 
 Use:
 
@@ -182,7 +182,7 @@ Core diagnostics correlate unknown IDs with explicitly registered replacements a
 
 ### Release lifecycle
 
-Slimefun Legacy 4.1.74 uses **published 4.1.73** source `6c3cd1e561f1231701d6de3256a8e808243c1370` as the release-blocking regression baseline. Required addons that work on 4.1.73 but regress against the 4.1.74 candidate block release. Do not substitute newer master builds for that published baseline. The historical 4.1.15 floor stays advisory; runtime addon recognition remains distinct from CI-only repository coverage.
+Slimefun Legacy 4.1.74 uses **published 4.1.73** source `6c3cd1e561f1231701d6de3256a8e808243c1370` as the release-blocking regression baseline. Regression checks against published 4.1.73 blocked the 4.1.74 release if a required addon lost compatibility. Do not substitute newer master builds for that published baseline. The historical 4.1.15 floor stays advisory; runtime addon recognition remains distinct from CI-only repository coverage.
 
 ## 🌐 English-first and recovery
 
@@ -261,7 +261,7 @@ Historical compatibility, core-platform, release, validation, and Enhanced Guide
 | Sponge | ❌ Unsupported |
 | Hybrid servers such as Arclight, Mohist, or Cardboard | ❌ Unsupported and blocked |
 | Fabric / Forge / NeoForge | ❌ Unsupported — this is a server plugin, not a mod |
-Slimefun Legacy 4.1.74 is tested primarily against **Paper 26.3 / Minecraft 26.3 on Java 25** by required release-validation workflows; this is the validation target, not a claim that all candidate checks have passed. It retains Minecraft 1.21.11+ compatibility and Java 21 bytecode. The release-blocking previous-stable baseline is 4.1.73. Purpur 26.3 build 2646 remains an **experimental** runtime target, not proof that AlbionMC's entire plugin stack or its existing world is ready to upgrade. Paper/Purpur 26.2 and Paper/Purpur 1.21.11 compatibility lanes remain. Folia 26.3 is not certified. The `api-version: 1.16` descriptor is deliberately retained for historical Bukkit/addon compatibility; it is not the Minecraft support floor.
+Slimefun Legacy 4.1.74 passed its required release-validation workflows, including the canonical 45-addon build and two-boot full-stack checks on Paper 1.21.11, Paper 26.2, Paper 26.3 and experimental Purpur 26.3. Its primary target is **Paper 26.3 / Minecraft 26.3 on Java 25**. This evidence covers tested startup and item paths, not every third-party plugin or live world. It retains Minecraft 1.21.11+ compatibility and Java 21 bytecode. The release-blocking previous-stable baseline is 4.1.73. Purpur 26.3 build 2646 remains an **experimental** runtime target, not proof that AlbionMC's entire plugin stack or its existing world is ready to upgrade. Paper/Purpur 26.2 and Paper/Purpur 1.21.11 compatibility lanes remain. Folia 26.3 is not certified. The `api-version: 1.16` descriptor is deliberately retained for historical Bukkit/addon compatibility; it is not the Minecraft support floor.
 The machine-readable support contract remains under `compatibility/`. Historical Compatibility Foundation and Paper/Purpur maintenance notes are consolidated in [`EVERYTHING_THAT_CHANGED.md`](EVERYTHING_THAT_CHANGED.md).
 Folia Phase 1 routes machine ticks and entity/location callbacks through their owning schedulers while preserving Paper behavior. Cargo and energy networks intentionally operate only on nodes owned by the regulator's current Folia region; transactional cross-region transfers are not enabled yet. Folia therefore remains experimental.
 **Every installed addon must also be Folia-safe.** The historical Folia Phase 1 safety boundary and staging checklist are preserved in [`EVERYTHING_THAT_CHANGED.md`](EVERYTHING_THAT_CHANGED.md).
