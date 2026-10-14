@@ -223,7 +223,7 @@ jobs:
         run: |
           chmod +x scripts/full_stack_runtime_smoke.sh
           bash scripts/full_stack_runtime_smoke.sh             candidate/Slimefun-Legacy-full-stack.jar             bundle/SF_Addons_1.21.11-26.3.zip             "build/full-stack-${{ matrix.minecraft }}"
-      - name: Probe native Networks + Fluffy Barrel conservation on r135
+      - name: Probe native Networks + Fluffy Barrel conservation on r135/r136
         if: matrix.minecraft == '26.3'
         run: |
           python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
