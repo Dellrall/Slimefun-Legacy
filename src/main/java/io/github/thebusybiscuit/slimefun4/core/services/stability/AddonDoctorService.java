@@ -31,12 +31,12 @@ public final class AddonDoctorService {
         // registration once for this listing, retaining the existing safe fallback behavior.
         Map<RegisteredServiceProvider<AddonDoctor>, String> names = new IdentityHashMap<>();
         for (RegisteredServiceProvider<AddonDoctor> provider : providers) {
-            if (isProviderEnabled(provider)) {
+            if (isProviderActive(provider)) {
                 names.put(provider, getProviderName(provider));
             }
         }
-        // A name callback may disable its own plugin or another provider from this snapshot.
-        providers.removeIf(provider -> !names.containsKey(provider) || !isProviderEnabled(provider));
+        // Name callbacks may disable plugins or withdraw services without disabling their owners.
+        providers.removeIf(provider -> !names.containsKey(provider) || !isProviderActive(provider));
         providers.sort(Comparator.comparing(names::get, String.CASE_INSENSITIVE_ORDER));
         return providers;
     }
@@ -62,8 +62,8 @@ public final class AddonDoctorService {
     public List<AddonDoctorReport> runAll(boolean repair) {
         List<AddonDoctorReport> reports = new ArrayList<>();
         for (RegisteredServiceProvider<AddonDoctor> registration : getProviders()) {
-            // An earlier provider can disable a later provider after the list was captured.
-            if (!isProviderEnabled(registration)) {
+            // An earlier callback may disable a plugin or unregister a captured service.
+            if (!isProviderActive(registration)) {
                 continue;
             }
             AddonDoctor provider = registration.getProvider();
@@ -71,8 +71,8 @@ public final class AddonDoctorService {
             String pluginName = registration.getPlugin() == null
                     ? "unknown plugin"
                     : registration.getPlugin().getName();
-            // The name callback above is third-party code too; it may disable this plugin.
-            if (!isProviderEnabled(registration)) {
+            // Revalidate after the name callback, which may withdraw this registration too.
+            if (!isProviderActive(registration)) {
                 continue;
             }
             try {
@@ -99,6 +99,22 @@ public final class AddonDoctorService {
             }
         }
         return reports;
+    }
+
+    private static boolean isProviderActive(@Nonnull RegisteredServiceProvider<AddonDoctor> registration) {
+        if (!isProviderEnabled(registration)) {
+            return false;
+        }
+        // Bukkit returns a detached list containing the live registration objects. Match the
+        // registration itself, not the provider/name: unregistering and registering the same
+        // implementation again must not revive an entry captured before that lifecycle change.
+        for (RegisteredServiceProvider<AddonDoctor> current :
+                Bukkit.getServicesManager().getRegistrations(AddonDoctor.class)) {
+            if (current == registration) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean isProviderEnabled(@Nonnull RegisteredServiceProvider<AddonDoctor> registration) {
