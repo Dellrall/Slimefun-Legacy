@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136 Paper 26.3 full-stack data.
+"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136/r137 Paper 26.3 full-stack data.
 
 The regular full-stack smoke has already booted and shut down cleanly twice.
 This runner adds only a temporary test plugin, starts one more offline local Paper
@@ -25,6 +25,8 @@ EXPECTED_VERSIONS = {
 NETWORK_VERSIONS = {
     135: ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d"),
     136: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
+    # r137 changes only MagicExpansion; keep the exact r136 storage adapters.
+    137: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
 }
 
 
@@ -36,8 +38,8 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
     with zipfile.ZipFile(bundle) as archive:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
-    if revision not in NETWORK_VERSIONS:
-        raise RuntimeError(f"Native conservation test requires r135 or r136; found bundle revision {revision!r}")
+    if type(revision) is not int or revision not in NETWORK_VERSIONS:
+        raise RuntimeError(f"Native conservation test requires r135, r136 or r137; found bundle revision {revision!r}")
     expected_versions = dict(EXPECTED_VERSIONS)
     expected_versions["wickidcow/SF_NetworksExp"] = NETWORK_VERSIONS[revision]
 
