@@ -2,7 +2,7 @@
 +++ b/src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/adapter/sqlcommon/SqlBackpackInventoryTransactionTest.java
 @@ -9,6 +9,7 @@
  import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.IDataSourceAdapter;
- import com.xzavier0722.mc.plugin.slimefun4/storage/common/BackpackInventoryBatch;
+ import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
  import java.lang.reflect.InvocationTargetException;
 +import java.lang.reflect.InvocationHandler;
  import java.lang.reflect.Proxy;
