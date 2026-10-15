@@ -1,0 +1,93 @@
+name: PR 389 Pristine Source Formatting Review
+
+on:
+  push:
+    branches: ['ci/pr389-pristine-format-review-20261015']
+    paths: ['.github/workflows/pr389-pristine-format-review.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr389-pristine-format-review
+  cancel-in-progress: false
+
+jobs:
+  pristine-format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      REVIEWED_SOURCE: d349ca56963dfb7b3b8fab5844f5e8c139fea568
+    steps:
+      - name: Check out the exact unmodified PR source
+        uses: actions/checkout@v6
+        with:
+          ref: d349ca56963dfb7b3b8fab5844f5e8c139fea568
+          persist-credentials: false
+      - name: Set up the existing Java 25 build toolchain
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Record source identity before checking
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEWED_SOURCE"
+          test -z "$(git status --porcelain --untracked-files=no)"
+          mkdir -p format-review/original format-review/formatted
+          git rev-parse HEAD HEAD^{tree} > format-review/source-identity.txt
+          java -version 2> format-review/java-version.txt
+          git archive --format=tar HEAD | gzip -n > format-review/reviewed-source.tar.gz
+          for name in BackpackProcessProbe BackpackProcessRestartTest; do
+            path="src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/$name.java"
+            cp "$path" "format-review/original/$name.java"
+          done
+          sha256sum format-review/original/*.java > format-review/original-sha256.txt
+      - name: Check formatting without applying changes
+        id: pristine
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew spotlessCheck --no-daemon --no-build-cache --no-configuration-cache --rerun-tasks --console=plain 2>&1 | tee format-review/pristine-check.log
+          git diff --exit-code
+      - name: Record the actual check result
+        if: always()
+        env:
+          CHECK_OUTCOME: ${{ steps.pristine.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p format-review
+          printf '%s\n' "$CHECK_OUTCOME" > format-review/pristine-outcome.txt
+          printf 'Reviewed source: `%s`\n\nUntouched-checkout result: **%s**\n' "$REVIEWED_SOURCE" "$CHECK_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+      - name: Produce a diagnostic formatting patch only after a failed check
+        if: steps.pristine.outcome == 'failure'
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew spotlessApply --no-daemon --no-build-cache --no-configuration-cache --console=plain 2>&1 | tee format-review/format-apply.log
+          git diff --binary > format-review/source-format.patch
+          git diff --stat > format-review/source-format-stat.txt
+          git diff --name-only > format-review/changed-paths.txt
+          for name in BackpackProcessProbe BackpackProcessRestartTest; do
+            path="src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/$name.java"
+            cp "$path" "format-review/formatted/$name.java"
+          done
+          sha256sum format-review/formatted/*.java > format-review/formatted-sha256.txt
+          echo 'The formatter changed only this disposable runner checkout; no commit, merge, tag, release or server mutation was performed.' >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain source and formatting evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: pr389-pristine-format-evidence
+          path: format-review/
+          if-no-files-found: error
+      - name: Require the original untouched-source check to pass
+        if: always()
+        env:
+          CHECK_OUTCOME: ${{ steps.pristine.outcome }}
+        shell: bash
+        run: test "$CHECK_OUTCOME" = success
