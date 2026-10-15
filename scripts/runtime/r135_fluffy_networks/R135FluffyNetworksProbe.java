@@ -69,7 +69,7 @@ public final class R135FluffyNetworksProbe extends JavaPlugin {
     }
 
     private void runNativeCase() {
-        requireVersion("Slimefun", "4.1.74");
+        requireVersion("Slimefun", System.getProperty("albion.probe.slimefun.version"));
         requireVersion("Networks", System.getProperty("albion.probe.networks.version"));
         requireVersion("FluffyMachines", "26.2.16");
 

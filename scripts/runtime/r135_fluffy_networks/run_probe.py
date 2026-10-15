@@ -12,6 +12,7 @@ import argparse
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -34,6 +35,16 @@ def sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def expected_core_version(properties: Path) -> str:
+    """Read the expected version from the checked-out source, never the running plugin."""
+    values = [line.partition("=")[2].strip()
+              for line in properties.read_text(encoding="utf-8").splitlines()
+              if line.partition("=")[0].strip() == "projectVersion"]
+    if len(values) != 1 or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", values[0]) is None:
+        raise RuntimeError("Native conservation test requires one valid projectVersion in gradle.properties")
+    return values[0]
+
+
 def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
     with zipfile.ZipFile(bundle) as archive:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
@@ -52,6 +63,8 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
         raise RuntimeError("Full-stack baseline did not pass before the native interoperability probe")
     if not (work / "eula.txt").is_file() or not (work / "server.properties").is_file():
         raise RuntimeError("Disposable test server fixture is incomplete")
+
+    core_version = expected_core_version(Path.cwd() / "gradle.properties")
 
     rows = {row["repository"]: row for row in manifest["addons"]}
     resolved = {}
@@ -95,6 +108,7 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
             archive.write(item, item.relative_to(classes).as_posix())
     return {
         "status": "STARTED", "schema": 1, "bundle_revision": revision,
+        "expected_core_version": core_version,
         "plugin_jar_sha256": sha256(plugin_jar), "tested_addons": resolved,
         "core_jar_sha256": sha256(work / "plugins" / "Slimefun-Legacy-full-stack.jar"),
         "paper_server_sha256": sha256(work / "server.jar"),
@@ -107,7 +121,11 @@ def run(work: Path, java: Path, evidence: dict, timeout: int) -> None:
     if result_file.exists():
         raise RuntimeError("Stale probe evidence is forbidden")
     version = "1.0.54" if evidence["bundle_revision"] == 135 else "1.0.55"
-    command = [str(java), f"-Dalbion.probe.networks.version={version}",
+    core_version = evidence.get("expected_core_version")
+    if not isinstance(core_version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", core_version) is None:
+        raise RuntimeError("Native conservation test is missing a valid expected core version")
+    command = [str(java), f"-Dalbion.probe.slimefun.version={core_version}",
+               f"-Dalbion.probe.networks.version={version}",
                "-Dterminal.jline=false", "-Dterminal.ansi=false",
                "-Xms768M", "-Xmx3G", "-jar", "server.jar", "--nogui"]
 
