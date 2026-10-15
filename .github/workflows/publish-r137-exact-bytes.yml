@@ -1,0 +1,216 @@
+name: Publish verified r137 addon ZIP bytes
+on:
+  push:
+    branches: [publish/r137-exact-bytes]
+    paths: [.github/workflows/publish-r137-exact-bytes.yml]
+permissions:
+  contents: write
+  actions: read
+concurrency:
+  group: slimefun-addon-release-v4.1.74
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'wickidcow/Slimefun-Legacy' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Verify frozen gate and baseline, then publish only r137
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, io, json, os, pathlib, subprocess, zipfile
+          REPO = 'wickidcow/Slimefun-Legacy'
+          MAGIC = 'wickidcow/SF_MagicExpansion'
+          HEAD = '5c1287a2842d074f776cbdaceb83513c7d12b3a2'
+          MSOURCE = '13924991a1960daa40fe221cab5a4eef95d46ecb'
+          CORE_SOURCE = '4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a'
+          SHA = '534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d'
+          MSHA = '674aeac4dbf5ce09969131dbfdbadd1e037eebfed74588f98f135902ab81adde'
+          OLD_SHA = '79b9cb70a522a9ed97de3d9107d4750a913c4372043e5ee8cfeca0a1f85afc9f'
+          CORE_SHA = '72a524d7c0d6f75a9decbf06679515887273ae53673d3f5ee38f355bef952c96'
+          RP_SHA = '1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83'
+          CANONICAL = 'SF_Addons_1.21.11-26.3.zip'
+          STAGED = 'SF_Addons_r137_1.21.11-26.3.zip'
+          BACKUP = 'SF_Addons_r136_1.21.11-26.3.zip'
+          RELEASE = 412654205
+          OLD_ASSET = 641318435
+          def gh(*args, data=None):
+              return subprocess.run(['gh', *args], input=data, stdout=subprocess.PIPE,
+                                    stderr=subprocess.PIPE, check=True, timeout=240).stdout
+          def api(path, method='GET', payload=None):
+              args = ['api', '--method', method, path]
+              data = None
+              if payload is not None:
+                  args += ['--input', '-']; data = json.dumps(payload).encode()
+              out = gh(*args, data=data)
+              return json.loads(out) if out else None
+          def digest(data):
+              return hashlib.sha256(data).hexdigest()
+          def download_asset(repo, asset):
+              data = gh('api', f"repos/{repo}/releases/assets/{asset['id']}", '-H', 'Accept: application/octet-stream')
+              assert 'sha256:' + digest(data) == asset['digest']
+              return data
+          def artifact(aid, sha):
+              meta = api(f'repos/{REPO}/actions/artifacts/{aid}')
+              assert not meta['expired'] and meta['workflow_run']['id'] == 38665734646
+              assert meta['workflow_run']['head_sha'] == HEAD and meta['digest'] == 'sha256:' + sha
+              data = gh('api', f'repos/{REPO}/actions/artifacts/{aid}/zip')
+              assert digest(data) == sha
+              return zipfile.ZipFile(io.BytesIO(data))
+          def lease():
+              r = api(f'repos/{REPO}/releases/{RELEASE}')
+              assert r['id'] == RELEASE and r['tag_name'] == 'v4.1.74' and r['target_commitish'] == CORE_SOURCE
+              assert not r['draft'] and not r['prerelease']
+              assert api(f'repos/{REPO}/releases/latest')['id'] == RELEASE, 'A newer release exists'
+              assets = {a['name']: a for a in r['assets']}
+              assert len(assets) == len(r['assets'])
+              assert set(assets) <= {CANONICAL, STAGED, BACKUP, 'Slimefun-Legacy4.1.74.jar', 'SlimefunLegacyRP.zip'}
+              for name, aid, sha in [('Slimefun-Legacy4.1.74.jar', 640213945, CORE_SHA), ('SlimefunLegacyRP.zip', 640213951, RP_SHA)]:
+                  assert assets[name]['id'] == aid and assets[name]['digest'] == 'sha256:' + sha
+              old = [a for a in r['assets'] if a['id'] == OLD_ASSET]
+              assert len(old) == 1 and old[0]['name'] in (CANONICAL, BACKUP)
+              assert old[0]['digest'] == 'sha256:' + OLD_SHA
+              other = [a for a in r['assets'] if a['name'] in (CANONICAL, STAGED, BACKUP) and a['id'] != OLD_ASSET]
+              assert len(other) <= 1
+              if other:
+                  assert other[0]['name'] in (CANONICAL, STAGED) and other[0]['digest'] == 'sha256:' + SHA
+              return r, assets, old[0], other[0] if other else None
+          assert os.environ['GITHUB_REPOSITORY'] == REPO
+          assert os.environ['GITHUB_REF'] == 'refs/heads/publish/r137-exact-bytes'
+          pr = api(f'repos/{REPO}/pulls/386')
+          assert pr['merged'] and pr['head']['sha'] == HEAD
+          run = api(f'repos/{REPO}/actions/runs/38665734646')
+          assert run['head_sha'] == HEAD and run['status'] == 'completed' and run['conclusion'] == 'success'
+          jobs = api(f'repos/{REPO}/actions/runs/38665734646/jobs?per_page=100')
+          assert jobs['total_count'] == 6 and len(jobs['jobs']) == 6
+          assert all(j['conclusion'] == 'success' for j in jobs['jobs'])
+          native = [j for j in jobs['jobs'] if j['name'].startswith('Published-core r137 on ')]
+          assert len(native) == 4
+          for job in native:
+              steps = {s['name']: s['conclusion'] for s in job['steps']}
+              assert steps['Boot the frozen release candidate twice'] == 'success'
+              assert steps['Verify native Black Market receipts across four JVMs'] == 'success'
+              if job['name'] == 'Published-core r137 on paper 26.3':
+                  assert steps['Verify native Networks and Fluffy conservation'] == 'success'
+          mr = api(f'repos/{MAGIC}/releases/tags/v1.1.13')
+          assert not mr['draft'] and not mr['prerelease'] and mr['target_commitish'] == MSOURCE
+          assert len(mr['assets']) == 1 and mr['assets'][0]['name'] == 'SF_MagicExpansion1.1.13.jar'
+          assert mr['assets'][0]['digest'] == 'sha256:' + MSHA
+          magic_bytes = download_asset(MAGIC, mr['assets'][0])
+          with artifact(11940379439, '8ed2d9b1a48b6eba61be51bff465c2619702cad2a3eabc7c84c5f9d79d3b64f1') as z:
+              assert set(z.namelist()) == {CANONICAL, 'SF_MagicExpansion1.1.13.jar', 'Slimefun-Legacy-full-stack.jar', 'release-readiness.json'}
+              bundle = z.read(CANONICAL)
+              assert digest(bundle) == SHA and z.read('SF_MagicExpansion1.1.13.jar') == magic_bytes
+              assert digest(z.read('Slimefun-Legacy-full-stack.jar')) == CORE_SHA
+          with artifact(11940948133, 'ae1d7294828a757473d4e99c93c236c38b14dd13585bbd26b2559c308f141299') as z:
+              evidence = json.loads(z.read('release-ready.json'))
+          assert evidence['gate'] == 'PASS' and str(evidence['run_id']) == '38665734646'
+          c = evidence['candidate']
+          assert c['bundle_sha256'] == SHA and c['new_jar_sha256'] == MSHA and c['published_core_sha256'] == CORE_SHA
+          assert c['bundle_revision'] == 137 and c['unchanged_addons'] == 44 and c['addon_count'] == 45
+          assert c['source_tests'] == {'tests': 146, 'failures': 0, 'errors': 0, 'skipped': 0, 'suites': 14, 'black_market_tests': 40}
+          assert set(evidence['runtime_lanes']) == {'1.21.11', '26.2', '26.3', 'purpur-26.3'}
+          initial, assets, old_asset, staged = lease()
+          old_bytes = download_asset(REPO, old_asset)
+          assert digest(old_bytes) == OLD_SHA
+          with zipfile.ZipFile(io.BytesIO(bundle)) as new, zipfile.ZipFile(io.BytesIO(old_bytes)) as old:
+              assert new.testzip() is None and old.testzip() is None
+              assert len(new.namelist()) == len(set(new.namelist())) == 48
+              nm = json.loads(new.read('SF_ADDON_MANIFEST.json'))
+              om = json.loads(old.read('SF_ADDON_MANIFEST.json'))
+              assert nm['bundle_revision'] == 137 and om['bundle_revision'] == 136
+              assert nm['core_source_commit'] == om['core_source_commit'] == CORE_SOURCE
+              assert len(nm['addons']) == len(om['addons']) == 45
+              newmap = {a['repository']: a for a in nm['addons']}
+              oldmap = {a['repository']: a for a in om['addons']}
+              assert set(newmap) == set(oldmap) and len(newmap) == 45
+              unchanged = 0
+              for repo, entry in newmap.items():
+                  data = new.read(entry['jar'])
+                  assert digest(data) == entry['sha256']
+                  if repo == MAGIC:
+                      assert entry['commit'] == MSOURCE and entry['version'] == '1.1.13' and data == magic_bytes
+                  else:
+                      assert entry == oldmap[repo] and data == old.read(oldmap[repo]['jar'])
+                      unchanged += 1
+              assert unchanged == 44
+              sums = dict(line.split(None, 1)[::-1] for line in new.read('SHA256SUMS.txt').decode().splitlines())
+              assert len(sums) == 45
+              assert {n for n in new.namelist() if n.endswith('.jar')} == set(sums)
+              for name, sha in sums.items():
+                  assert digest(new.read(name)) == sha
+              for lane in evidence['runtime_lanes'].values():
+                  assert lane['result'] == 'PASS' and lane['bundle_sha256'] == SHA and lane['core_sha256'] == CORE_SHA
+                  assert len(lane['phases']) == 4 and len({p['pid'] for p in lane['phases']}) == 4
+                  assert all(p['result'] == 'PASS' and p['exit_code'] == 0 and p['assertions'] > 0 for p in lane['phases'])
+                  assert 'Dependency-gated addons: 0' in lane['runtime_build']
+                  assert set(lane['tested_addons']) == set(newmap)
+                  for repo, tested in lane['tested_addons'].items():
+                      assert tested == {k: newmap[repo][k] for k in ('jar', 'commit', 'sha256')}
+          print('Pre-publication PASS: exact artifacts, 146 tests, 16 phases, 44 unchanged JARs, release asset lease')
+          pathlib.Path(STAGED).write_bytes(bundle)
+          current, assets, old_asset, staged = lease()
+          assert current['body'] == initial['body'], 'Concurrent release-note update'
+          if staged is None:
+              upload = f'https://uploads.github.com/repos/{REPO}/releases/{RELEASE}/assets?name={STAGED}'
+              gh('api', '--method', 'POST', upload, '-H', 'Content-Type: application/zip', '--input', STAGED)
+          current, assets, old_asset, staged = lease()
+          assert staged is not None and digest(download_asset(REPO, staged)) == SHA
+          assert current['body'] == initial['body'], 'Concurrent release-note update'
+          if staged['name'] != CANONICAL:
+              if old_asset['name'] == CANONICAL:
+                  api(f'repos/{REPO}/releases/assets/{OLD_ASSET}', 'PATCH', {'name': BACKUP, 'label': 'Previous verified r136 bundle (rollback backup)'})
+              current, assets, old_asset, staged = lease()
+              assert old_asset['name'] == BACKUP and CANONICAL not in assets
+              try:
+                  api(f"repos/{REPO}/releases/assets/{staged['id']}", 'PATCH', {'name': CANONICAL, 'label': 'r137 — MagicExpansion 1.1.13; 44 other JARs unchanged'})
+              except Exception:
+                  current, assets, old_asset, staged = lease()
+                  if CANONICAL not in assets and old_asset['name'] == BACKUP:
+                      api(f'repos/{REPO}/releases/assets/{OLD_ASSET}', 'PATCH', {'name': CANONICAL, 'label': ''})
+                  raise
+          current, assets, old_asset, staged = lease()
+          assert assets[CANONICAL]['digest'] == 'sha256:' + SHA and old_asset['name'] == BACKUP
+          assert digest(download_asset(REPO, assets[CANONICAL])) == SHA
+          marker = '<!-- verified-r137-534768b57854fdc2 -->'
+          header = f'''{marker}
+          ## Addon ZIP refresh r137 — MagicExpansion 1.1.13
+          
+          The canonical `SF_Addons_1.21.11-26.3.zip` is now **revision 137**. Only MagicExpansion changes (1.1.12 to **1.1.13**); all **44 other JARs are byte-identical to r136**, including **Networks 1.0.55**. The published Slimefun **4.1.74 core and resource pack are unchanged**. The previous r136 ZIP is retained under `{BACKUP}` for rollback.
+          
+          MagicExpansion now preserves purchase history on unsafe missing/unreadable-cycle restarts, invalidates stale authorization after failed initialization and rejects stale refresh requests. Purchase limits, four-hour rotation, costs/rewards, IDs, metadata and save-before-reward protection remain intact. **This is not an automatic repair or unlock of an existing cycle.yml mismatch. Preserve the complete Black Market folder and receipts.**
+          
+          **Verified:** 146 tests across 14 suites (40 Black Market tests), zero failures/errors/skips; all 15 integration workflows; exact published-core two-boot and 16 Black Market JVM phases across Paper 1.21.11/26.2/26.3 and experimental Purpur 26.3; native Networks/Fluffy conservation on Paper 26.3. These synthetic tests do not certify every client interaction or power-loss scenario.
+          
+          - MagicExpansion release: https://github.com/{MAGIC}/releases/tag/v1.1.13
+          - Final exact-byte gate: https://github.com/{REPO}/actions/runs/38665734646
+          - Merged integration: https://github.com/{REPO}/pull/386
+          - r137 ZIP SHA-256: `{SHA}`
+          - MagicExpansion JAR SHA-256: `{MSHA}`
+          
+          Stop and back up before replacing JARs, remove the old MagicExpansion JAR rather than loading both versions, and start normally (not /reload). Only install addons already used by your server. Run `/magicexpansion blackmarket status`; do not delete purchase history to suppress a lock. No Albion server files were changed by publication.
+          
+          ---
+          
+          '''
+          if marker not in current['body']:
+              assert current['body'] == initial['body'], 'Concurrent release-note update'
+              api(f'repos/{REPO}/releases/{RELEASE}', 'PATCH', {'body': header + current['body']})
+          else:
+              assert current['body'].startswith(header), 'Conflicting r137 release notes'
+          final, assets, old_asset, staged = lease()
+          assert final['body'].startswith(header) and assets[CANONICAL]['digest'] == 'sha256:' + SHA
+          for name, sha in [(CANONICAL, SHA), (BACKUP, OLD_SHA), ('Slimefun-Legacy4.1.74.jar', CORE_SHA), ('SlimefunLegacyRP.zip', RP_SHA)]:
+              assert digest(download_asset(REPO, assets[name])) == sha
+          result = {'publication': 'PUBLISHED', 'release': final['html_url'], 'bundle_revision': 137,
+                    'bundle_sha256': SHA, 'asset_id': assets[CANONICAL]['id'], 'magic_sha256': MSHA,
+                    'unchanged_addons': 44, 'core_unchanged': True, 'resource_pack_unchanged': True,
+                    'rollback_r136_asset_id': OLD_ASSET, 'production_deployment': False}
+          print(json.dumps(result, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as f:
+              f.write('## r137 publication verified\n\n```json\n' + json.dumps(result, indent=2) + '\n```\n')
+          PY
