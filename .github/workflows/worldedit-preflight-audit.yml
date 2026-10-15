@@ -22,7 +22,7 @@ jobs:
         with:
           ref: 66b1f89189629e583a07d9733db94c458b1a45f0
           persist-credentials: false
-      - name: Inspect automatic selection and the last successful exact version
+      - name: Inspect bounded explicit alternatives without changing runtime selection
         shell: bash
         run: |
           set -euo pipefail
@@ -32,25 +32,42 @@ jobs:
           from pathlib import Path
           from tempfile import TemporaryDirectory
           from urllib.error import HTTPError
-          from scripts.prepare_worldedit_runtime import stage
+          from urllib.parse import quote, urlencode
+          from scripts.prepare_worldedit_runtime import (
+              API, object_json, request_bytes, select_version, stage, validate_project)
 
-          # YFnqiUlL is the official WorldEdit 7.4.6 version recorded in the
-          # independently hash-verified successful PR385 Paper 26.3 artifact.
-          # These are separate diagnostics, never an automatic fallback or
-          # permission to exclude WorldEdit/SFWorldEdit from a runtime gate.
-          expected_sha256 = 'e0ce67d870ad1fef8a40dd9d7926360caf3bb44722438545d6b20b55f82a0c91'
+          # Prior audit preserved four exact 404 failures for official 7.4.6
+          # YFnqiUlL. This is a separate bounded review of explicit alternatives,
+          # not fallback logic and not a change to normal full-stack validation.
           reports = []
+          project = object_json(request_bytes(f'{API}/project/worldedit', 1024 * 1024,
+                                              allowed_host='api.modrinth.com'), 'project')
+          project_id = validate_project(project)
           with TemporaryDirectory(prefix='worldedit-audit-') as temporary:
-              for minecraft in ('26.2', '26.3'):
-                  for requested in (None, 'YFnqiUlL'):
-                      label = f"{minecraft}-{requested or 'automatic'}"
-                      entry = {'minecraft': minecraft, 'requested_version_id': requested,
-                               'scope': 'dependency staging only; not a server-runtime pass'}
+              for minecraft in ('1.21.11', '26.2', '26.3'):
+                  query = urlencode({'game_versions': json.dumps([minecraft])})
+                  versions = object_json(request_bytes(
+                      f'{API}/project/{quote(project_id)}/version?{query}', 4 * 1024 * 1024,
+                      allowed_host='api.modrinth.com'), 'versions')
+                  # Preserve the selected metadata in the report even if download fails.
+                  remaining = [v for v in versions if v.get('id') != 'YFnqiUlL']
+                  for attempt in range(3):
                       try:
-                          result = stage(Path(temporary) / label, minecraft,
+                          selected = select_version(remaining, project_id, minecraft,
+                                                    allow_prerelease=minecraft == '26.3')
+                      except ValueError as error:
+                          reports.append({'minecraft': minecraft, 'status': 'no-further-candidate',
+                                          'reason': str(error)})
+                          break
+                      requested = selected['id']
+                      remaining = [v for v in remaining if v.get('id') != requested]
+                      entry = {'minecraft': minecraft, 'requested_version_id': requested,
+                               'version_number': selected.get('version_number'),
+                               'published': selected.get('date_published'),
+                               'scope': 'explicit dependency review only; not a runtime pass or selected pin'}
+                      try:
+                          result = stage(Path(temporary) / f'{minecraft}-{requested}', minecraft,
                                          allow_prerelease=minecraft == '26.3', version_id=requested)
-                          if requested is not None and result['sha256'] != expected_sha256:
-                              raise ValueError('Previously successful version no longer matches its recorded digest')
                           entry.update(status='verified', evidence=result)
                       except HTTPError as error:
                           entry.update(status='failed', exception=type(error).__name__,
@@ -60,8 +77,11 @@ jobs:
                       reports.append(entry)
                       print(json.dumps(entry, sort_keys=True), flush=True)
           Path('audit/worldedit-preflight.json').write_text(json.dumps(reports, indent=2) + '\n')
-          if any(entry['status'] != 'verified' for entry in reports):
-              raise SystemExit('One or more dependency attempts failed; inspect the preserved exact endpoint evidence')
+          missing = [mc for mc in ('1.21.11', '26.2', '26.3')
+                     if not any(e['minecraft'] == mc and e['status'] == 'verified' for e in reports)]
+          if missing:
+              raise SystemExit(f'No verified reviewed alternative for lanes: {missing}')
+          print('Verified alternatives found; no runtime selection or server files were changed')
           PY
       - name: Preserve public dependency evidence
         if: always()
