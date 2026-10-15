@@ -1,0 +1,93 @@
+name: Backpack Slot Move Interruption Diagnostic
+
+on:
+  push:
+    branches: ['diagnostic/backpack-slot-move-interruption-20261015']
+    paths:
+      - '.github/workflows/backpack-slot-move-diagnostic.yml'
+      - 'scripts/diagnose_backpack_slot_moves.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backpack-slot-move-interruption-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  conserve-moved-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      REVIEWED_SOURCE: 5a9d83f42f6dffc65958f09ffab6a4c4247afd3d
+    steps:
+      - name: Check out the isolated diagnostic helper
+        uses: actions/checkout@v6
+        with:
+          path: diagnostic
+          persist-credentials: false
+      - name: Check out the exact reviewed core source separately
+        uses: actions/checkout@v6
+        with:
+          ref: 5a9d83f42f6dffc65958f09ffab6a4c4247afd3d
+          path: source
+          persist-credentials: false
+      - name: Set up the existing Java 25 test toolchain
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Generate disposable tests while preserving original source
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$REVIEWED_SOURCE"
+          test -z "$(git status --porcelain)"
+          mkdir -p diagnostic-evidence/generated
+          git rev-parse HEAD HEAD^{tree} > diagnostic-evidence/source-identity.txt
+          java -version 2> diagnostic-evidence/java-version.txt
+          cp ../diagnostic/scripts/diagnose_backpack_slot_moves.py diagnostic-evidence/
+          python3 ../diagnostic/scripts/diagnose_backpack_slot_moves.py
+          for name in BackpackMoveCrashProbe BackpackMoveCrashTest; do
+            cp "src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/$name.java" diagnostic-evidence/generated/
+          done
+          sha256sum diagnostic-evidence/generated/*.java > diagnostic-evidence/generated-sha256.txt
+          git diff --exit-code
+      - name: Test conservation across five distinct process boundaries
+        id: conservation
+        continue-on-error: true
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew test --tests 'com.xzavier0722.mc.plugin.slimefun4.storage.controller.BackpackMoveCrashTest' --no-daemon --no-build-cache --no-configuration-cache --console=plain 2>&1 | tee diagnostic-evidence/gradle-test.log
+      - name: Record the actual result without converting failures to success
+        if: always()
+        working-directory: source
+        env:
+          TEST_OUTCOME: ${{ steps.conservation.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic-evidence
+          printf '%s\n' "$TEST_OUTCOME" > diagnostic-evidence/test-outcome.txt
+          git diff --exit-code
+          printf 'Exact reviewed core: `%s`\n\nDesired multi-slot conservation result: **%s**\n\nThese are separate-JVM, disposable SQLite/MockBukkit diagnostics with controlled interleavings, not live-server or hardware-power-loss tests. Original core source and existing tests were not modified. No release, merge, addon pin, Folia 26.3 platform or server mutation occurs. A failure must be investigated, not weakened into acceptance of duplication or loss.\n' "$REVIEWED_SOURCE" "$TEST_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain generated fixtures, child output and actual XML results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: backpack-slot-move-diagnostic-evidence
+          path: |
+            source/diagnostic-evidence/
+            source/build/test-results/test/TEST-*.xml
+            source/build/reports/tests/test/
+          if-no-files-found: error
+      - name: Preserve a failed desired invariant as a failed run
+        if: always()
+        env:
+          TEST_OUTCOME: ${{ steps.conservation.outcome }}
+        shell: bash
+        run: test "$TEST_OUTCOME" = success
