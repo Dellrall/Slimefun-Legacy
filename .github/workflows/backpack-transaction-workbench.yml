@@ -1,0 +1,32 @@
+name: Backpack Transaction Workbench
+on:
+  push:
+    branches: [diagnostic/backpack-transaction-workbench-20261015]
+    paths: [.github/workflows/backpack-transaction-workbench.yml, .github/diagnostics/backpack-transaction.patch]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: b5db114abe5703a8fb80466724c74e1796feab5a
+          persist-credentials: false
+      - name: Archive exact public sources for isolated issue 390 work
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = b5db114abe5703a8fb80466724c74e1796feab5a
+          mkdir -p evidence
+          git archive --format=zip --output=evidence/source-b5db114.zip HEAD
+          git fetch --depth=1 origin 9c1e277d7e072b9be47f72ef75c517e0c64f8597
+          git archive --format=zip --output=evidence/diagnostic-9c1e277.zip FETCH_HEAD
+          sha256sum evidence/*.zip | tee evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue390-exact-source-workbench
+          path: evidence/
+          retention-days: 7
+          if-no-files-found: error
