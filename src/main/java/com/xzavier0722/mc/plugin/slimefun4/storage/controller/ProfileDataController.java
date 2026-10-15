@@ -875,7 +875,8 @@ public class ProfileDataController extends ADataController {
                     backpackSaveChains.remove(backpackId, next);
                 }
             });
-            return next;
+            // Callers own their observation, never the internal persistence barrier.
+            return next.copy();
         }
     }
 
