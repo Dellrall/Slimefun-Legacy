@@ -8,6 +8,7 @@ import static com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlC
 
 import city.norain.slimefun4.timings.entry.SQLEntry;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.IDataSourceAdapter;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.BlockStorageMigration;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
@@ -52,6 +53,32 @@ public abstract class SqlCommonAdapter<T extends ISqlCommonConfig> implements ID
             // Preserve the same destination identity so a retry can verify the exact result.
             throw new BlockStorageMigration.Failure(
                     "Atomic universal migration could not be confirmed", failure, false);
+        }
+    }
+
+    @Override
+    public void saveBackpackInventory(BackpackInventoryBatch batch) {
+        String prefix = config instanceof SqlCommonConfig common ? common.tablePrefix() : "";
+        var entry =
+                new SQLEntry("Backpack inventory transaction (" + batch.slots().size() + " slots)");
+        Slimefun.getSQLProfiler().recordEntry(entry);
+        try (var connection = ds.getConnection()) {
+            try {
+                SqlBackpackInventoryTransaction.execute(connection, prefix, batch);
+            } catch (SQLException | RuntimeException | Error failure) {
+                // Do not let a failed/uncertain connection return to the pool for another save.
+                try {
+                    ds.evictConnection(connection);
+                } catch (RuntimeException evictionFailure) {
+                    failure.addSuppressed(evictionFailure);
+                }
+                throw failure;
+            }
+        } catch (SQLException failure) {
+            throw new IllegalStateException(
+                    "Atomic backpack save could not be confirmed for " + batch.backpackId(), failure);
+        } finally {
+            Slimefun.getSQLProfiler().finishEntry(entry);
         }
     }
 

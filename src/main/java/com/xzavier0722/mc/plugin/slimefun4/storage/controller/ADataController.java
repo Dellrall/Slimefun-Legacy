@@ -4,8 +4,11 @@ import city.norain.slimefun4.utils.SlimefunPoolExecutor;
 import city.norain.slimefun4.utils.TaskTimer;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.IDataSourceAdapter;
 import com.xzavier0722.mc.plugin.slimefun4.storage.callback.IAsyncReadCallback;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.BlockStorageMigration;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataType;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordSet;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.ScopeKey;
@@ -208,6 +211,13 @@ public abstract class ADataController {
             dataAdapter = null;
             destroyed = true;
         }
+    }
+
+    /** One tracked task retains parent-profile ordering and completes only after the batch commits. */
+    protected CompletableFuture<Void> scheduleBackpackSaveWithCompletion(ScopeKey owner, BackpackInventoryBatch batch) {
+        var key = new RecordKey(DataScope.BACKPACK_INVENTORY);
+        key.addCondition(FieldKey.BACKPACK_ID, batch.backpackId());
+        return scheduleWriteTaskWithCompletion(owner, key, () -> dataAdapter.saveBackpackInventory(batch), false);
     }
 
     protected void scheduleDeleteTask(ScopeKey scopeKey, RecordKey key, boolean forceScopeKey) {

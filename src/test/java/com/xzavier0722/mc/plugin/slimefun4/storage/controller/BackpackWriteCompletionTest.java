@@ -11,6 +11,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.BackpackJdbcProbe;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlUtils;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlite.SqliteAdapter;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlite.SqliteConfig;
@@ -107,8 +108,11 @@ class BackpackWriteCompletionTest {
         original = StoredInventoryReaderTest.item();
         original.setAmount(23);
         var meta = original.getItemMeta();
-        meta.getPersistentDataContainer().set(
-                new NamespacedKey("oldaddon", "opaque_state"), PersistentDataType.STRING, "existing-not-a-template");
+        meta.getPersistentDataContainer()
+                .set(
+                        new NamespacedKey("oldaddon", "opaque_state"),
+                        PersistentDataType.STRING,
+                        "existing-not-a-template");
         original.setItemMeta(meta);
         backpack = seedBackpack();
     }
@@ -161,7 +165,9 @@ class BackpackWriteCompletionTest {
         assertItem(original, reopened.getInventory().getItem(0));
         assertItem(original, reopened.getInventory().getItem(1));
         assertNull(reopened.getInventory().getItem(8));
-        assertTrue(reopened.getSnapshot().getChangedSlots(reopened.getInventory().getContents()).isEmpty());
+        assertTrue(reopened.getSnapshot()
+                .getChangedSlots(reopened.getInventory().getContents())
+                .isEmpty());
     }
 
     @Test
@@ -173,14 +179,18 @@ class BackpackWriteCompletionTest {
         gate.awaitEntered();
         assertFalse(first.isDone());
         assertEquals(1, controller.getPendingBackpackSaveChainCount());
-        assertTrue(backpack.getSnapshot().getChangedSlots(backpack.getInventory().getContents()).contains(0));
+        assertTrue(backpack.getSnapshot()
+                .getChangedSlots(backpack.getInventory().getContents())
+                .contains(0));
         assertSameBytes(before, storedBytes(backpack));
 
         backpack.getInventory().setItem(0, item(11));
         gate.release();
         complete(first);
         assertStored(backpack, Map.of(0, item(7), 8, original));
-        assertTrue(backpack.getSnapshot().getChangedSlots(backpack.getInventory().getContents()).contains(0));
+        assertTrue(backpack.getSnapshot()
+                .getChangedSlots(backpack.getInventory().getContents())
+                .contains(0));
         complete(controller.saveBackpackInventoryAsync(backpack));
         assertStored(backpack, Map.of(0, item(11), 8, original));
     }
@@ -195,7 +205,9 @@ class BackpackWriteCompletionTest {
         mutation.apply(view);
         assertTrue(view.isDone(), "The caller may change its own observation");
         assertEquals(1, controller.getPendingBackpackSaveChainCount(), "The real database chain must remain held");
-        assertTrue(backpack.getSnapshot().getChangedSlots(backpack.getInventory().getContents()).contains(0));
+        assertTrue(backpack.getSnapshot()
+                .getChangedSlots(backpack.getInventory().getContents())
+                .contains(0));
 
         backpack.getInventory().setItem(0, item(11));
         CompletableFuture<Void> second = controller.saveBackpackInventoryAsync(backpack);
@@ -211,14 +223,17 @@ class BackpackWriteCompletionTest {
 
     @ParameterizedTest
     @EnumSource(FailurePoint.class)
-    void partialFailureForcesAllSlotsToRetryWithoutTouchingAnotherBackpack(FailurePoint point) throws Exception {
+    void transactionFailureRollsBackAndRetriesAllSlotsWithoutTouchingAnotherBackpack(FailurePoint point)
+            throws Exception {
         PlayerBackpack healthy = seedBackpack();
         Map<Integer, byte[]> healthyBefore = storedBytes(healthy);
         AtomicBoolean failOnce = new AtomicBoolean(true);
         Consumer<Operation> fault = operation -> {
-            boolean target = operation.backpackId().equals(backpack.getUniqueId().toString())
-                    && (point == FailurePoint.BEFORE_DELETE ? operation.delete() && operation.slot() == 8
-                            : !operation.delete() && operation.slot() == 0);
+            boolean target =
+                    operation.backpackId().equals(backpack.getUniqueId().toString())
+                            && (point == FailurePoint.BEFORE_DELETE
+                                    ? operation.delete() && operation.slot() == 8
+                                    : !operation.delete() && operation.slot() == 0);
             if (target && failOnce.compareAndSet(true, false)) {
                 throw new IllegalStateException("Injected " + point);
             }
@@ -235,9 +250,11 @@ class BackpackWriteCompletionTest {
         awaitIdle();
         assertFalse(failOnce.get());
         assertEquals(1, controller.getUncertainBackpackBaselineCount());
-        assertTrue(backpack.getSnapshot().getChangedSlots(backpack.getInventory().getContents()).contains(0));
-        assertStored(backpack, point == FailurePoint.BEFORE_DELETE
-                ? Map.of(0, item(7), 8, original) : Map.of(0, item(7)));
+        assertTrue(backpack.getSnapshot()
+                .getChangedSlots(backpack.getInventory().getContents())
+                .contains(0));
+        assertStored(backpack, Map.of(0, original, 8, original));
+        // No intermediate statement may escape a failed transaction.
         assertSameBytes(healthyBefore, storedBytes(healthy));
 
         // A different backing UUID still saves while the first baseline is uncertain.
@@ -254,18 +271,25 @@ class BackpackWriteCompletionTest {
         backpack.getInventory().setItem(0, item(11));
         complete(controller.saveBackpackInventoryAsync(backpack));
         assertEquals(54, adapter.attempts.size());
-        assertEquals(IntStream.range(0, 54).boxed().collect(Collectors.toSet()),
+        assertEquals(
+                IntStream.range(0, 54).boxed().collect(Collectors.toSet()),
                 adapter.attempts.stream().map(Operation::slot).collect(Collectors.toSet()));
-        assertTrue(adapter.attempts.stream().allMatch(operation ->
-                operation.backpackId().equals(backpack.getUniqueId().toString())));
-        assertEquals(1, adapter.attempts.stream().filter(operation -> !operation.delete()).count());
+        assertTrue(adapter.attempts.stream()
+                .allMatch(operation ->
+                        operation.backpackId().equals(backpack.getUniqueId().toString())));
+        assertEquals(
+                1,
+                adapter.attempts.stream()
+                        .filter(operation -> !operation.delete())
+                        .count());
         assertStored(backpack, Map.of(0, item(11)));
         assertSameBytes(healthySaved, storedBytes(healthy));
         assertEquals(0, controller.getUncertainBackpackBaselineCount());
         complete(controller.saveBackpackInventoryAsync(backpack));
         assertEquals(54, adapter.attempts.size(), "An unchanged retry must not write a second full inventory");
         controller.shutdown();
-        assertFalse(controller.wasLastShutdownClean(), "A recovered write failure remains visible in shutdown accounting");
+        assertFalse(
+                controller.wasLastShutdownClean(), "A recovered write failure remains visible in shutdown accounting");
         PlayerBackpack reopened = reopenBackpack(backpack);
         assertItem(item(11), reopened.getInventory().getItem(0));
         assertNull(reopened.getInventory().getItem(8));
@@ -275,9 +299,9 @@ class BackpackWriteCompletionTest {
     void queuedNewerStateRepairsAWriteThatCommittedThenReportedFailure() throws Exception {
         Gate gate = blockFirstWrite(backpack);
         AtomicBoolean failOnce = new AtomicBoolean(true);
-        adapter.after = operation -> {
-            if (!operation.delete() && operation.slot() == 0 && failOnce.compareAndSet(true, false)) {
-                throw new IllegalStateException("Injected lost acknowledgement after SQLite write");
+        adapter.jdbc.afterCommit = () -> {
+            if (failOnce.compareAndSet(true, false)) {
+                throw new java.sql.SQLException("Injected lost acknowledgement after real SQLite COMMIT");
             }
         };
         backpack.getInventory().setItem(0, item(7));
@@ -404,7 +428,8 @@ class BackpackWriteCompletionTest {
         gates.add(gate);
         AtomicBoolean first = new AtomicBoolean(true);
         adapter.before = operation -> {
-            if (!operation.delete() && operation.slot() == 0
+            if (!operation.delete()
+                    && operation.slot() == 0
                     && operation.backpackId().equals(target.getUniqueId().toString())
                     && first.compareAndSet(true, false)) {
                 gate.block();
@@ -419,13 +444,15 @@ class BackpackWriteCompletionTest {
     }
 
     private void awaitIdle() {
-        awaitCondition(() -> controller.getPendingBackpackSaveChainCount() == 0
-                && controller.getPendingWriteTaskCount() == 0);
+        awaitCondition(
+                () -> controller.getPendingBackpackSaveChainCount() == 0 && controller.getPendingWriteTaskCount() == 0);
     }
 
     private static void awaitCondition(BooleanSupplier condition) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(WAIT_SECONDS);
-        while (!condition.getAsBoolean() && System.nanoTime() < deadline && !Thread.currentThread().isInterrupted()) {
+        while (!condition.getAsBoolean()
+                && System.nanoTime() < deadline
+                && !Thread.currentThread().isInterrupted()) {
             LockSupport.parkNanos(TimeUnit.MILLISECONDS.toNanos(1));
         }
         assertTrue(condition.getAsBoolean(), "The observed asynchronous state did not settle before the deadline");
@@ -450,7 +477,8 @@ class BackpackWriteCompletionTest {
     private void assertStored(PlayerBackpack target, Map<Integer, ItemStack> expected) throws Exception {
         Map<Integer, byte[]> actual = storedBytes(target);
         assertEquals(expected.keySet(), actual.keySet());
-        expected.forEach((slot, item) -> assertItem(item,
+        expected.forEach((slot, item) -> assertItem(
+                item,
                 StoredInventoryReaderTest.row(Integer.toString(slot), actual.get(slot))
                         .getItemStack(FieldKey.INVENTORY_ITEM)));
     }
@@ -477,11 +505,14 @@ class BackpackWriteCompletionTest {
 
     private static Operation operation(RecordKey key, boolean delete) {
         assertEquals(DataScope.BACKPACK_INVENTORY, key.getScope());
-        Map<FieldKey, String> conditions = key.getConditions().stream().collect(Collectors.toMap(
-                condition -> condition.getFirstValue(), condition -> condition.getSecondValue()));
+        Map<FieldKey, String> conditions = key.getConditions().stream()
+                .collect(Collectors.toMap(
+                        condition -> condition.getFirstValue(), condition -> condition.getSecondValue()));
         assertEquals(2, conditions.size());
-        return new Operation(conditions.get(FieldKey.BACKPACK_ID),
-                Integer.parseInt(conditions.get(FieldKey.INVENTORY_SLOT)), delete);
+        return new Operation(
+                conditions.get(FieldKey.BACKPACK_ID),
+                Integer.parseInt(conditions.get(FieldKey.INVENTORY_SLOT)),
+                delete);
     }
 
     private static final class FaultAdapter extends SqliteAdapter {
@@ -493,22 +524,19 @@ class BackpackWriteCompletionTest {
             super.setData(key, data);
         }
 
-        @Override
-        public void setData(RecordKey key, RecordSet data) {
-            Operation operation = operation(key, false);
-            attempts.add(operation);
-            before.accept(operation);
-            super.setData(key, data);
-            after.accept(operation);
-        }
+        private final BackpackJdbcProbe jdbc = new BackpackJdbcProbe();
 
         @Override
-        public void deleteData(RecordKey key) {
-            Operation operation = operation(key, true);
-            attempts.add(operation);
-            before.accept(operation);
-            super.deleteData(key);
-            after.accept(operation);
+        public void prepare(SqliteConfig config) {
+            super.prepare(config);
+            ds = jdbc.wrapDataSource(ds);
+            jdbc.before = observed -> {
+                var operation = new Operation(observed.backpackId(), observed.slot(), observed.delete());
+                attempts.add(operation);
+                before.accept(operation);
+            };
+            jdbc.after =
+                    observed -> after.accept(new Operation(observed.backpackId(), observed.slot(), observed.delete()));
         }
     }
 
@@ -530,7 +558,9 @@ class BackpackWriteCompletionTest {
                     assertTrue(writeExecutor.awaitTermination(WAIT_SECONDS, TimeUnit.SECONDS));
                 }
             } finally {
-                ((BackpackCache) field(ProfileDataController.class, "backpackCache").get(this)).clean();
+                ((BackpackCache) field(ProfileDataController.class, "backpackCache")
+                                .get(this))
+                        .clean();
             }
         }
     }
