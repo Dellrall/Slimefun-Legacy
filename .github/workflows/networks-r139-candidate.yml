@@ -1,0 +1,132 @@
+name: Networks r139 exact-byte candidate
+
+on:
+  push:
+    branches: [maintenance/networks-r139-20261015]
+    paths:
+      - maintenance/prepare_networks_r139.py
+      - .github/workflows/networks-r139-candidate.yml
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: networks-r139-exact-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prepare:
+    name: Preserve published core and 44 other addons
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Prepare Networks-only candidate without publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 maintenance/prepare_networks_r139.py prepare
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: networks-r139-exact-candidate
+          path: build/networks-r139/
+          retention-days: 14
+          if-no-files-found: error
+
+  runtime:
+    name: Exact published core / ${{ matrix.lane }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {software: paper, minecraft: '1.21.11', java: '21', lane: '1.21.11'}
+          - {software: paper, minecraft: '26.2', java: '25', lane: '26.2'}
+          - {software: paper, minecraft: '26.3', java: '25', lane: '26.3'}
+          - {software: purpur, minecraft: '26.3', java: '25', lane: 'purpur-26.3'}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: networks-r139-exact-candidate
+          path: candidate
+      - name: Admit only the exact Networks r139 selection
+        run: python3 maintenance/prepare_networks_r139.py admit
+      - name: Boot exact published core and candidate twice
+        env:
+          SERVER_SOFTWARE: ${{ matrix.software }}
+          SERVER_MINECRAFT_VERSION: ${{ matrix.minecraft }}
+          PURPUR_SMOKE_BUILD: '2646'
+          SERVER_DOWNLOAD_USER_AGENT: Slimefun-Legacy-Networks-r139/1.0
+        run: |
+          bash scripts/full_stack_runtime_smoke.sh \
+            candidate/Slimefun-Legacy-full-stack.jar \
+            candidate/SF_Addons_1.21.11-26.3.zip \
+            'build/full-stack-${{ matrix.lane }}'
+      - name: Verify actual Networks and Fluffy storage conservation
+        if: matrix.software == 'paper' && matrix.minecraft == '26.3'
+        run: |
+          python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
+            --runtime-dir build/full-stack-26.3 \
+            --bundle candidate/SF_Addons_1.21.11-26.3.zip
+      - name: Verify preserved Black Market receipts across four JVMs
+        run: |
+          python3 scripts/runtime/black_market/run_probe.py \
+            --runtime-dir 'build/full-stack-${{ matrix.lane }}' \
+            --bundle candidate/SF_Addons_1.21.11-26.3.zip \
+            --allow-disposable-writes
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: networks-r139-native-${{ matrix.lane }}
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            build/full-stack-${{ matrix.lane }}/*.console.log
+            build/full-stack-${{ matrix.lane }}/*.normalized.log
+            build/full-stack-${{ matrix.lane }}/runtime-build.txt
+            build/full-stack-${{ matrix.lane }}/smoke-result.txt
+            build/full-stack-${{ matrix.lane }}/black-market-result.json
+            build/full-stack-${{ matrix.lane }}/black-market-compile.log
+            build/full-stack-${{ matrix.lane }}/native-r135-result.json
+            build/full-stack-${{ matrix.lane }}/native-r135-compile.log
+            build/full-stack-${{ matrix.lane }}/plugins/BlackMarketRestartProbe/*.result
+
+  ready:
+    name: Verify exact bytes and all four runtime lanes
+    needs: [prepare, runtime]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: networks-r139-exact-candidate
+          path: candidate
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: networks-r139-native-*
+          path: evidence
+      - name: Verify evidence and release lease without publishing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 maintenance/prepare_networks_r139.py verify
+      - uses: actions/upload-artifact@v7
+        with:
+          name: networks-r139-ready-evidence
+          path: networks-r139-ready.json
+          retention-days: 14
+          if-no-files-found: error
