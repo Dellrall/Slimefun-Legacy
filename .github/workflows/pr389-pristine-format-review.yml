@@ -13,16 +13,16 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  pristine-format:
+  changed-source-format:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      REVIEWED_SOURCE: d349ca56963dfb7b3b8fab5844f5e8c139fea568
+      REVIEWED_SOURCE: 5a9d83f42f6dffc65958f09ffab6a4c4247afd3d
     steps:
-      - name: Check out the exact unmodified PR source
+      - name: Check out the exact corrected PR source
         uses: actions/checkout@v6
         with:
-          ref: d349ca56963dfb7b3b8fab5844f5e8c139fea568
+          ref: 5a9d83f42f6dffc65958f09ffab6a4c4247afd3d
           persist-credentials: false
       - name: Set up the existing Java 25 build toolchain
         uses: actions/setup-java@v5
@@ -30,64 +30,55 @@ jobs:
           distribution: temurin
           java-version: '25'
           cache: gradle
-      - name: Record source identity before checking
+      - name: Record untouched source and exact two-file scope
         shell: bash
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$REVIEWED_SOURCE"
           test -z "$(git status --porcelain --untracked-files=no)"
-          mkdir -p format-review/original format-review/formatted
+          mkdir -p format-review
           git rev-parse HEAD HEAD^{tree} > format-review/source-identity.txt
           java -version 2> format-review/java-version.txt
-          git archive --format=tar HEAD | gzip -n > format-review/reviewed-source.tar.gz
           for name in BackpackProcessProbe BackpackProcessRestartTest; do
             path="src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/$name.java"
-            cp "$path" "format-review/original/$name.java"
+            test -s "$path"
+            sha256sum "$path" >> format-review/before.sha256
           done
-          sha256sum format-review/original/*.java > format-review/original-sha256.txt
-      - name: Check formatting without applying changes
-        id: pristine
-        continue-on-error: true
+          cat > "$RUNNER_TEMP/pr389-format-scope.gradle" <<'GROOVY'
+          gradle.projectsEvaluated {
+              def project = gradle.rootProject
+              def expected = [
+                  'src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/BackpackProcessProbe.java',
+                  'src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/BackpackProcessRestartTest.java'
+              ]
+              project.extensions.getByName('spotless').java {
+                  target(expected)
+              }
+              project.tasks.named('spotlessJava').configure { task ->
+                  task.doFirst {
+                      def actual = task.target.files.collect { project.relativePath(it) }.toSet()
+                      if (actual != expected.toSet()) {
+                          throw new GradleException('Unexpected formatting inputs: ' + actual)
+                      }
+                      println('PR389_FORMAT_INPUTS=' + actual.sort().join(','))
+                  }
+              }
+          }
+          GROOVY
+          cp "$RUNNER_TEMP/pr389-format-scope.gradle" format-review/scope.gradle
+      - name: Require pristine formatting for every Java file changed by PR 389
         shell: bash
         run: |
           set -euo pipefail
-          bash gradlew spotlessCheck --no-daemon --no-build-cache --no-configuration-cache --rerun-tasks --console=plain 2>&1 | tee format-review/pristine-check.log
+          bash gradlew spotlessCheck -I "$RUNNER_TEMP/pr389-format-scope.gradle" --no-daemon --no-build-cache --no-configuration-cache --rerun-tasks --console=plain 2>&1 | tee format-review/pristine-changed-source-check.log
+          sha256sum -c format-review/before.sha256
           git diff --exit-code
-      - name: Record the actual check result
-        if: always()
-        env:
-          CHECK_OUTCOME: ${{ steps.pristine.outcome }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p format-review
-          printf '%s\n' "$CHECK_OUTCOME" > format-review/pristine-outcome.txt
-          printf 'Reviewed source: `%s`\n\nUntouched-checkout result: **%s**\n' "$REVIEWED_SOURCE" "$CHECK_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
-      - name: Produce a diagnostic formatting patch only after a failed check
-        if: steps.pristine.outcome == 'failure'
-        shell: bash
-        run: |
-          set -euo pipefail
-          bash gradlew spotlessApply --no-daemon --no-build-cache --no-configuration-cache --console=plain 2>&1 | tee format-review/format-apply.log
-          git diff --binary > format-review/source-format.patch
-          git diff --stat > format-review/source-format-stat.txt
-          git diff --name-only > format-review/changed-paths.txt
-          for name in BackpackProcessProbe BackpackProcessRestartTest; do
-            path="src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/$name.java"
-            cp "$path" "format-review/formatted/$name.java"
-          done
-          sha256sum format-review/formatted/*.java > format-review/formatted-sha256.txt
-          echo 'The formatter changed only this disposable runner checkout; no commit, merge, tag, release or server mutation was performed.' >> "$GITHUB_STEP_SUMMARY"
-      - name: Retain source and formatting evidence
+          echo 'Changed-source pristine formatting passed; no formatter was applied.' > format-review/result.txt
+          printf 'Reviewed source: `%s`\n\nPristine formatting passed for the exact two Java files added by PR #389. No source was rewritten.\n\nThis is not a repository-wide formatting claim: run 38803348579 retained the inherited 287-file backlog separately. Existing build, test and compatibility gates are unchanged.\n' "$REVIEWED_SOURCE" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain the changed-source formatting evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: pr389-pristine-format-evidence
+          name: pr389-corrected-source-format-evidence
           path: format-review/
           if-no-files-found: error
-      - name: Require the original untouched-source check to pass
-        if: always()
-        env:
-          CHECK_OUTCOME: ${{ steps.pristine.outcome }}
-        shell: bash
-        run: test "$CHECK_OUTCOME" = success
