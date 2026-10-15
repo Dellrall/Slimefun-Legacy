@@ -22,8 +22,8 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 OWNER = "8160641d-8db8-49cc-9716-d19e4da49bfb"
 MAGIC = "wickidcow/SF_MagicExpansion"
-MAGIC_COMMIT = "3a8818528cf32701d19c99fc33fa7f7ef2545be4"
-MAGIC_JAR = "SF_MagicExpansion1.1.12.jar"
+MAGIC_COMMIT = "13924991a1960daa40fe221cab5a4eef95d46ecb"
+MAGIC_JAR = "SF_MagicExpansion1.1.13.jar"
 DIRECTORIES = {"full-stack-1.21.11", "full-stack-26.2", "full-stack-26.3", "full-stack-purpur-26.3"}
 PLUGIN = "BlackMarketRestartProbe"
 PHASES = ("seed", "verify", "missing", "restored")
