@@ -22,7 +22,7 @@ Slimefun Legacy turns a normal Minecraft server into a modpack-like experience w
 [Report a Bug](https://github.com/wickidcow/Slimefun-Legacy/issues) ·
 [Release History](EVERYTHING_THAT_CHANGED.md)
 
-**Latest stable:** [Slimefun Legacy 4.1.74](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.74) (October 14, 2026), with the full **45-addon r135 ZIP**. Fixes energy-network display refresh starvation and includes **Networks 1.0.54** source-commit protections and **FluffyMachines 26.2.16** barrel display optimization. The other 43 addons and existing stored-item formats are preserved. Keep [4.1.73/r134](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.73) for rollback. See the [4.1.74 release notes](docs/releases/4.1.74.md). ·
+**Published release:** [Slimefun Legacy 4.1.74](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.74) (October 14, 2026), with the **45-addon r137 ZIP** refreshed October 15: **Networks 1.0.55**, **MagicExpansion 1.1.13**, and **FluffyMachines 26.2.16**. **Next candidate: 4.1.75 — Atomic Backpack Saves & Doctor Safety.** It includes the merged fix for the confirmed interrupted backpack-save duplication/loss defect [#390](https://github.com/wickidcow/Slimefun-Legacy/issues/390); the published 4.1.74 JAR does not contain that fix. The candidate retains the r137 addon source selection and is not yet released. See the [4.1.75 candidate notes](docs/releases/4.1.75.md). Keep complete pre-upgrade backups; older releases are historical rollback artifacts, not a claim of crash safety. ·
 [Contributing](CONTRIBUTING.md)
 
 </div>
@@ -120,7 +120,7 @@ Test representative machines, backpacks, Cargo networks, recipes, protections, a
 
 ### Velocity / proxy support
 
-Slimefun Legacy 4.1.74 retains **Velocity modern forwarding** with Paper 26.3 as the primary API/support target. Proxy CI uses a real Minecraft 26.2 client session to verify that the UUID presented through Velocity reaches Bukkit/Slimefun unchanged and that Slimefun research remains attached to the same profile after disconnect/reconnect.
+Slimefun Legacy retains **Velocity modern forwarding** with Paper 26.3 as the primary API/support target. Proxy CI uses a real Minecraft 26.2 client session to verify that the UUID presented through Velocity reaches Bukkit/Slimefun unchanged and that Slimefun research remains attached to the same profile after disconnect/reconnect.
 
 Use:
 
@@ -182,7 +182,7 @@ Core diagnostics correlate unknown IDs with explicitly registered replacements a
 
 ### Release lifecycle
 
-Slimefun Legacy 4.1.74 uses **published 4.1.73** source `6c3cd1e561f1231701d6de3256a8e808243c1370` as the release-blocking regression baseline. Regression checks against published 4.1.73 blocked the 4.1.74 release if a required addon lost compatibility. Do not substitute newer master builds for that published baseline. The historical 4.1.15 floor stays advisory; runtime addon recognition remains distinct from CI-only repository coverage.
+Slimefun Legacy **4.1.75 candidate** uses **published 4.1.74** source `4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a` as the release-blocking compatibility baseline. Required-addon regressions against that exact release block the candidate; newer master builds must not replace the baseline. The known within-backpack interrupted-save defect is intentionally corrected by #391. A baseline is not a claim that the older release is free of defects. The historical 4.1.15 floor stays advisory, and old saved-item formats remain supported.
 
 ## 🌐 English-first and recovery
 
@@ -261,7 +261,7 @@ Historical compatibility, core-platform, release, validation, and Enhanced Guide
 | Sponge | ❌ Unsupported |
 | Hybrid servers such as Arclight, Mohist, or Cardboard | ❌ Unsupported and blocked |
 | Fabric / Forge / NeoForge | ❌ Unsupported — this is a server plugin, not a mod |
-Slimefun Legacy 4.1.74 is tested primarily against **Paper 26.3 / Minecraft 26.3 on Java 25** and passed its required release-validation workflows, including the canonical 45-addon build and two-boot full-stack checks on Paper 1.21.11, Paper 26.2, Paper 26.3 and experimental Purpur 26.3. This evidence covers tested startup and item paths, not every third-party plugin or live world. It retains Minecraft 1.21.11+ compatibility and Java 21 bytecode. The release-blocking previous-stable baseline is 4.1.73. Purpur 26.3 build 2646 remains an **experimental** runtime target, not proof that AlbionMC's entire plugin stack or its existing world is ready to upgrade. Paper/Purpur 26.2 and Paper/Purpur 1.21.11 compatibility lanes remain. Folia 26.3 is not certified. The `api-version: 1.16` descriptor is deliberately retained for historical Bukkit/addon compatibility; it is not the Minecraft support floor.
+Slimefun Legacy 4.1.75 is tested primarily against **Paper 26.3 / Minecraft 26.3 on Java 25** by candidate-validation workflows, retaining Minecraft 1.21.11+ compatibility and Java 21 bytecode. Its exact-source release checks must pass separately; successful tests of an earlier core or PR are not a published 4.1.75 release. The previous published compatibility baseline is 4.1.74. Paper/Purpur 1.21.11 and 26.2 validation lanes remain. Purpur 26.3 build 2646 remains an **experimental** runtime target, not certification of a live world or every addon interaction. **Folia 26.3 remains deferred and uncertified**; the existing experimental Folia 26.2 boundary is unchanged. The `api-version: 1.16` descriptor is deliberately retained for historical Bukkit/addon compatibility; it is not the Minecraft support floor.
 The machine-readable support contract remains under `compatibility/`. Historical Compatibility Foundation and Paper/Purpur maintenance notes are consolidated in [`EVERYTHING_THAT_CHANGED.md`](EVERYTHING_THAT_CHANGED.md).
 Folia Phase 1 routes machine ticks and entity/location callbacks through their owning schedulers while preserving Paper behavior. Cargo and energy networks intentionally operate only on nodes owned by the regulator's current Folia region; transactional cross-region transfers are not enabled yet. Folia therefore remains experimental.
 **Every installed addon must also be Folia-safe.** The historical Folia Phase 1 safety boundary and staging checklist are preserved in [`EVERYTHING_THAT_CHANGED.md`](EVERYTHING_THAT_CHANGED.md).
