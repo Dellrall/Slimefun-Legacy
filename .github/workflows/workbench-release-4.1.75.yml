@@ -5,8 +5,9 @@ on:
     branches: ['workbench/release-4.1.75-metadata-20261015']
     paths: ['.github/workflows/workbench-release-4.1.75.yml']
 
-# This isolated workbench creates unreferenced Git objects for an explicit
-# connector review. It never moves refs, opens PRs, tags or publishes releases.
+# Execute the already-reviewed preparation recipe by immutable blob identity.
+# Only the candidate README sentence is corrected after the first verifier run.
+# Creates unreferenced Git objects only; no refs, tags, releases or PRs are moved.
 permissions:
   contents: write
 
@@ -25,262 +26,14 @@ jobs:
         with:
           distribution: temurin
           java-version: '25'
-      - name: Prepare bounded metadata and release notes
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import subprocess
-          from pathlib import Path
-
-          BASE = '88e0b1e416c473485b2912dfe8413780d625a169'
-          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == BASE
-          assert not subprocess.check_output(['git', 'status', '--porcelain'], text=True).strip()
-          output = Path('release-preparation-evidence')
-          output.mkdir()
-          originals = {}
-
-          def replace_once(text, old, new):
-              if text.count(old) != 1:
-                  raise AssertionError(f'Expected exactly one replacement target: {old!r}')
-              return text.replace(old, new, 1)
-
-          def read(path):
-              text = Path(path).read_text(encoding='utf-8')
-              originals[path] = text
-              return text
-
-          metadata = [
-              'compatibility/addon-compatibility-matrix.json',
-              'compatibility/core-api-registry.json',
-              'compatibility/cross-fork-api-matrix.json',
-              'compatibility/support-contract.json',
-          ]
-          for path in metadata:
-              old = read(path)
-              before = json.loads(old)
-              assert before['release'] == '4.1.74'
-              new = replace_once(old, '"release": "4.1.74"', '"release": "4.1.75"')
-              expected = dict(before, release='4.1.75')
-              assert json.loads(new) == expected
-              Path(path).write_text(new, encoding='utf-8')
-
-          path = 'compatibility/release-baselines.json'
-          old = read(path)
-          data = json.loads(old)
-          floor = data['legacy_floor'].copy()
-          policy = data['policy'].copy()
-          assert data['candidate']['version'] == '4.1.74'
-          assert data['previous_stable']['version'] == '4.1.73'
-          assert data['previous_stable']['source']['ref'] == '6c3cd1e561f1231701d6de3256a8e808243c1370'
-          data['candidate']['version'] = '4.1.75'
-          data['previous_stable']['version'] = '4.1.74'
-          data['previous_stable']['source']['ref'] = '4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a'
-          data['previous_stable']['purpose'] = (
-              'Primary regression baseline: exact published Slimefun Legacy 4.1.74 source, not newer master. '
-              'Required addon regressions against that release block candidate 4.1.75. '
-              'The known within-backpack atomic-save defect in 4.1.74 is intentionally corrected by #391; '
-              '4.1.74 is a compatibility baseline, not a claim of crash safety. '
-              'The 4.1.15 historical floor remains advisory; older saved item formats remain supported.'
-          )
-          assert data['legacy_floor'] == floor and data['policy'] == policy
-          Path(path).write_text(json.dumps(data, indent=2) + '\n', encoding='utf-8')
-
-          path = 'gradle.properties'
-          text = read(path)
-          text = replace_once(text, '# Slimefun Legacy 4.1.74 candidate - EnergyNet transport refresh deadline',
-                              '# Slimefun Legacy 4.1.75 candidate - atomic backpack saves and Doctor lifecycle safety')
-          text = replace_once(text, '# Coordinated addon source manifest revision: 135',
-                              '# Coordinated addon source manifest revision: 137 (unchanged addon selection)')
-          text = replace_once(text, 'projectVersion=4.1.74', 'projectVersion=4.1.75')
-          Path(path).write_text(text, encoding='utf-8')
-
-          path = 'README.md'
-          text = read(path)
-          lines = text.splitlines(keepends=True)
-          replacements = {
-              '**Latest stable:**': (
-                  '**Published release:** [Slimefun Legacy 4.1.74](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.74) '
-                  '(October 14, 2026), with the **45-addon r137 ZIP** refreshed October 15: '
-                  '**Networks 1.0.55**, **MagicExpansion 1.1.13**, and **FluffyMachines 26.2.16**. '
-                  '**Next candidate: 4.1.75 — Atomic Backpack Saves & Doctor Safety.** '
-                  'It includes the merged fix for the confirmed interrupted backpack-save duplication/loss defect '
-                  '[#390](https://github.com/wickidcow/Slimefun-Legacy/issues/390); the published 4.1.74 JAR does not contain that fix. '
-                  'The candidate retains the r137 addon source selection and is not yet released. '
-                  'See the [4.1.75 candidate notes](docs/releases/4.1.75.md). '
-                  'Keep complete pre-upgrade backups; older releases are historical rollback artifacts, not a claim of crash safety. ·\n'
-              ),
-              'Slimefun Legacy 4.1.74 retains **Velocity modern forwarding**': (
-                  'Slimefun Legacy retains **Velocity modern forwarding** with Paper 26.3 as the primary API/support target. '
-                  'Proxy CI uses a real Minecraft 26.2 client session to verify that the UUID presented through Velocity reaches '
-                  'Bukkit/Slimefun unchanged and that Slimefun research remains attached to the same profile after disconnect/reconnect.\n'
-              ),
-              'Slimefun Legacy 4.1.74 uses **published 4.1.73**': (
-                  'Slimefun Legacy **4.1.75 candidate** uses **published 4.1.74** source '
-                  '`4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a` as the release-blocking compatibility baseline. '
-                  'Required-addon regressions against that exact release block the candidate; newer master builds must not replace '
-                  'the baseline. The known within-backpack interrupted-save defect is intentionally corrected by #391. '
-                  'A baseline is not a claim that the older release is free of defects. '
-                  'The historical 4.1.15 floor stays advisory, and old saved-item formats remain supported.\n'
-              ),
-              'Slimefun Legacy 4.1.74 is tested primarily against': (
-                  'Slimefun Legacy **4.1.75 candidate** targets **Paper 26.3 / Minecraft 26.3 on Java 25**, '
-                  'retaining Minecraft 1.21.11+ compatibility and Java 21 bytecode. Its exact-source release checks must pass '
-                  'separately; successful tests of an earlier core or PR are not a published 4.1.75 release. '
-                  'The previous published compatibility baseline is 4.1.74. Paper/Purpur 1.21.11 and 26.2 validation lanes remain. '
-                  'Purpur 26.3 build 2646 remains an **experimental** runtime target, not certification of a live world or every addon interaction. '
-                  '**Folia 26.3 remains deferred and uncertified**; the existing experimental Folia 26.2 boundary is unchanged. '
-                  'The `api-version: 1.16` descriptor is deliberately retained for historical Bukkit/addon compatibility; '
-                  'it is not the Minecraft support floor.\n'
-              ),
-          }
-          for prefix, replacement in replacements.items():
-              indices = [i for i, line in enumerate(lines) if line.startswith(prefix)]
-              assert len(indices) == 1, prefix
-              lines[indices[0]] = replacement
-          Path(path).write_text(''.join(lines), encoding='utf-8')
-
-          notes = '''# Slimefun Legacy 4.1.75 — Atomic Backpack Saves & Doctor Safety
-
-          **Release candidate only — not yet published or deployed.** The published core remains
-          [4.1.74](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.74).
-          That published binary still contains the interrupted within-backpack save defect in
-          [#390](https://github.com/wickidcow/Slimefun-Legacy/issues/390). A green development build
-          or merged PR does not replace that download. This candidate requires its own versioned
-          release and validation. No live server, player inventory or production database is changed
-          by this preparation.
-
-          ## Core changes since the published 4.1.74 JAR
-
-          - [#391](https://github.com/wickidcow/Slimefun-Legacy/pull/391), merged as
-            `88e0b1e416c473485b2912dfe8413780d625a169`: one backpack's changed inserts,
-            updates and deletions use one already-serialized immutable batch and one JDBC
-            transaction. A two-slot move must persist the complete old or new state, not half
-            a move. This fixes the controlled reproduction that recovered 69 or 23 items
-            instead of the intended 46 after an abrupt process stop.
-          - Per-backpack save ordering, detached caller futures, incomplete-load save holds,
-            original item serialization and uncertain-commit recovery are retained. Failed or
-            uncertain saves are not acknowledged as successful, and unsupported adapters do
-            not silently revert to independent per-slot writes.
-          - [#384](https://github.com/wickidcow/Slimefun-Legacy/pull/384) checks the exact live
-            addon Doctor registration before invoking callbacks or status-name lookups, so
-            withdrawn or replaced registrations are not reused.
-          - [#385](https://github.com/wickidcow/Slimefun-Legacy/pull/385),
-            [#387](https://github.com/wickidcow/Slimefun-Legacy/pull/387) and
-            [#389](https://github.com/wickidcow/Slimefun-Legacy/pull/389) add mixed-format,
-            real-writer and separate-process persistence regression coverage. These earlier
-            test batches must not be confused with the production transaction fix in #391.
-
-          ## Existing data and database requirements
-
-          Item/research IDs, backpack and owner identities, saved-item codecs, database schema,
-          recipes, machine speeds and energy accounting are unchanged. This is not a schema
-          migration and does not require deleting or recreating inventories. Old valid item
-          formats remain readable; the Minecraft 1.21.11 runtime floor is not a saved-data cutoff.
-
-          SQLite retains its existing adapter monitor and durability settings. PostgreSQL uses
-          the transactional batch path. MySQL/MariaDB backpack inventory tables must be verified
-          InnoDB tables; nontransactional engines are refused rather than saved unsafely. Actual
-          database tests currently cover MySQL and PostgreSQL, not a separate MariaDB server.
-          Custom storage adapters must implement the new atomic-save contract. Existing public
-          methods remain linkable, but unsupported custom adapters explicitly refuse backpack
-          saves instead of pretending success. Review custom adapters before upgrading.
-
-          The fix does not restore previously lost items, remove previously duplicated items,
-          establish player misconduct, or identify the cause of earlier Albion/Networks reports.
-          It does not make a transaction across a player's ordinary inventory and a backpack,
-          two different backpacks, machines, another plugin's storage or multiple servers.
-
-          ## Addon selection and optional resource pack
-
-          The candidate preserves the complete **45-addon revision 137 source selection**:
-          Networks **1.0.55**, MagicExpansion **1.1.13**, FluffyMachines **26.2.16**, and the
-          other 42 maintained selections. The manifest is unchanged. Each release candidate
-          still requires its own exact-core bundle build and full-stack runtime validation;
-          unchanged source pins are not a claim that rebuilt JAR/ZIP bytes are identical.
-
-          Separately published MagicExpansion 1.1.14 and its r138 candidate remain outside this
-          focused core release preparation. No addon is silently upgraded, removed or added.
-          The optional resource-pack source pin and hash remain unchanged. Existing published
-          4.1.74/r137, r136 rollback and resource-pack assets must not be overwritten.
-
-          ## Compatibility and historical evidence
-
-          The previous published compatibility baseline advances to **4.1.74**, exact source
-          `4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a`, not current master. Required-addon
-          regressions block release. The known persistence defect is intentionally fixed; the
-          older baseline is not being certified crash-safe. The historical 4.1.15 floor remains
-          advisory, and its older saved-item compatibility is retained.
-
-          Source #391 had all 15 PR workflows pass before merging. Its implementation review
-          recorded 885 core tests with zero failures/errors and one existing skip, four separate
-          real MySQL/PostgreSQL cases, and seven exact-PR-JAR interruption cases. The post-merge
-          report for `88e0b1e` separately records the same 885-test total and four real-database
-          cases. Full source identities, artifacts and limitations are recorded on #391/#390.
-          These are **historical fix-validation results**, not tests of the new versioned 4.1.75
-          candidate. Controlled JVM exits and JDBC faults are not hardware power-loss tests or
-          certification of historical worlds and live Minecraft clients.
-
-          Paper 26.3 remains primary, with the existing 1.21.11/26.2 and experimental fork checks.
-          Java 25 remains the build/current-runtime toolchain and Java 21 the bytecode/1.21.11
-          floor. **Folia 26.3 expansion is deferred.** No platform target changes in this release.
-
-          ## Remaining release gates
-
-          1. Verify the exact versioned candidate with core tests, gameplay/source invariants,
-             public API, previous-stable addon compatibility, database, migration and the
-             existing platform/runtime matrices. Preserve the failure assertions.
-          2. Build all 45 pinned addons for that exact candidate and complete the matching
-             full-stack two-boot and existing Networks/Fluffy/Black Market runtime probes.
-          3. Review the exact final source and separately validate the actual merge. Build the
-             release JAR twice from the final source and require byte-for-byte equality.
-          4. Inspect the exact distributable JAR, source/version metadata, test-helper exclusion,
-             addon manifest and resource-pack hash. Do not label a 4.1.74 development JAR as
-             the new release or replace the old release in place.
-          5. Publish only through a separately approved, controlled versioned release. Back up
-             the full stopped server and database, remove duplicate JARs, start normally and
-             verify existing backpacks before and after restart on a staging copy. Never use
-             `/reload`, delete data, reset identities or run an unrelated migration as a shortcut.
-          '''
-          import textwrap
-          notes_path = 'docs/releases/4.1.75.md'
-          assert not Path(notes_path).exists()
-          # Strip the common workflow indentation from the Markdown, not its nested content.
-          notes = notes.splitlines()
-          notes = [notes[0]] + [line[10:] if line.startswith('          ') else line for line in notes[1:]]
-          Path(notes_path).write_text('\n'.join(notes).rstrip() + '\n', encoding='utf-8')
-
-          manifest_path = 'compatibility/sfl-addon-release-matrix.json'
-          manifest = json.loads(Path(manifest_path).read_text())
-          assert manifest['bundle_revision'] == 137 and len(manifest['addons']) == 45
-          assert all(row.get('source_commit') for row in manifest['addons'])
-          for unchanged in (manifest_path, 'compatibility/resource-pack-release.json'):
-              original = subprocess.check_output(['git', 'show', f'{BASE}:{unchanged}'])
-              assert Path(unchanged).read_bytes() == original
-          assert not subprocess.check_output(['git', 'diff', '--name-only', '--', 'src', '.github', 'scripts'], text=True)
-          changed = set(subprocess.check_output(['git', 'diff', '--name-only'], text=True).splitlines()) | {notes_path}
-          expected = set(metadata) | {'compatibility/release-baselines.json', 'gradle.properties', 'README.md', notes_path}
-          assert changed == expected, (changed, expected)
-          record = {'base': BASE, 'paths': sorted(changed), 'source_changes': False,
-                    'addon_manifest_blob': '33212e506d1857614fbc67191adfc5030fbefc8c',
-                    'files': {path: hashlib.sha256(Path(path).read_bytes()).hexdigest() for path in sorted(changed)}}
-          (output / 'preparation.json').write_text(json.dumps(record, indent=2) + '\n')
-          subprocess.run(['git', 'diff', '--check'], check=True)
-          PY
-      - name: Run the existing complete source-invariant suite
-        shell: bash
-        run: |
-          set -euo pipefail
-          python3 scripts/verify_legacy.py . 2>&1 | tee release-preparation-evidence/invariants.log
-      - name: Create unreferenced candidate objects for explicit review
+      - name: Execute the pinned preparation recipe with corrected README wording
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          import base64
           import hashlib
           import json
           import os
@@ -288,47 +41,49 @@ jobs:
           import urllib.request
           from pathlib import Path
 
-          root = Path('release-preparation-evidence')
-          record = json.loads((root / 'preparation.json').read_text())
-          base = record['base']
-          assert subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip() == base
-          assert not subprocess.check_output(['git', 'diff', '--name-only', '--', 'src', '.github', 'scripts'], text=True)
-          tree_entries = []
-          for path in record['paths']:
-              content = Path(path).read_bytes()
-              assert hashlib.sha256(content).hexdigest() == record['files'][path]
-              tree_entries.append({'path': path, 'mode': '100644', 'type': 'blob', 'content': content.decode('utf-8')})
+          blob = '8c71ae851a24ea943757e8a3790ecf83bc6733dd'
+          req = urllib.request.Request(
+              'https://api.github.com/repos/wickidcow/Slimefun-Legacy/git/blobs/' + blob,
+              headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
+                       'Accept': 'application/vnd.github+json', 'User-Agent': 'SFL-Explicit-Release-Preparation'})
+          with urllib.request.urlopen(req, timeout=45) as response:
+              value = json.load(response)
+          assert value['encoding'] == 'base64'
+          raw = base64.b64decode(value['content'])
+          assert hashlib.sha1(b'blob ' + str(len(raw)).encode() + b'\0' + raw).hexdigest() == blob
+          recipe = raw.decode('utf-8')
+          old = "'Slimefun Legacy **4.1.75 candidate** targets **Paper 26.3 / Minecraft 26.3 on Java 25**, '"
+          new = "'Slimefun Legacy 4.1.75 is tested primarily against **Paper 26.3 / Minecraft 26.3 on Java 25** by candidate-validation workflows, '"
+          assert recipe.count(old) == 1
+          recipe = recipe.replace(old, new, 1)
 
-          def api(path, data=None):
-              request = urllib.request.Request(
-                  'https://api.github.com/repos/wickidcow/Slimefun-Legacy/' + path,
-                  data=None if data is None else json.dumps(data).encode(),
-                  method='GET' if data is None else 'POST',
-                  headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'],
-                           'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json',
-                           'User-Agent': 'SFL-Explicit-Release-Preparation'})
-              with urllib.request.urlopen(request, timeout=45) as response:
-                  return json.load(response)
+          def script(name):
+              marker = '      - name: ' + name + '\n'
+              assert recipe.count(marker) == 1, name
+              section = recipe.split(marker, 1)[1].split('\n      - name: ', 1)[0]
+              body = section.split('        run: |\n', 1)[1]
+              result = []
+              for line in body.splitlines():
+                  assert not line.strip() or line.startswith('          '), repr(line)
+                  result.append(line[10:] if line.startswith('          ') else '')
+              return '\n'.join(result) + '\n'
 
-          # Only create objects. No refs endpoint, push, release or tag is called.
-          assert api('git/ref/heads/master')['object']['sha'] == base, 'master advanced; reconcile before preparing'
-          base_tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
-          tree = api('git/trees', {'base_tree': base_tree, 'tree': tree_entries})
-          commit = api('git/commits', {
-              'message': 'chore(release): prepare 4.1.75 backpack safety candidate\n\nAdvance the candidate and exact published 4.1.74 compatibility baseline. Preserve r137 addon pins, optional pack, production code and platform targets. No publication or deployment.',
-              'tree': tree['sha'], 'parents': [base]})
-          record['tree'] = tree['sha']
-          record['candidate_commit'] = commit['sha']
-          record['invariants'] = 'passed'
-          record['refs_moved'] = False
-          (root / 'prepared-commit.json').write_text(json.dumps(record, indent=2) + '\n')
-          (root / 'tracked.diff').write_text(subprocess.check_output(['git', 'diff', '--no-ext-diff'], text=True))
-          (root / '4.1.75.md').write_bytes(Path('docs/releases/4.1.75.md').read_bytes())
-          print('PREPARED_COMMIT=' + commit['sha'])
-          print('PREPARED_TREE=' + tree['sha'])
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
-              out.write('Prepared unreferenced candidate commit `' + commit['sha'] + '` from `' + base + '`.\n\n')
-              out.write('Eight metadata/documentation files only. Source invariants passed. No Gradle/JUnit/runtime tests claimed here. No refs, tags or releases changed.\n')
+          # The pinned recipe contains exact source/base checks and the eight-file
+          # allowlist. Its Git API stage never calls any refs or release endpoint.
+          for name in (
+              'Prepare bounded metadata and release notes',
+              'Run the existing complete source-invariant suite',
+              'Create unreferenced candidate objects for explicit review',
+          ):
+              print('Executing reviewed step:', name, flush=True)
+              subprocess.run(['bash', '-e', '-o', 'pipefail', '-c', script(name)], check=True)
+          Path('release-preparation-evidence/recipe.json').write_text(json.dumps({
+              'original_recipe_blob': blob,
+              'effective_recipe_sha256': hashlib.sha256(recipe.encode()).hexdigest(),
+              'correction': 'README current-version sentence preserves the existing verifier wording',
+              'source_verifiers_changed': False,
+              'refs_moved': False,
+          }, indent=2) + '\n')
           PY
       - name: Preserve preparation evidence
         if: always()
