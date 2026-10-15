@@ -1,0 +1,40 @@
+--- a/src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/adapter/sqlcommon/SqlBackpackInventoryTransactionTest.java
++++ b/src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/adapter/sqlcommon/SqlBackpackInventoryTransactionTest.java
+@@ -9,6 +9,7 @@
+ import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.IDataSourceAdapter;
+ import com.xzavier0722.mc.plugin.slimefun4/storage/common/BackpackInventoryBatch;
+ import java.lang.reflect.InvocationTargetException;
++import java.lang.reflect.InvocationHandler;
+ import java.lang.reflect.Proxy;
+ import java.nio.file.Path;
+ import java.sql.Connection;
+@@ -29,7 +30,6 @@
+ import org.junit.jupiter.api.io.TempDir;
+ import org.junit.jupiter.params.ParameterizedTest;
+ import org.junit.jupiter.params.provider.ValueSource;
+-import org.mockito.Mockito;
+ 
+ /** Real SQL commit/rollback checks plus explicit, deterministic driver-fault simulations. */
+ class SqlBackpackInventoryTransactionTest {
+@@ -61,10 +61,18 @@
+ 
+     @Test
+     void oldCustomAdaptersRefuseWithoutNonAtomicFallback() {
+-        IDataSourceAdapter<?> adapter = Mockito.mock(IDataSourceAdapter.class, Mockito.CALLS_REAL_METHODS);
++        var calls = new AtomicInteger();
++        IDataSourceAdapter<?> adapter = (IDataSourceAdapter<?>) Proxy.newProxyInstance(
++                IDataSourceAdapter.class.getClassLoader(), new Class<?>[] {IDataSourceAdapter.class},
++                (proxy, method, args) -> {
++                    if (method.isDefault()) {
++                        return InvocationHandler.invokeDefault(proxy, method, args);
++                    }
++                    calls.incrementAndGet();
++                    throw new AssertionError("An unsupported atomic save called a legacy adapter method");
++                });
+         assertThrows(UnsupportedOperationException.class, () -> adapter.saveBackpackInventory(move()));
+-        Mockito.verify(adapter, Mockito.never()).setData(Mockito.any(), Mockito.any());
+-        Mockito.verify(adapter, Mockito.never()).deleteData(Mockito.any());
++        assertEquals(0, calls.get());
+     }
+ 
+     @Test
