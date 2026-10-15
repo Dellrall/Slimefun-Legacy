@@ -9,3 +9,5 @@ The published MagicExpansion 1.1.15 JAR is source commit `9443393b3ef5f0982194d9
 The r138 publication gate additionally reconstructs the bundle from the currently published r137 ZIP, proves all 44 unrelated JAR byte streams are unchanged, boots the exact refreshed 45-addon archive twice on all four runtime lanes, and re-runs the native Networks/Fluffy conservation probe on Paper 26.3. Publication is refused if the live core, resource pack or r137 bundle changes while validation is running.
 
 The previous r137 canonical ZIP is retained as `SF_Addons_r137_1.21.11-26.3.zip` for rollback. Stop the server and back up worlds/plugin data before replacing JARs. Remove the older MagicExpansion JAR, install only one version, and start normally rather than using `/reload`.
+
+The archived r137 candidate workflow is revision-gated, so advancing the maintained matrix to r138 skips obsolete r137 reconstruction instead of reporting a false release failure.
