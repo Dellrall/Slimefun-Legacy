@@ -39,6 +39,84 @@ def require_before(text: str, first: str, second: str, label: str) -> None:
         )
 
 
+def verify_atomic_backpack_contract(sources: dict[str, str]) -> None:
+    """Supplement runtime regressions with a fail-closed source-path guard."""
+    profile = sources["profile"]
+    handoff = "batch = scheduleBackpackSaveWithCompletion(ownerScope, new BackpackInventoryBatch(backpackId, slots))"
+    require(profile, handoff, "one fully staged atomic backpack batch")
+    if profile.count(handoff) != 1:
+        raise SystemExit("Container storage correctness failed: multiple atomic backpack submissions")
+    require(profile, "for (int slot : changed.stream().sorted().toList())", "deterministic changed-slot batch")
+    require(profile, "return batch.whenComplete((ignored, failure) -> { if (failure == null)", "commit-bound acknowledgement")
+    require_absent(profile, "scheduleDeleteTaskWithCompletion(ownerScope, write.key(), false)", "independent backpack slot delete")
+    require_absent(profile, "scheduleWriteTaskWithCompletion(ownerScope, write.key(), write.data(), false)", "independent backpack slot write")
+    require(
+        sources["controller"],
+        "return scheduleWriteTaskWithCompletion(owner, key, () -> dataAdapter.saveBackpackInventory(batch), false)",
+        "atomic adapter task retains tracked queue completion",
+    )
+    require(
+        sources["adapter"],
+        'default void saveBackpackInventory(BackpackInventoryBatch batch) { throw new UnsupportedOperationException(',
+        "unsupported adapters refuse without per-row fallback",
+    )
+    require(sources["sql"], "try (var connection = ds.getConnection())", "one pooled transaction connection")
+    require(sources["sql"], "SqlBackpackInventoryTransaction.execute(connection, prefix, batch)", "native SQL batch delegation")
+    require(sources["sql"], "ds.evictConnection(connection)", "failed connection eviction")
+    require(sources["sqlite"], "public synchronized void saveBackpackInventory(BackpackInventoryBatch batch)", "SQLite writer monitor")
+    transaction = sources["transaction"]
+    require_before(transaction, "connection.setAutoCommit(false)", "writeSlots(connection, table, mysql, batch)", "begin before slot writes")
+    require_before(transaction, "writeSlots(connection, table, mysql, batch)", "connection.commit()", "all slots before commit")
+    require(transaction, "connection.rollback()", "rollback on transaction failure")
+    require(transaction, "if (beginAttempted && resolved)", "no auto-commit reset after unresolved rollback")
+    require(transaction, "abort(connection, cause)", "abort unresolved rollback")
+    require(transaction, "requireInnoDb(connection, table)", "MySQL transactional engine check")
+    require(transaction, "connection.getMetaData().supportsTransactions()", "transaction-capability check")
+    require(transaction, "private static void writeSlots(", "slot writer boundary")
+    require(transaction, "private static void requireInnoDb(", "engine check boundary")
+    slot_writer = transaction.split("private static void writeSlots(", 1)[1].split("private static void requireInnoDb(", 1)[0]
+    require_absent(slot_writer, "connection.commit()", "per-slot commit")
+    require_absent(slot_writer, "connection.setAutoCommit(", "per-slot transaction-state change")
+    batch = sources["batch"]
+    require(batch, "slots = List.copyOf(slots)", "immutable batch membership")
+    require(batch, "payload = payload.clone()", "owned serialized payload")
+    require(batch, "return payload == null ? null : payload.clone()", "defensive payload access")
+    require(batch, "if (!seen.add(slot.index()))", "duplicate slot refusal")
+
+
+def verify_atomic_guard_mutations(sources: dict[str, str]) -> None:
+    """Keep the new guard sensitive to the exact unsafe paths it replaces."""
+    mutations = (
+        ("profile", "batch = scheduleBackpackSaveWithCompletion", "batch = untrackedSave"),
+        ("profile", "if (failure == null)", "if (true)"),
+        ("profile", "return batch.whenComplete", "scheduleDeleteTaskWithCompletion(ownerScope, write.key(), false); return batch.whenComplete"),
+        ("profile", "return batch.whenComplete", "scheduleWriteTaskWithCompletion(ownerScope, write.key(), write.data(), false); return batch.whenComplete"),
+        ("controller", "return scheduleWriteTaskWithCompletion(owner, key,", "return completedFuture(owner, key,"),
+        ("adapter", "throw new UnsupportedOperationException", "return; // throw new UnsupportedOperationException"),
+        ("sql", "SqlBackpackInventoryTransaction.execute(connection, prefix, batch)", "setEachSlotIndependently(batch)"),
+        ("sql", "ds.evictConnection(connection)", "ignoreFailedConnection(connection)"),
+        ("sqlite", "public synchronized void saveBackpackInventory", "public void saveBackpackInventory"),
+        ("transaction", "connection.commit(); resolved = true;", "resolved = true;"),
+        ("transaction", "if (beginAttempted && resolved)", "if (beginAttempted)"),
+        ("transaction", "connection.rollback()", "ignoreRollback()"),
+        ("transaction", "requireInnoDb(connection, table)", "ignoreEngine(connection, table)"),
+        ("transaction", "int affected = statement.executeUpdate();", "int affected = statement.executeUpdate(); connection.commit();"),
+        ("batch", "slots = List.copyOf(slots)", "slots = slots"),
+        ("batch", "return payload == null ? null : payload.clone()", "return payload"),
+    )
+    for key, before, after in mutations:
+        if before not in sources[key]:
+            raise SystemExit(f"Container storage correctness failed: stale guard mutation {key}: {before}")
+        changed = dict(sources)
+        changed[key] = changed[key].replace(before, after)
+        try:
+            verify_atomic_backpack_contract(changed)
+        except SystemExit:
+            continue
+        raise SystemExit(f"Container storage correctness failed: guard accepted unsafe mutation {key}: {before}")
+    print(f"Atomic backpack source guard rejected all {len(mutations)} unsafe mutations.")
+
+
 def main() -> int:
     root = Path(sys.argv[1] if len(sys.argv) > 1 else ".").resolve()
     source = compact(
@@ -127,7 +205,7 @@ def main() -> int:
     require(
         profile,
         "private final Set<String> uncertainBackpackBaselines",
-        "partial-write recovery marker",
+        "uncertain-commit recovery marker",
     )
     require(
         profile,
@@ -155,19 +233,22 @@ def main() -> int:
     require(
         profile,
         "changed = new HashSet<>(stagedWrites.keySet())",
-        "full rewrite after uncertain partial persistence",
+        "full rewrite after uncertain persistence",
     )
-    require(
-        profile,
-        "scheduleDeleteTaskWithCompletion(ownerScope, write.key(), false)",
-        "tracked backpack delete completion",
-    )
-    require(
-        profile,
-        "scheduleWriteTaskWithCompletion(ownerScope, write.key(), write.data(), false)",
-        "tracked backpack write completion",
-    )
-    require(profile, "CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new))", "backpack write batch barrier")
+    # One queued batch now owns all slot mutations. Keep the completion/hold
+    # checks below, and reject restoration of the old independently committed path.
+    storage_root = "src/main/java/com/xzavier0722/mc/plugin/slimefun4/storage/"
+    atomic = {"profile": profile, "controller": controller}
+    for key, relative in {
+        "adapter": "adapter/IDataSourceAdapter.java",
+        "sql": "adapter/sqlcommon/SqlCommonAdapter.java",
+        "sqlite": "adapter/sqlite/SqliteAdapter.java",
+        "transaction": "adapter/sqlcommon/SqlBackpackInventoryTransaction.java",
+        "batch": "common/BackpackInventoryBatch.java",
+    }.items():
+        atomic[key] = compact(read(root, storage_root + relative))
+    verify_atomic_backpack_contract(atomic)
+    verify_atomic_guard_mutations(atomic)
     require(
         profile,
         "backpack.acknowledgeSnapshot(stagedSnapshot)",

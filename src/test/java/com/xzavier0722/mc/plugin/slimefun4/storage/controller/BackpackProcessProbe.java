@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlUtils;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlite.SqliteAdapter;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlite.SqliteConfig;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataType;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
@@ -299,21 +300,21 @@ public final class BackpackProcessProbe {
         }
 
         @Override
-        public void setData(RecordKey key, RecordSet data) {
-            writes.incrementAndGet();
+        public void saveBackpackInventory(BackpackInventoryBatch batch) {
+            batch.slots().forEach(slot -> {
+                if (slot.payload() == null) {
+                    deletes.incrementAndGet();
+                } else {
+                    writes.incrementAndGet();
+                }
+            });
             if (boundary == BackpackProcessRestartTest.Boundary.BEFORE_WRITE) {
                 block();
             }
-            super.setData(key, data);
+            super.saveBackpackInventory(batch);
             if (boundary == BackpackProcessRestartTest.Boundary.AFTER_WRITE_BEFORE_ACK) {
                 block();
             }
-        }
-
-        @Override
-        public void deleteData(RecordKey key) {
-            deletes.incrementAndGet();
-            super.deleteData(key);
         }
 
         private void block() {

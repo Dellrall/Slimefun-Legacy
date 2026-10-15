@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.*;
 import city.norain.slimefun4.api.menu.UniversalMenu;
 import city.norain.slimefun4.api.menu.UniversalMenuPreset;
 import com.xzavier0722.mc.plugin.slimefun4.storage.callback.IAsyncReadCallback;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
@@ -339,6 +340,16 @@ class InventoryReadFailureTest {
         @Override
         protected List<RecordSet> getData(RecordKey key) {
             return store.read();
+        }
+
+        @Override
+        protected CompletableFuture<Void> scheduleBackpackSaveWithCompletion(
+                ScopeKey owner, BackpackInventoryBatch batch) {
+            return BackpackBatchRecording.capture(
+                    batch,
+                    (key, data) -> data == null
+                            ? scheduleDeleteTaskWithCompletion(owner, key, false)
+                            : scheduleWriteTaskWithCompletion(owner, key, data, false));
         }
 
         @Override

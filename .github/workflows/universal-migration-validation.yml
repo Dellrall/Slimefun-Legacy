@@ -96,6 +96,7 @@ jobs:
           mkdir -p migration-db-evidence
           ./gradlew -I "$RUNNER_TEMP/migration-databases.init.gradle" test \
             --tests '*SqlUniversalBlockMigrationTest.explicitlyConfiguredExternalDatabasesUseTheSameAtomicContract' \
+            --tests '*SqlBackpackInventoryTransactionTest.explicitlyConfiguredExternalDatabasesCommitAndRollback' \
             --console=plain --no-daemon --no-configuration-cache 2>&1 | tee migration-db-evidence/build.log
           python3 - <<'PYTHON'
           import xml.etree.ElementTree as ET
@@ -105,6 +106,11 @@ jobs:
           assert int(suite.get('tests', '0')) == 2, suite.attrib
           assert all(int(suite.get(key, '0')) == 0 for key in ('failures', 'errors', 'skipped')), suite.attrib
           assert {case.get('name') for case in suite.findall('testcase')} == {'MYSQL commit, rollback and replay', 'POSTGRES commit, rollback and replay'}
+          backpack = ET.parse('build/test-results/test/TEST-com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlBackpackInventoryTransactionTest.xml').getroot()
+          assert int(backpack.get('tests', '0')) == 2, backpack.attrib
+          assert all(int(backpack.get(key, '0')) == 0 for key in ('failures', 'errors', 'skipped')), backpack.attrib
+          assert {case.get('name') for case in backpack.findall('testcase')} == {'MYSQL backpack commit, rollback and uncertain acknowledgement', 'POSTGRES backpack commit, rollback and uncertain acknowledgement'}
+          print('Actual backpack database cases:', backpack.attrib)
           print('Actual external database cases:', suite.attrib)
           for case in suite.findall('testcase'):
               print(case.attrib)

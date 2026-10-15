@@ -1,5 +1,6 @@
 package com.xzavier0722.mc.plugin.slimefun4.storage.adapter;
 
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.BlockStorageMigration;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataType;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
@@ -25,6 +26,15 @@ public interface IDataSourceAdapter<T> {
     List<RecordSet> getData(RecordKey key, boolean distinct);
 
     void deleteData(RecordKey key);
+
+    /**
+     * Commits every changed slot of one backpack together, returning only after commit.
+     * Existing external adapters remain linkable but must explicitly implement this contract.
+     * A fallback to separate setData/deleteData calls would recreate item loss and duplication.
+     */
+    default void saveBackpackInventory(BackpackInventoryBatch batch) {
+        throw new UnsupportedOperationException("This storage adapter does not support atomic backpack saves");
+    }
 
     /**
      * Atomically persists a preflighted universal destination and removes its exact source.

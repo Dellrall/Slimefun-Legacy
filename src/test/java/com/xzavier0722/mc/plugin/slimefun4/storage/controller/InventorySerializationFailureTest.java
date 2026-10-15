@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordSet;
@@ -516,6 +517,16 @@ class InventorySerializationFailureTest {
 
         private RecordingProfileController(Store store) {
             this.store = store;
+        }
+
+        @Override
+        protected CompletableFuture<Void> scheduleBackpackSaveWithCompletion(
+                ScopeKey owner, BackpackInventoryBatch batch) {
+            return BackpackBatchRecording.capture(
+                    batch,
+                    (key, data) -> data == null
+                            ? scheduleDeleteTaskWithCompletion(owner, key, false)
+                            : scheduleWriteTaskWithCompletion(owner, key, data, false));
         }
 
         @Override

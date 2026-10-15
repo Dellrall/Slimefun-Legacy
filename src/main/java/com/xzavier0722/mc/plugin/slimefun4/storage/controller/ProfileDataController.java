@@ -1,6 +1,7 @@
 package com.xzavier0722.mc.plugin.slimefun4.storage.controller;
 
 import com.xzavier0722.mc.plugin.slimefun4.storage.callback.IAsyncReadCallback;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataType;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
@@ -251,7 +252,10 @@ public class ProfileDataController extends ADataController {
      * Original bytes stay inside the controller until an explicit quarantine execution writes
      * them to the recovery archive.
      */
-    public record BackpackRecoveryCandidate(int slot, @Nonnull String payloadSha256, @Nonnull String failure) {}
+    public record BackpackRecoveryCandidate(
+            int slot,
+            @Nonnull String payloadSha256,
+            @Nonnull String failure) {}
 
     /**
      * Read-only fingerprinted view of one held backpack.
@@ -280,7 +284,9 @@ public class ProfileDataController extends ADataController {
 
     /** Result returned only after the quarantine archive exists and every targeted delete completed. */
     public record BackpackRecoveryExecution(
-            @Nonnull BackpackRecoveryScan scan, int quarantinedRows, @Nonnull String archivePath) {}
+            @Nonnull BackpackRecoveryScan scan,
+            int quarantinedRows,
+            @Nonnull String archivePath) {}
 
     private record RawBackpackRecoveryRow(
             int slot,
@@ -313,7 +319,8 @@ public class ProfileDataController extends ADataController {
      */
     public CompletableFuture<BackpackRecoveryScan> scanBackpackRecoveryAsync(@Nonnull String backpackId) {
         checkDestroy();
-        return CompletableFuture.supplyAsync(() -> inspectBackpackRecovery(backpackId).scan(), readExecutor);
+        return CompletableFuture.supplyAsync(
+                () -> inspectBackpackRecovery(backpackId).scan(), readExecutor);
     }
 
     /**
@@ -343,7 +350,8 @@ public class ProfileDataController extends ADataController {
             @Nonnull String backpackId, @Nonnull String expectedFingerprint) {
         final BackpackRecoveryExecution[] result = new BackpackRecoveryExecution[1];
         boolean acquired = backpackCache.runIfAllUncached(
-                Set.of(backpackId), () -> result[0] = quarantineUnreadableBackpackRowsLocked(backpackId, expectedFingerprint));
+                Set.of(backpackId),
+                () -> result[0] = quarantineUnreadableBackpackRowsLocked(backpackId, expectedFingerprint));
         if (!acquired) {
             throw new IllegalStateException(
                     "Backpack cache state is busy or live; quarantine could not acquire the exclusive recovery gate.");
@@ -361,7 +369,8 @@ public class ProfileDataController extends ADataController {
                     "Backpack is not under an incomplete-load hold. Trigger and inspect the real load failure first.");
         }
         if (scan.cached()) {
-            throw new IllegalStateException("Backpack is currently cached/live; quarantine refuses to write behind it.");
+            throw new IllegalStateException(
+                    "Backpack is currently cached/live; quarantine refuses to write behind it.");
         }
         if (scan.savePending()) {
             throw new IllegalStateException("Backpack has a pending persistence chain; wait for it before recovery.");
@@ -376,7 +385,8 @@ public class ProfileDataController extends ADataController {
 
         Path archive = writeBackpackRecoveryArchive(inspection);
         UUID owner = UUID.fromString(scan.ownerUuid());
-        var completions = new ArrayList<CompletableFuture<Void>>(inspection.unreadableRows().size());
+        var completions = new ArrayList<CompletableFuture<Void>>(
+                inspection.unreadableRows().size());
         for (RawBackpackRecoveryRow row : inspection.unreadableRows()) {
             var key = new RecordKey(DataScope.BACKPACK_INVENTORY);
             key.addCondition(FieldKey.BACKPACK_ID, backpackId);
@@ -385,7 +395,8 @@ public class ProfileDataController extends ADataController {
         }
 
         try {
-            CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new)).join();
+            CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new))
+                    .join();
         } catch (RuntimeException failure) {
             throw new IllegalStateException(
                     "Quarantine archive was written, but one or more backpack row deletions failed. Archive: "
@@ -436,7 +447,8 @@ public class ProfileDataController extends ADataController {
         for (RecordSet row : stored) {
             String slotText = row.getString(FieldKey.INVENTORY_SLOT);
             if (slotText == null) {
-                throw new IllegalStateException("Backpack contains a row with no slot identity; automatic recovery refuses.");
+                throw new IllegalStateException(
+                        "Backpack contains a row with no slot identity; automatic recovery refuses.");
             }
 
             final int slot;
@@ -452,9 +464,8 @@ public class ProfileDataController extends ADataController {
             // Deletion uses the exact canonical slot key. Never authorize a row such as
             // "08" or "+8" as slot "8", or choose between rows with the same identity.
             if (!Integer.toString(slot).equals(slotText) || !seenSlots.add(slot)) {
-                throw new IllegalStateException(
-                        "Backpack contains non-canonical or duplicate slot identity '" + bounded(slotText)
-                                + "'; automatic quarantine refuses.");
+                throw new IllegalStateException("Backpack contains non-canonical or duplicate slot identity '"
+                        + bounded(slotText) + "'; automatic quarantine refuses.");
             }
 
             Object raw = row.getValue(FieldKey.INVENTORY_ITEM);
@@ -561,21 +572,40 @@ public class ProfileDataController extends ADataController {
             try (var zip = new ZipOutputStream(new BufferedOutputStream(Files.newOutputStream(archive)))) {
                 var manifest = new StringBuilder();
                 manifest.append("Slimefun Legacy backpack quarantine\n")
-                        .append("created=").append(Instant.now()).append('\n')
-                        .append("backpack=").append(scan.backpackId()).append('\n')
-                        .append("owner=").append(scan.ownerUuid()).append('\n')
-                        .append("size=").append(scan.backpackSize()).append('\n')
-                        .append("storedRows=").append(scan.storedRows()).append('\n')
-                        .append("fingerprint=").append(scan.fingerprint()).append('\n')
-                        .append("quarantinedRows=").append(inspection.unreadableRows().size()).append("\n\n");
+                        .append("created=")
+                        .append(Instant.now())
+                        .append('\n')
+                        .append("backpack=")
+                        .append(scan.backpackId())
+                        .append('\n')
+                        .append("owner=")
+                        .append(scan.ownerUuid())
+                        .append('\n')
+                        .append("size=")
+                        .append(scan.backpackSize())
+                        .append('\n')
+                        .append("storedRows=")
+                        .append(scan.storedRows())
+                        .append('\n')
+                        .append("fingerprint=")
+                        .append(scan.fingerprint())
+                        .append('\n')
+                        .append("quarantinedRows=")
+                        .append(inspection.unreadableRows().size())
+                        .append("\n\n");
 
                 for (RawBackpackRecoveryRow row : inspection.unreadableRows()) {
                     String entryName = "slots/slot-" + row.slot() + ".bin";
-                    manifest.append("slot=").append(row.slot())
-                            .append(" representation=").append(row.representation())
-                            .append(" sha256=").append(row.payloadSha256())
-                            .append(" entry=").append(entryName)
-                            .append(" failure=").append(row.failure())
+                    manifest.append("slot=")
+                            .append(row.slot())
+                            .append(" representation=")
+                            .append(row.representation())
+                            .append(" sha256=")
+                            .append(row.payloadSha256())
+                            .append(" entry=")
+                            .append(entryName)
+                            .append(" failure=")
+                            .append(row.failure())
                             .append('\n');
                     zip.putNextEntry(new ZipEntry(entryName));
                     zip.write(row.payload());
@@ -592,7 +622,8 @@ public class ProfileDataController extends ADataController {
             } catch (IOException ignored) {
                 // Preserve the original archive failure.
             }
-            throw new IllegalStateException("Could not write backpack quarantine archive; no rows were deleted.", failure);
+            throw new IllegalStateException(
+                    "Could not write backpack quarantine archive; no rows were deleted.", failure);
         }
 
         return archive;
@@ -604,8 +635,7 @@ public class ProfileDataController extends ADataController {
             root = root.getCause();
         }
         String message = root.getMessage();
-        return root.getClass().getSimpleName()
-                + (message == null || message.isBlank() ? "" : ": " + bounded(message));
+        return root.getClass().getSimpleName() + (message == null || message.isBlank() ? "" : ": " + bounded(message));
     }
 
     private static String bounded(@Nonnull String text) {
@@ -826,9 +856,9 @@ public class ProfileDataController extends ADataController {
      * compaction safe: completion is tied to the accepting queue, not to an
      * individual runnable that may be replaced by a newer write for the same key.
      *
-     * <p>If a batch fails after some slots were already written, the persisted
-     * baseline becomes uncertain. The next save therefore rewrites all 54
-     * possible backpack slots before acknowledging a new snapshot.
+     * <p>All changed slots commit in one database transaction. A failure, including
+     * an uncertain commit acknowledgement, retains the previous snapshot. The next
+     * save atomically rewrites all 54 possible slots to resolve that uncertainty.
      *
      * @param bp backpack to persist
      * @return completion for this exact staged backpack state
@@ -906,25 +936,25 @@ public class ProfileDataController extends ADataController {
         }
 
         UUIDKey ownerScope = new UUIDKey(DataScope.NONE, backpack.getOwner().getUniqueId());
-        var completions = new ArrayList<CompletableFuture<Void>>(changed.size());
-
+        CompletableFuture<Void> batch;
         try {
-            for (int slot : changed) {
+            var slots = new ArrayList<BackpackInventoryBatch.Slot>(changed.size());
+            for (int slot : changed.stream().sorted().toList()) {
                 BackpackWrite write = stagedWrites.get(slot);
                 if (write == null) {
                     throw new IllegalStateException("Missing staged backpack write for slot " + slot);
                 }
-
-                CompletableFuture<Void> completion = write.data() == null
-                        ? scheduleDeleteTaskWithCompletion(ownerScope, write.key(), false)
-                        : scheduleWriteTaskWithCompletion(ownerScope, write.key(), write.data(), false);
-                completions.add(completion);
+                Object payload = write.data() == null ? null : write.data().getValue(FieldKey.INVENTORY_ITEM);
+                if (write.data() != null && !(payload instanceof byte[])) {
+                    throw new IllegalStateException("Backpack item was not serialized before database hand-off");
+                }
+                slots.add(new BackpackInventoryBatch.Slot(slot, (byte[]) payload));
             }
+            batch = scheduleBackpackSaveWithCompletion(ownerScope, new BackpackInventoryBatch(backpackId, slots));
         } catch (RuntimeException | LinkageError failure) {
-            completions.add(CompletableFuture.failedFuture(failure));
+            batch = CompletableFuture.failedFuture(failure);
         }
 
-        CompletableFuture<Void> batch = CompletableFuture.allOf(completions.toArray(CompletableFuture[]::new));
         return batch.whenComplete((ignored, failure) -> {
             if (failure == null) {
                 synchronized (backpack) {
@@ -1178,8 +1208,8 @@ public class ProfileDataController extends ADataController {
                     backpackSaveChains.size());
         }
     }
+
     public boolean runWhileMaintenanceBackpackOwned(@Nonnull PlayerBackpack backpack, @Nonnull Runnable action) {
         return this.backpackCache.runWhileMaintenanceOwned(backpack, action);
     }
-
 }

@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.FieldKey;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
@@ -70,10 +71,12 @@ class BackpackMixedFormatLoadTest {
         private Object wrap(byte[] payload) {
             return switch (this) {
                 case NATIVE_BINARY -> payload;
-                case CURRENT_BASE64_BYTES, LEGACY_BASE64_BYTES -> Base64.getEncoder().encode(payload);
-                case CURRENT_BASE64_TEXT, LEGACY_BASE64_TEXT -> Base64.getEncoder().encodeToString(payload);
-                case LEGACY_MIME_TEXT -> Base64.getMimeEncoder(32, new byte[] {'\r', '\n'})
-                        .encodeToString(payload);
+                case CURRENT_BASE64_BYTES, LEGACY_BASE64_BYTES ->
+                    Base64.getEncoder().encode(payload);
+                case CURRENT_BASE64_TEXT, LEGACY_BASE64_TEXT ->
+                    Base64.getEncoder().encodeToString(payload);
+                case LEGACY_MIME_TEXT ->
+                    Base64.getMimeEncoder(32, new byte[] {'\r', '\n'}).encodeToString(payload);
             };
         }
     }
@@ -185,7 +188,9 @@ class BackpackMixedFormatLoadTest {
         assertEquals(restoredRows, profiles.snapshot());
 
         // Deliberately move one recovered stack: only its new and old slots may be submitted.
-        recoveredBackpack.getInventory().setItem(1, recoveredBackpack.getInventory().getItem(8));
+        recoveredBackpack
+                .getInventory()
+                .setItem(1, recoveredBackpack.getInventory().getItem(8));
         recoveredBackpack.getInventory().setItem(8, null);
         CompletableFuture<Void> saved = profiles.saveBackpackInventoryAsync(recoveredBackpack);
         assertTrue(saved.isDone(), "The fixture completes every intercepted write submission immediately");
@@ -213,9 +218,11 @@ class BackpackMixedFormatLoadTest {
         assertTrue(repeated.isDone(), "The acknowledged in-memory snapshot must not remain dirty");
         assertFalse(repeated.isCompletedExceptionally());
         repeated.join();
-        assertEquals(writesAfterRecoverySave, profiles.submittedWrites, "An unchanged repeat must not resubmit the move");
+        assertEquals(
+                writesAfterRecoverySave, profiles.submittedWrites, "An unchanged repeat must not resubmit the move");
         assertItem(expected, profiles.readNormally(healthyId)[0]);
-        assertEquals(writesAfterRecoverySave, profiles.submittedWrites, "Reading another backpack must remain read-only");
+        assertEquals(
+                writesAfterRecoverySave, profiles.submittedWrites, "Reading another backpack must remain read-only");
         assertEquals(restoredRows, profiles.snapshot(), "The intercepted adapter must not execute database writes");
     }
 
@@ -278,7 +285,8 @@ class BackpackMixedFormatLoadTest {
         }
 
         private void put(UUID id, String slot, Object raw) throws SQLException {
-            try (var statement = connection.prepareStatement("INSERT OR REPLACE INTO saved_inventory VALUES (?, ?, ?)")) {
+            try (var statement =
+                    connection.prepareStatement("INSERT OR REPLACE INTO saved_inventory VALUES (?, ?, ?)")) {
                 statement.setString(1, id.toString());
                 statement.setString(2, slot);
                 if (raw instanceof byte[] bytes) {
@@ -344,6 +352,16 @@ class BackpackMixedFormatLoadTest {
                 throw new IllegalStateException(failure);
             }
             return result;
+        }
+
+        @Override
+        protected CompletableFuture<Void> scheduleBackpackSaveWithCompletion(
+                ScopeKey owner, BackpackInventoryBatch batch) {
+            return BackpackBatchRecording.capture(
+                    batch,
+                    (key, data) -> data == null
+                            ? scheduleDeleteTaskWithCompletion(owner, key, false)
+                            : scheduleWriteTaskWithCompletion(owner, key, data, false));
         }
 
         @Override

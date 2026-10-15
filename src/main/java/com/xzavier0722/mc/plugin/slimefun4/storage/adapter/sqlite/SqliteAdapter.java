@@ -24,6 +24,7 @@ import city.norain.slimefun4.timings.entry.SQLEntry;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.IDataSourceAdapter;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlCommonAdapter;
 import com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlUtils;
+import com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataScope;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.DataType;
 import com.xzavier0722.mc.plugin.slimefun4.storage.common.RecordKey;
@@ -409,6 +410,12 @@ public class SqliteAdapter extends SqlCommonAdapter<SqliteConfig> {
                     METADATA_VERSION,
                     IDataSourceAdapter.DATABASE_VERSION));
         }
+    }
+
+    @Override
+    public synchronized void saveBackpackInventory(BackpackInventoryBatch batch) {
+        // Retain this adapter's existing single-writer monitor for the entire transaction.
+        super.saveBackpackInventory(batch);
     }
 
     public synchronized void executeSql(String sql) {
