@@ -1,0 +1,150 @@
+name: Published Core Backpack Slot Move Diagnostic
+
+on:
+  push:
+    branches: ['diagnostic/backpack-slot-move-interruption-20261015']
+    paths: ['.github/workflows/backpack-published-slot-move-diagnostic.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: published-core-backpack-slot-move-diagnostic
+  cancel-in-progress: false
+
+jobs:
+  published-core-conservation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FIXTURE_SOURCE: 5a9d83f42f6dffc65958f09ffab6a4c4247afd3d
+      PUBLISHED_SHA256: 72a524d7c0d6f75a9decbf06679515887273ae53673d3f5ee38f355bef952c96
+    steps:
+      - name: Check out the exact diagnostic generator
+        uses: actions/checkout@v6
+        with:
+          ref: f1d558512c0bb609852669b3a130de9977f47526
+          path: diagnostic
+          persist-credentials: false
+      - name: Check out fixture compile source separately
+        uses: actions/checkout@v6
+        with:
+          ref: 5a9d83f42f6dffc65958f09ffab6a4c4247afd3d
+          path: source
+          persist-credentials: false
+      - name: Set up the existing Java 25 test toolchain
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Download and verify the exact published 4.1.74 JAR
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic-evidence/generated "$RUNNER_TEMP/published-core"
+          source scripts/runtime_download.sh
+          CORE="$RUNNER_TEMP/published-core/Slimefun-Legacy4.1.74.jar"
+          runtime_download 'https://github.com/wickidcow/Slimefun-Legacy/releases/download/v4.1.74/Slimefun-Legacy4.1.74.jar' "$CORE"
+          printf '%s  %s\n' "$PUBLISHED_SHA256" "$CORE" | sha256sum --check --strict
+          sha256sum "$CORE" > diagnostic-evidence/published-core.sha256
+          echo "SFL_EXPECTED_CORE_PATH=$CORE" >> "$GITHUB_ENV"
+          python3 - "$CORE" <<'PY'
+          import sys, zipfile
+          from pathlib import Path
+          with zipfile.ZipFile(sys.argv[1]) as jar:
+              Path('diagnostic-evidence/published-git.properties').write_bytes(jar.read('git.properties'))
+          PY
+      - name: Generate fixtures and require published-JAR provenance in every child
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$FIXTURE_SOURCE"
+          git rev-parse HEAD HEAD^{tree} > diagnostic-evidence/fixture-source-identity.txt
+          python3 ../diagnostic/scripts/diagnose_backpack_slot_moves.py
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller')
+          path = root / 'BackpackMoveCrashProbe.java'
+          text = path.read_text()
+          anchor = '        try {\n            if (arguments.length != 4)'
+          replacement = '''        try {
+                      Path expectedCore = Path.of(System.getenv("SFL_EXPECTED_CORE_PATH")).toRealPath();
+                      for (Class<?> type : new Class<?>[] {
+                              ProfileDataController.class, ADataController.class, SqliteAdapter.class,
+                              com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlCommonAdapter.class,
+                              PlayerBackpack.class, DataUtils.class, RecordSet.class}) {
+                          Path loadedFrom = Path.of(type.getProtectionDomain().getCodeSource().getLocation().toURI()).toRealPath();
+                          assertEquals(expectedCore, loadedFrom, "Must execute the exact published class: " + type.getName());
+                          System.out.println("PUBLISHED_CORE_CLASS:" + type.getName() + ":" + loadedFrom);
+                      }
+                      if (arguments.length != 4)'''
+          assert text.count(anchor) == 1
+          path.write_text(text.replace(anchor, replacement, 1))
+          PY
+          cp ../diagnostic/scripts/diagnose_backpack_slot_moves.py diagnostic-evidence/
+          for name in BackpackMoveCrashProbe BackpackMoveCrashTest; do
+            cp "src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/$name.java" diagnostic-evidence/generated/
+          done
+          sha256sum diagnostic-evidence/generated/*.java > diagnostic-evidence/generated-sha256.txt
+          git diff --exit-code
+          cat > "$RUNNER_TEMP/published-core-test.gradle" <<'GROOVY'
+          gradle.projectsEvaluated {
+              def project = gradle.rootProject
+              def mainOutput = project.extensions.getByName('sourceSets').getByName('main').output
+              def originalMain = mainOutput.files.collect { it.canonicalFile }.toSet()
+              def published = new File(System.getenv('SFL_EXPECTED_CORE_PATH')).canonicalFile
+              if (!published.isFile()) throw new GradleException('Missing verified published JAR')
+              project.tasks.named('test').configure { task ->
+                  task.classpath = project.files(published) + (task.classpath - mainOutput)
+                  task.doFirst {
+                      def actual = task.classpath.files.collect { it.canonicalFile }
+                      if (actual.first() != published || actual.any { originalMain.contains(it) }) {
+                          throw new GradleException('Unexpected core test runtime classpath: ' + actual)
+                      }
+                      def evidence = project.file('diagnostic-evidence/runtime-classpath.txt')
+                      evidence.text = actual.join('\n') + '\n'
+                      println('PUBLISHED_CORE_RUNTIME=' + published)
+                  }
+              }
+          }
+          GROOVY
+          cp "$RUNNER_TEMP/published-core-test.gradle" diagnostic-evidence/runtime-init.gradle
+      - name: Exercise all five boundaries using published production classes
+        id: conservation
+        continue-on-error: true
+        working-directory: source
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew test --tests 'com.xzavier0722.mc.plugin.slimefun4.storage.controller.BackpackMoveCrashTest' -I "$RUNNER_TEMP/published-core-test.gradle" --no-daemon --no-build-cache --no-configuration-cache --console=plain 2>&1 | tee diagnostic-evidence/gradle-test.log
+      - name: Record the observed result and retain original source
+        if: always()
+        working-directory: source
+        env:
+          TEST_OUTCOME: ${{ steps.conservation.outcome }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p diagnostic-evidence
+          printf '%s\n' "$TEST_OUTCOME" > diagnostic-evidence/test-outcome.txt
+          git diff --exit-code
+          printf 'Published core SHA-256: `%s`\n\nDesired conservation result: **%s**\n\nThe fixture compiles from reviewed test source but removes freshly built main output from the test runtime. Each child requires seven relevant core classes to originate from the exact checked published JAR. Inspect controls and XML before attributing a failure to conservation rather than fixture linkage. No published asset or server is modified.\n' "$PUBLISHED_SHA256" "$TEST_OUTCOME" >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain exact binary provenance and full diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: published-core-backpack-slot-move-evidence
+          path: |
+            source/diagnostic-evidence/
+            source/build/test-results/test/TEST-*.xml
+            source/build/reports/tests/test/
+          if-no-files-found: error
+      - name: Keep unmet conservation or setup requirements red
+        if: always()
+        env:
+          TEST_OUTCOME: ${{ steps.conservation.outcome }}
+        shell: bash
+        run: test "$TEST_OUTCOME" = success
