@@ -1,0 +1,73 @@
+name: WorldEdit read-only dependency audit
+
+on:
+  push:
+    branches: ['ci/worldedit-preflight-20261015']
+    paths: ['.github/workflows/worldedit-preflight-audit.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: worldedit-preflight-audit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: 66b1f89189629e583a07d9733db94c458b1a45f0
+          persist-credentials: false
+      - name: Inspect automatic selection and the last successful exact version
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p audit
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          from tempfile import TemporaryDirectory
+          from urllib.error import HTTPError
+          from scripts.prepare_worldedit_runtime import stage
+
+          # YFnqiUlL is the official WorldEdit 7.4.6 version recorded in the
+          # independently hash-verified successful PR385 Paper 26.3 artifact.
+          # These are separate diagnostics, never an automatic fallback or
+          # permission to exclude WorldEdit/SFWorldEdit from a runtime gate.
+          expected_sha256 = 'e0ce67d870ad1fef8a40dd9d7926360caf3bb44722438545d6b20b55f82a0c91'
+          reports = []
+          with TemporaryDirectory(prefix='worldedit-audit-') as temporary:
+              for minecraft in ('26.2', '26.3'):
+                  for requested in (None, 'YFnqiUlL'):
+                      label = f"{minecraft}-{requested or 'automatic'}"
+                      entry = {'minecraft': minecraft, 'requested_version_id': requested,
+                               'scope': 'dependency staging only; not a server-runtime pass'}
+                      try:
+                          result = stage(Path(temporary) / label, minecraft,
+                                         allow_prerelease=minecraft == '26.3', version_id=requested)
+                          if requested is not None and result['sha256'] != expected_sha256:
+                              raise ValueError('Previously successful version no longer matches its recorded digest')
+                          entry.update(status='verified', evidence=result)
+                      except HTTPError as error:
+                          entry.update(status='failed', exception=type(error).__name__,
+                                       http_status=error.code, url=error.geturl(), reason=str(error.reason))
+                      except Exception as error:
+                          entry.update(status='failed', exception=type(error).__name__, reason=str(error))
+                      reports.append(entry)
+                      print(json.dumps(entry, sort_keys=True), flush=True)
+          Path('audit/worldedit-preflight.json').write_text(json.dumps(reports, indent=2) + '\n')
+          if any(entry['status'] != 'verified' for entry in reports):
+              raise SystemExit('One or more dependency attempts failed; inspect the preserved exact endpoint evidence')
+          PY
+      - name: Preserve public dependency evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: worldedit-preflight-evidence
+          path: audit/worldedit-preflight.json
+          retention-days: 14
+          if-no-files-found: error
