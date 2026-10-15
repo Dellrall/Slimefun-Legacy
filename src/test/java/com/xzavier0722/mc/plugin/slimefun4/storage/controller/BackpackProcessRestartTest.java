@@ -51,7 +51,8 @@ class BackpackProcessRestartTest {
         Path log = directory.resolve(phase.toLowerCase() + ".log");
         String executable = System.getProperty("os.name").startsWith("Windows") ? "java.exe" : "java";
         Process process = new ProcessBuilder(
-                        Path.of(System.getProperty("java.home"), "bin", executable).toString(),
+                        Path.of(System.getProperty("java.home"), "bin", executable)
+                                .toString(),
                         "-Xmx384m",
                         "-Dfile.encoding=UTF-8",
                         "-cp",
@@ -91,7 +92,8 @@ class BackpackProcessRestartTest {
     private static String runtimeClasspath() throws Exception {
         Set<String> entries = new LinkedHashSet<>();
         // Gradle's worker java.class.path is not necessarily the test runtime classpath.
-        for (ClassLoader loader = BackpackProcessRestartTest.class.getClassLoader(); loader != null;
+        for (ClassLoader loader = BackpackProcessRestartTest.class.getClassLoader();
+                loader != null;
                 loader = loader.getParent()) {
             if (loader instanceof URLClassLoader urls) {
                 for (var url : urls.getURLs()) {
@@ -102,7 +104,11 @@ class BackpackProcessRestartTest {
             }
         }
         entries.addAll(Arrays.asList(System.getProperty("java.class.path").split(File.pathSeparator)));
-        entries.add(Path.of(BackpackProcessProbe.class.getProtectionDomain().getCodeSource().getLocation().toURI())
+        entries.add(Path.of(BackpackProcessProbe.class
+                        .getProtectionDomain()
+                        .getCodeSource()
+                        .getLocation()
+                        .toURI())
                 .toString());
         return entries.stream().filter(entry -> !entry.isBlank()).collect(Collectors.joining(File.pathSeparator));
     }

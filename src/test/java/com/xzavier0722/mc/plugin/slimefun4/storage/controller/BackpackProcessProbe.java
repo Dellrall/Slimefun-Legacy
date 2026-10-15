@@ -80,7 +80,8 @@ public final class BackpackProcessProbe {
     }
 
     private static void marker(String nonce, String phase) {
-        System.out.println("BACKPACK_PROCESS:" + nonce + ":" + phase + ":" + ProcessHandle.current().pid());
+        System.out.println("BACKPACK_PROCESS:" + nonce + ":" + phase + ":"
+                + ProcessHandle.current().pid());
         System.out.flush();
     }
 
@@ -171,7 +172,9 @@ public final class BackpackProcessProbe {
                     saved.get(WAIT_SECONDS, TimeUnit.SECONDS);
                     assertEquals(1, adapter.writes.get());
                     assertEquals(0, adapter.deletes.get());
-                    assertTrue(pack.getSnapshot().getChangedSlots(pack.getInventory().getContents()).isEmpty());
+                    assertTrue(pack.getSnapshot()
+                            .getChangedSlots(pack.getInventory().getContents())
+                            .isEmpty());
                 }
             }
         }
@@ -239,8 +242,8 @@ public final class BackpackProcessProbe {
                     var rows = statement.executeQuery(sql)) {
                 while (rows.next()) {
                     String key = rows.getString(1) + ":" + rows.getInt(2);
-                    assertNull(result.put(key, rows.getString(3) + ":"
-                            + Base64.getEncoder().encodeToString(rows.getBytes(4))));
+                    assertNull(result.put(
+                            key, rows.getString(3) + ":" + Base64.getEncoder().encodeToString(rows.getBytes(4))));
                 }
             }
             return result;
