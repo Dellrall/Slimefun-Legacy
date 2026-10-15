@@ -2,31 +2,103 @@ name: Backpack Transaction Workbench
 on:
   push:
     branches: [diagnostic/backpack-transaction-workbench-20261015]
-    paths: [.github/workflows/backpack-transaction-workbench.yml, .github/diagnostics/backpack-transaction.patch]
+    paths: [.github/workflows/backpack-transaction-workbench.yml]
 permissions:
   contents: read
 jobs:
-  source:
+  candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v6
         with:
+          path: helper
+          persist-credentials: false
+      - uses: actions/checkout@v6
+        with:
+          path: candidate
           ref: b5db114abe5703a8fb80466724c74e1796feab5a
           persist-credentials: false
-      - name: Archive exact public sources for isolated issue 390 work
+      - name: Apply exact locally reviewed candidate
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = b5db114abe5703a8fb80466724c74e1796feab5a
           mkdir -p evidence
-          git archive --format=zip --output=evidence/source-b5db114.zip HEAD
-          git fetch --depth=1 origin 9c1e277d7e072b9be47f72ef75c517e0c64f8597
-          git archive --format=zip --output=evidence/diagnostic-9c1e277.zip FETCH_HEAD
-          sha256sum evidence/*.zip | tee evidence/SHA256SUMS
-      - uses: actions/upload-artifact@v7
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, gzip, hashlib
+          encoded = ''.join(Path(f'helper/.github/diagnostics/issue390-payload.{i}').read_text().strip() for i in range(1,5))
+          # Correct the one recorded transport transcription before validating exact bytes.
+          encoded = encoded.replace('aMbZZ197', 'aMbZ197')
+          patch = gzip.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(patch).hexdigest() == '0f189761172dad92543ebcf3aee7aa9119c8a2371ce2dab912b00c58ed558136'
+          Path('evidence/input.patch').write_bytes(patch)
+          PY
+          cd candidate
+          test "$(git rev-parse HEAD)" = b5db114abe5703a8fb80466724c74e1796feab5a
+          git apply --check --unidiff-zero ../evidence/input.patch
+          git apply --unidiff-zero ../evidence/input.patch
+          git add -N src docs .github/workflows/universal-migration-validation.yml
+          git diff --name-only > ../evidence/changed-paths.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          paths = Path('../evidence/changed-paths.txt').read_text().splitlines()
+          assert len(paths) == 19, paths
+          for path in paths:
+              assert path.startswith(('src/main/java/com/xzavier0722/mc/plugin/slimefun4/storage/', 'src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/')) or path in ('docs/backpack-atomic-slot-saves.md', '.github/workflows/universal-migration-validation.yml'), path
+          PY
+          echo "SOURCE_COMMIT=$GITHUB_SHA" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+          echo "SFL_BACKPACK_EVIDENCE=$GITHUB_WORKSPACE/evidence/processes" >> "$GITHUB_ENV"
+      - uses: actions/setup-java@v5
         with:
-          name: issue390-exact-source-workbench
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+          cache-dependency-path: candidate/gradle/libs.versions.toml
+      - name: Format only changed Java paths
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > "$RUNNER_TEMP/issue390-format.init.gradle" <<'GRADLE'
+          gradle.projectsEvaluated {
+              def project = gradle.rootProject
+              def paths = new File(project.projectDir, '../evidence/changed-paths.txt').readLines().findAll { it.endsWith('.java') }
+              project.extensions.getByName('spotless').java { target(paths) }
+          }
+          GRADLE
+          chmod +x gradlew
+          ./gradlew -I "$RUNNER_TEMP/issue390-format.init.gradle" spotlessApply spotlessCheck --no-daemon --no-configuration-cache
+          git diff --check
+          git diff --binary > ../evidence/candidate-formatted.patch
+          sha256sum ../evidence/candidate-formatted.patch | tee ../evidence/candidate-formatted.sha256
+      - name: Run invariants, full build and tests
+        working-directory: candidate
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_legacy.py . 2>&1 | tee ../evidence/invariants.log
+          ./gradlew -I "$RUNNER_TEMP/issue390-format.init.gradle" clean build -PslimefunDeprecationReport=true --console=plain --no-daemon --no-configuration-cache 2>&1 | tee ../evidence/build.log
+          python3 scripts/summarize_deprecations.py ../evidence/build.log --fail-on-warnings --require-successful-build
+          JAR="$(find build/libs -name 'Slimefun-*.jar' ! -name '*-sources.jar' -print -quit)"
+          test -n "$JAR"
+          python3 scripts/check_bytecode_target.py "$JAR" --expected-java 21
+          jar tf "$JAR" > ../evidence/jar-entries.txt
+          if grep -E 'BackpackAtomicMoveProcess|BackpackProcessProbe|BackpackJdbcProbe|org/junit/|org/mockito/' ../evidence/jar-entries.txt; then exit 1; fi
+          cp "$JAR" ../evidence/issue390-NOT-FOR-DISTRIBUTION.jar
+      - name: Preserve actual reports and exact formatted source
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p evidence/test-results
+          if test -d candidate/build/test-results; then cp -a candidate/build/test-results/. evidence/test-results/; fi
+          if test -d candidate/src; then tar -czf evidence/changed-files.tar.gz -C candidate -T evidence/changed-paths.txt; fi
+          find evidence -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: issue390-candidate-evidence
           path: evidence/
-          retention-days: 7
+          retention-days: 14
           if-no-files-found: error
