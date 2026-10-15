@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 env:
-  CANDIDATE_SHA: a513b6d254962088aac08cb0d0515825e3491b90
+  CANDIDATE_SHA: 4ac8c1a30ce2db9eb21402b75392d65a62131d61
 
 jobs:
   verify:
@@ -19,7 +19,7 @@ jobs:
       - name: Check out the exact versioned candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: a513b6d254962088aac08cb0d0515825e3491b90
+          ref: 4ac8c1a30ce2db9eb21402b75392d65a62131d61
           fetch-depth: 0
           persist-credentials: false
       - name: Set up existing Java 25 toolchain
