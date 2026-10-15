@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  CANDIDATE_SHA: a513b6d254962088aac08cb0d0515825e3491b90
+
 jobs:
   verify:
     runs-on: ubuntu-latest
@@ -16,7 +19,7 @@ jobs:
       - name: Check out the exact versioned candidate
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
         with:
-          ref: 933a4b8ae925d99f45936aa1e60d46826f9c76f1
+          ref: a513b6d254962088aac08cb0d0515825e3491b90
           fetch-depth: 0
           persist-credentials: false
       - name: Set up existing Java 25 toolchain
@@ -29,7 +32,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = 933a4b8ae925d99f45936aa1e60d46826f9c76f1
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           test "$(sed -n 's/^projectVersion=//p' gradle.properties)" = 4.1.75
           test -z "$(git status --porcelain --untracked-files=no)"
           echo "SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
@@ -66,13 +69,15 @@ jobs:
           from zipfile import ZipFile
 
           root = Path(os.environ['EVIDENCE_DIR'])
+          source = os.environ['SOURCE_COMMIT']
+          assert source == os.environ['CANDIDATE_SHA']
           a = (root / 'first.jar').read_bytes()
           b = (root / 'second.jar').read_bytes()
           assert a == b
           with ZipFile(root / 'first.jar') as jar:
               names = jar.namelist()
               metadata = jar.read('git.properties').decode('utf-8')
-              assert 'git.source.commit=933a4b8ae925d99f45936aa1e60d46826f9c76f1' in metadata
+              assert 'git.source.commit=' + source in metadata
               assert 'git.build.version=4.1.75' in metadata
               plugin = jar.read('plugin.yml').decode('utf-8')
               assert '4.1.75' in plugin
@@ -91,7 +96,7 @@ jobs:
               assert baseline['previous_stable']['version'] == '4.1.74'
               assert baseline['previous_stable']['source']['ref'] == '4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a'
           result = {
-              'result': 'PASS', 'source': os.environ['SOURCE_COMMIT'], 'version': '4.1.75',
+              'result': 'PASS', 'source': source, 'version': '4.1.75',
               'sha256': hashlib.sha256(a).hexdigest(), 'size': len(a),
               'two_clean_builds_byte_identical': True, 'tracked_sources_unchanged': True,
               'test_helpers_excluded': True, 'publication_performed': False,
