@@ -175,15 +175,56 @@ class BackpackMixedFormatLoadTest {
         assertEquals(0, profiles.submittedWrites, "A successful recovery read must remain read-only");
         PlayerBackpack recoveredBackpack =
                 new PlayerBackpack(server.addPlayer(), heldId, "Recovered backpack", 1, 9, recovered);
+
+        // Construction snapshots the recovered contents. An unchanged save is correctly a no-op.
+        CompletableFuture<Void> unchanged = profiles.saveBackpackInventoryAsync(recoveredBackpack);
+        assertTrue(unchanged.isDone(), "An unchanged recovered inventory must complete without a write");
+        assertFalse(unchanged.isCompletedExceptionally(), "Complete recovery must release the save hold");
+        unchanged.join();
+        assertEquals(0, profiles.submittedWrites, "Recovery alone must not rewrite historical representations");
+        assertEquals(restoredRows, profiles.snapshot());
+
+        // Deliberately move one recovered stack: only its new and old slots may be submitted.
+        recoveredBackpack.getInventory().setItem(1, recoveredBackpack.getInventory().getItem(8));
+        recoveredBackpack.getInventory().setItem(8, null);
         CompletableFuture<Void> saved = profiles.saveBackpackInventoryAsync(recoveredBackpack);
         assertTrue(saved.isDone(), "The fixture completes every intercepted write submission immediately");
-        assertFalse(saved.isCompletedExceptionally(), "Complete recovery must release the save hold");
+        assertFalse(saved.isCompletedExceptionally(), "An explicit edit after complete recovery must be saveable");
         saved.join();
-        assertTrue(profiles.submittedWrites > 0, "The recovered save must reach the write submission boundary");
+        assertEquals(2, profiles.submittedWrites, "The move must submit exactly one write and one deletion");
+        assertEquals(1, profiles.writtenRows.size());
+        RecordSet written = profiles.writtenRows.getFirst();
+        assertEquals(heldId.toString(), written.getString(FieldKey.BACKPACK_ID));
+        assertEquals("1", written.getString(FieldKey.INVENTORY_SLOT));
+        assertItem(expected, written.getItemStack(FieldKey.INVENTORY_ITEM));
+        assertEquals(1, profiles.deletedRows.size());
+        RecordKey deleted = profiles.deletedRows.getFirst();
+        assertEquals(DataScope.BACKPACK_INVENTORY, deleted.getScope());
+        assertEquals(2, deleted.getConditions().size(), "Deletion must target one slot in one backpack");
+        assertEquals(heldId.toString(), conditionValue(deleted, FieldKey.BACKPACK_ID));
+        assertEquals("8", conditionValue(deleted, FieldKey.INVENTORY_SLOT));
+        for (int slot : new int[] {0, 1, 4}) {
+            assertItem(expected, recoveredBackpack.getInventory().getItem(slot));
+        }
+        assertNull(recoveredBackpack.getInventory().getItem(8));
+
         int writesAfterRecoverySave = profiles.submittedWrites;
+        CompletableFuture<Void> repeated = profiles.saveBackpackInventoryAsync(recoveredBackpack);
+        assertTrue(repeated.isDone(), "The acknowledged in-memory snapshot must not remain dirty");
+        assertFalse(repeated.isCompletedExceptionally());
+        repeated.join();
+        assertEquals(writesAfterRecoverySave, profiles.submittedWrites, "An unchanged repeat must not resubmit the move");
         assertItem(expected, profiles.readNormally(healthyId)[0]);
         assertEquals(writesAfterRecoverySave, profiles.submittedWrites, "Reading another backpack must remain read-only");
-        assertEquals(restoredRows, profiles.snapshot());
+        assertEquals(restoredRows, profiles.snapshot(), "The intercepted adapter must not execute database writes");
+    }
+
+    private static String conditionValue(RecordKey key, FieldKey field) {
+        return key.getConditions().stream()
+                .filter(condition -> condition.getFirstValue() == field)
+                .map(condition -> condition.getSecondValue())
+                .findFirst()
+                .orElseThrow();
     }
 
     private static ItemStack existingItem() {
@@ -222,6 +263,8 @@ class BackpackMixedFormatLoadTest {
 
     private static final class StoredProfiles extends ProfileDataController implements AutoCloseable {
         private final String jdbc;
+        private final List<RecordSet> writtenRows = new ArrayList<>();
+        private final List<RecordKey> deletedRows = new ArrayList<>();
         private Connection connection;
         private int submittedWrites;
 
@@ -285,11 +328,7 @@ class BackpackMixedFormatLoadTest {
         @Override
         protected List<RecordSet> getData(RecordKey key) {
             assertEquals(DataScope.BACKPACK_INVENTORY, key.getScope());
-            String id = key.getConditions().stream()
-                    .filter(condition -> condition.getFirstValue() == FieldKey.BACKPACK_ID)
-                    .map(condition -> condition.getSecondValue())
-                    .findFirst()
-                    .orElseThrow();
+            String id = conditionValue(key, FieldKey.BACKPACK_ID);
             var result = new ArrayList<RecordSet>();
             try (var statement = connection.prepareStatement(
                     "SELECT slot,item FROM saved_inventory WHERE backpack=? ORDER BY slot")) {
@@ -310,6 +349,11 @@ class BackpackMixedFormatLoadTest {
         @Override
         protected CompletableFuture<Void> scheduleWriteTaskWithCompletion(
                 ScopeKey scope, RecordKey key, RecordSet data, boolean serial) {
+            assertEquals(DataScope.BACKPACK_INVENTORY, key.getScope());
+            assertEquals(2, key.getConditions().size());
+            assertEquals(data.getString(FieldKey.BACKPACK_ID), conditionValue(key, FieldKey.BACKPACK_ID));
+            assertEquals(data.getString(FieldKey.INVENTORY_SLOT), conditionValue(key, FieldKey.INVENTORY_SLOT));
+            writtenRows.add(data);
             submittedWrites++;
             return CompletableFuture.completedFuture(null);
         }
@@ -317,6 +361,7 @@ class BackpackMixedFormatLoadTest {
         @Override
         protected CompletableFuture<Void> scheduleDeleteTaskWithCompletion(
                 ScopeKey scope, RecordKey key, boolean serial) {
+            deletedRows.add(key);
             submittedWrites++;
             return CompletableFuture.completedFuture(null);
         }
