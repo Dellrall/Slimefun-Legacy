@@ -1,0 +1,79 @@
+name: Prepare Atomic Backpack Source Objects
+on:
+  push:
+    branches: [diagnostic/backpack-transaction-workbench-20261015]
+    paths: [.github/workflows/backpack-prepare-source-objects.yml]
+permissions:
+  contents: read
+jobs:
+  source-objects:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: b5db114abe5703a8fb80466724c74e1796feab5a
+          persist-credentials: false
+      - name: Retrieve and validate reviewed plain sources only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p review-evidence
+          gh run view 38811758873 --repo wickidcow/Slimefun-Legacy --json headSha,status,conclusion > review-evidence/run.json
+          python3 - <<'PY'
+          import json
+          r = json.load(open('review-evidence/run.json'))
+          assert r == {'headSha':'40a7bddcb6ddc62d5b274403710e4376e77941f3','status':'completed','conclusion':'success'}, r
+          PY
+          gh run download 38811758873 --repo wickidcow/Slimefun-Legacy --name issue390-candidate-evidence --dir reviewed
+          printf '%s  %s\n' 275fcdfb8d49799b467e7e9b37dd55a15e80d9574590c0530163d8188bbe08fe reviewed/candidate-formatted.patch | sha256sum --check --strict
+          test "$(git rev-parse HEAD)" = b5db114abe5703a8fb80466724c74e1796feab5a
+          git apply --check --index reviewed/candidate-formatted.patch
+          git apply --index reviewed/candidate-formatted.patch
+          test "$(git diff --cached --name-only | wc -l)" = 19
+          # The Actions token cannot change workflow objects. The connected app will
+          # add the single reviewed workflow separately; do not change permissions.
+          git restore --staged --source=HEAD .github/workflows/universal-migration-validation.yml
+          git diff --cached --check
+      - name: Upload source tree objects only; no commits, refs or releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,subprocess
+          from pathlib import Path
+          paths = subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert len(paths)==18, paths
+          entries=[]; inventory=[]
+          for path in paths:
+              assert path.startswith(('src/main/java/com/xzavier0722/mc/plugin/slimefun4/storage/','src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/')) or path == 'docs/backpack-atomic-slot-saves.md', path
+              data=Path(path).read_bytes()
+              entries.append({'path':path,'mode':'100644','type':'blob','content':data.decode('utf-8')})
+              inventory.append({'path':path,'sha256':hashlib.sha256(data).hexdigest(),'git_blob':hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()})
+          base=subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip()
+          local=subprocess.check_output(['git','write-tree'],text=True).strip()
+          Path('review-evidence/tree-request.json').write_text(json.dumps({'base_tree':base,'tree':entries}))
+          output=subprocess.check_output(['gh','api','--method','POST','repos/wickidcow/Slimefun-Legacy/git/trees','--input','review-evidence/tree-request.json'])
+          result=json.loads(output)
+          assert result['sha']==local,(result['sha'],local)
+          Path('review-evidence/source-objects.json').write_text(json.dumps({'base_commit':'b5db114abe5703a8fb80466724c74e1796feab5a','base_tree':base,'candidate_source_tree':local,'files':inventory},indent=2)+'\n')
+          Path('review-evidence/tree-request.json').unlink()
+          print('REVIEWED_SOURCE_TREE='+local)
+          print('No commit, branch, tag, release, addon pin or server file was changed.')
+          PY
+          git diff --cached --binary > review-evidence/reviewed-source.patch
+          sha256sum review-evidence/* > review-evidence/SHA256SUMS
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: issue390-reviewed-source-objects
+          path: review-evidence/
+          if-no-files-found: error
+          retention-days: 14
