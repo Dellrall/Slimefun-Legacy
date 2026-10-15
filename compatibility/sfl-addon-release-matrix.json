@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bundle_revision": 136,
+  "bundle_revision": 137,
   "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
@@ -193,7 +193,7 @@
     {
       "repository": "wickidcow/SF_MagicExpansion",
       "slug": "magicexpansion",
-      "source_commit": "144d973a014ce943e4e9173ea17f7bf31ed00fa3"
+      "source_commit": "13924991a1960daa40fe221cab5a4eef95d46ecb"
     },
     {
       "repository": "wickidcow/SF_MilitaryArsenal",

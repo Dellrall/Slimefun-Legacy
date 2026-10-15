@@ -1,0 +1,45 @@
+{
+  "release_id": 412654205,
+  "release_tag": "v4.1.74",
+  "core_source_commit": "4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a",
+  "baseline_assets": {
+    "SF_Addons_1.21.11-26.3.zip": {
+      "id": 641318435,
+      "size": 24440999,
+      "sha256": "79b9cb70a522a9ed97de3d9107d4750a913c4372043e5ee8cfeca0a1f85afc9f"
+    },
+    "Slimefun-Legacy4.1.74.jar": {
+      "id": 640213945,
+      "size": 8668060,
+      "sha256": "72a524d7c0d6f75a9decbf06679515887273ae53673d3f5ee38f355bef952c96"
+    },
+    "SlimefunLegacyRP.zip": {
+      "id": 640213951,
+      "size": 9143959,
+      "sha256": "1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83"
+    }
+  },
+  "bundle_revision": 137,
+  "expected_addons": 45,
+  "repository": "wickidcow/SF_MagicExpansion",
+  "old_bundle_sha256": "79b9cb70a522a9ed97de3d9107d4750a913c4372043e5ee8cfeca0a1f85afc9f",
+  "old_jar": "SF_MagicExpansion1.1.12.jar",
+  "old_commit": "144d973a014ce943e4e9173ea17f7bf31ed00fa3",
+  "new_jar": "SF_MagicExpansion1.1.13.jar",
+  "new_version": "1.1.13",
+  "new_commit": "13924991a1960daa40fe221cab5a4eef95d46ecb",
+  "new_sha256": "674aeac4dbf5ce09969131dbfdbadd1e037eebfed74588f98f135902ab81adde",
+  "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+  "new_build_core_version": "4.1.61",
+  "new_paper_26_3_api": "26.3-rc-3.build.1-alpha",
+  "source_run_id": 38664857521,
+  "jar_artifact": {
+    "id": 11940776508,
+    "sha256": "674aeac4dbf5ce09969131dbfdbadd1e037eebfed74588f98f135902ab81adde"
+  },
+  "test_artifact": {
+    "id": 11940781417,
+    "sha256": "b13e0c324188b018b4162eb264867fcb6d65d72b80f06a39bba1fe1361f3c9de"
+  },
+  "compatibility_note": "r137 targeted refresh: MagicExpansion 1.1.13 adds Black Market receipt/restart safeguards; all other 44 addon JARs remain byte-identical to published r136. The universal MagicExpansion JAR is baseline-built for 1.21.11 and Java 21. Existing mismatches are not automatically repaired or unlocked."
+}

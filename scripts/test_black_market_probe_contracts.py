@@ -1,0 +1,168 @@
+"""Offline admission tests only; these do not execute Paper or plugin transactions."""
+from __future__ import annotations
+import contextlib
+import copy
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import tempfile
+import unittest
+import zipfile
+
+SOURCE = Path(__file__).parent / "runtime/black_market/run_probe.py"
+SPEC = importlib.util.spec_from_file_location("black_market_probe", SOURCE)
+probe = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(probe)
+
+
+class AdmissionTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.home = Path(self.temporary.name).resolve()
+        self.previous = Path.cwd()
+        os.chdir(self.home)
+        self.addCleanup(os.chdir, self.previous)
+        self.work = self.home / "build/full-stack-26.3"
+        (self.work / "plugins").mkdir(parents=True)
+        for name, content in {
+            "smoke-result.txt": "Paper runtime smoke: PASS\n",
+            "server.jar": "server", "eula.txt": "eula=true\n", "runtime-build.txt": "Paper 26.3 fixture\n",
+            "server.properties": "online-mode=false\nlevel-name=full-stack-smoke-world\nenable-rcon=false\nenable-query=false\n",
+            "plugins/Slimefun-Legacy-full-stack.jar": "core",
+        }.items():
+            (self.work / name).write_text(content)
+        self.rows = []
+        self.blobs = {}
+        for i in range(45):
+            name = probe.MAGIC_JAR if i == 0 else f"Addon{i}.jar"
+            blob = f"synthetic-jar-{i}".encode()
+            self.blobs[name] = blob
+            (self.work / "plugins" / name).write_bytes(blob)
+            self.rows.append({"repository": probe.MAGIC if i == 0 else f"fixture/Addon{i}", "jar": name,
+                              "commit": probe.MAGIC_COMMIT if i == 0 else "a" * 40,
+                              "sha256": hashlib.sha256(blob).hexdigest()})
+        self.manifest = {"bundle_revision": 137, "addons": self.rows}
+        self.bundle = self.home / "candidate.zip"
+        self.write_bundle()
+
+    def write_bundle(self):
+        with zipfile.ZipFile(self.bundle, "w") as archive:
+            archive.writestr("SF_ADDON_MANIFEST.json", json.dumps(self.manifest))
+            for name, blob in self.blobs.items():
+                archive.writestr(name, blob)
+
+    def validate(self):
+        return probe.validate_fixture(self.work, self.bundle)
+
+    def rejects(self):
+        with self.assertRaises((RuntimeError, KeyError, ValueError)):
+            self.validate()
+        self.assertFalse((self.work / "bm-probe-classes").exists())
+
+    def test_exact_fixture_admitted_without_writes(self):
+        before = {p.relative_to(self.work): p.read_bytes() for p in self.work.rglob("*") if p.is_file()}
+        evidence = self.validate()
+        self.assertEqual(len(evidence["tested_addons"]), 45)
+        self.assertEqual(evidence["result"], "STARTED")
+        self.assertEqual(before, {p.relative_to(self.work): p.read_bytes() for p in self.work.rglob("*") if p.is_file()})
+
+    def test_all_four_runtime_names_supported(self):
+        for name in probe.DIRECTORIES:
+            with self.subTest(name=name):
+                destination = self.work.with_name(name)
+                if destination != self.work:
+                    self.work.rename(destination)
+                    self.work = destination
+                self.validate()
+
+    def test_production_directory_refused(self):
+        destination = self.home / "production"
+        self.work.rename(destination)
+        self.work = destination
+        self.rejects()
+
+    def test_linked_runtime_refused(self):
+        destination = self.work.with_name("original")
+        self.work.rename(destination)
+        self.work.symlink_to(destination, target_is_directory=True)
+        self.rejects()
+
+    def test_bad_or_noninteger_revision_refused(self):
+        for revision in (136, 138, "137", 137.0, True):
+            with self.subTest(revision=revision):
+                self.manifest["bundle_revision"] = revision
+                self.write_bundle()
+                self.rejects()
+
+    def test_wrong_magic_source_refused(self):
+        self.rows[0]["commit"] = "b" * 40
+        self.write_bundle()
+        self.rejects()
+
+    def test_missing_checksum_refused(self):
+        del self.rows[0]["sha256"]
+        self.write_bundle()
+        self.rejects()
+
+    def test_other_addon_changed_refused(self):
+        (self.work / "plugins/Addon44.jar").write_bytes(b"changed")
+        self.rejects()
+
+    def test_bundle_bytes_changed_refused(self):
+        self.blobs[probe.MAGIC_JAR] = b"changed"
+        self.write_bundle()
+        self.rejects()
+
+    def test_missing_addon_refused(self):
+        (self.work / "plugins/Addon44.jar").unlink()
+        self.rejects()
+
+    def test_linked_addon_refused(self):
+        path = self.work / "plugins" / probe.MAGIC_JAR
+        original = self.home / "outside.jar"
+        path.rename(original)
+        path.symlink_to(original)
+        self.rejects()
+
+    def test_duplicate_repository_refused(self):
+        self.rows[44]["repository"] = self.rows[43]["repository"]
+        self.write_bundle()
+        self.rejects()
+
+    def test_incomplete_roster_refused(self):
+        self.rows.pop()
+        self.write_bundle()
+        self.rejects()
+
+    def test_failed_baseline_refused(self):
+        (self.work / "smoke-result.txt").write_text("runtime smoke: FAIL")
+        self.rejects()
+
+    def test_wrong_world_or_remote_admin_refused(self):
+        path = self.work / "server.properties"
+        before = path.read_text()
+        for old, new in (("full-stack-smoke-world", "survival"), ("enable-rcon=false", "enable-rcon=true"),
+                         ("online-mode=false", "online-mode=true"), ("enable-query=false", "enable-query=true")):
+            with self.subTest(new=new):
+                path.write_text(before.replace(old, new))
+                self.rejects()
+        path.write_text(before)
+
+    def test_stale_probe_refused(self):
+        path = self.work / "plugins" / probe.PLUGIN
+        path.mkdir()
+        self.rejects()
+
+    def test_core_missing_refused(self):
+        (self.work / "plugins/Slimefun-Legacy-full-stack.jar").unlink()
+        self.rejects()
+
+    def test_four_phase_order_requires_missing_then_restoration(self):
+        self.assertEqual(probe.PHASES, ("seed", "verify", "missing", "restored"))
+
+
+if __name__ == "__main__":
+    unittest.main()
