@@ -28,6 +28,14 @@ SOURCE_REPOSITORY = "https://github.com/EngineHub/WorldEdit"
 MAIN_CLASS = "com.sk89q.worldedit.bukkit.WorldEditPlugin"
 MAX_CANDIDATES = 12
 
+# Reviewed CI dependencies, not automatic fallbacks. See docs/worldedit-runtime-pins.md.
+# The 26.3 beta still requires --allow-prerelease and explicit upstream game support.
+REVIEWED_RUNTIME_PINS = {
+    "1.21.11": ("p8T2aZ8U", "0ee152b1be5dfb51500505e2bf5a8c9d66f09c7fa484bf9aea384d7e7b459b06"),
+    "26.2": ("F5ea2ov3", "e5696a6d064b9969437a8888be91b0941148a28e0c3736de1554a00254a5d142"),
+    "26.3": ("J1eeOh6C", "166365c44bad4cd916200b288cf391d3770e3197d1eca84ff74f3914d933e289"),
+}
+
 
 class BytecodeCompatibilityError(ValueError):
     """A verified artifact is not eligible for the selected Java runtime."""
@@ -241,7 +249,7 @@ def select_compatible_artifact(versions: object, project_id: str, minecraft: str
 
 
 def stage(output: Path, minecraft: str, allow_prerelease: bool = False,
-          version_id: str | None = None) -> dict:
+          version_id: str | None = None, *, expected_sha256: str | None = None) -> dict:
     if minecraft not in ("1.21.11", "26.2", "26.3"):
         raise ValueError("Unknown runtime lane; explicitly review new versions")
     if version_id is not None and not re.fullmatch(r"[A-Za-z0-9]+", version_id):
@@ -259,6 +267,9 @@ def stage(output: Path, minecraft: str, allow_prerelease: bool = False,
                                          4 * 1024 * 1024, allowed_host="api.modrinth.com"), "versions")
     version, file, payload, report = select_compatible_artifact(
         versions, project_id, minecraft, allow_prerelease, version_id)
+    if expected_sha256 is not None and (
+            not re.fullmatch(r"[0-9a-f]{64}", expected_sha256) or report["sha256"] != expected_sha256):
+        raise ValueError("Downloaded WorldEdit does not match the reviewed SHA-256 pin")
     report.update({"minecraft": minecraft, "project_id": project_id, "version_id": version["id"],
                    "version_number": version.get("version_number"), "channel": version["version_type"],
                    "published": version["date_published"], "url": file["url"],
@@ -339,14 +350,20 @@ def main() -> int:
     mode.add_argument("--verify-log", type=Path)
     args = parser.parse_args()
     try:
+        pinned_version, pinned_sha256 = REVIEWED_RUNTIME_PINS[args.minecraft]
+        version_id = args.version_id or pinned_version
+        expected_sha256 = pinned_sha256 if version_id == pinned_version else None
         if args.check_staged:
             report = verify_staged(args.output, args.minecraft, args.allow_prerelease)
         elif args.verify_log is not None:
             report = verify_boot_log(args.output, args.minecraft, args.verify_log, args.allow_prerelease)
         else:
-            report = stage(args.output, args.minecraft, args.allow_prerelease, args.version_id)
-        if args.version_id is not None and report.get("version_id") != args.version_id:
+            report = stage(args.output, args.minecraft, args.allow_prerelease, version_id,
+                           expected_sha256=expected_sha256)
+        if report.get("version_id") != version_id:
             raise ValueError("Staged dependency does not match the requested version ID")
+        if expected_sha256 is not None and report.get("sha256") != expected_sha256:
+            raise ValueError("Staged WorldEdit does not match the reviewed SHA-256 pin")
     except (ValueError, OSError, KeyError, zipfile.BadZipFile) as failure:
         parser.exit(1, f"WorldEdit dependency validation failed: {failure}\n")
     print(json.dumps(report, indent=2))
