@@ -41,8 +41,8 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.sources.mkdir()
         (self.sources / "plugin.yml").write_text("name: SyntheticContractOnly\n", encoding="utf-8")
         self.bundle = self.root / "bundle.zip"
-        self.manifest = {"bundle_revision": 137, "addons": []}
-        self.populate(137)
+        self.manifest = {"bundle_revision": 138, "addons": []}
+        self.populate(138)
         self.addCleanup(patch.stopall)
         patch.object(probe.Path, "cwd", return_value=self.root).start()
         patch.object(probe, "HERE", self.sources).start()
@@ -81,9 +81,9 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.compile.assert_not_called()
         self.launch.assert_not_called()
 
-    def test_r137_reaches_native_setup_with_unchanged_exact_storage_pins(self):
+    def test_r138_reaches_native_setup_with_unchanged_exact_storage_pins(self):
         evidence = self.prepare()
-        self.assertEqual(evidence["bundle_revision"], 137)
+        self.assertEqual(evidence["bundle_revision"], 138)
         self.assertEqual(evidence["status"], "STARTED")
         self.assertNotIn("result", evidence)  # Setup success must not claim a native PASS.
         networks = evidence["tested_addons"]["wickidcow/SF_NetworksExp"]
@@ -101,15 +101,19 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.populate(136)
         self.assertEqual(self.prepare()["bundle_revision"], 136)
 
+    def test_r137_is_still_supported(self):
+        self.populate(137)
+        self.assertEqual(self.prepare()["bundle_revision"], 137)
+
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
-        self.manifest["bundle_revision"] = 138
-        self.reject("requires r135, r136 or r137")
+        self.manifest["bundle_revision"] = 139
+        self.reject("requires r135, r136, r137 or r138")
 
     def test_non_integer_revisions_are_rejected(self):
-        for value in (137.0, "137", True, None):
+        for value in (138.0, "138", True, None):
             with self.subTest(value=value):
                 self.manifest["bundle_revision"] = value
-                self.reject("requires r135, r136 or r137")
+                self.reject("requires r135, r136, r137 or r138")
 
     def test_wrong_networks_pin_is_rejected(self):
         self.manifest["addons"][1]["commit"] = "0" * 40

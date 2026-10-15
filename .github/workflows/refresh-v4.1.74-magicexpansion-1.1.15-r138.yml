@@ -1,0 +1,263 @@
+name: Refresh v4.1.74 addon bundle r138 with MagicExpansion 1.1.15
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/refresh-v4.1.74-magicexpansion-1.1.15-r138.yml'
+      - 'compatibility/bundle-refresh-r138.json'
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'docs/addon-bundle-r138.md'
+      - 'scripts/refresh_release_addon.py'
+      - 'scripts/test_refresh_release_addon.py'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/test_native_storage_probe_contracts.py'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/refresh-v4.1.74-magicexpansion-1.1.15-r138.yml'
+      - 'compatibility/bundle-refresh-r138.json'
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'docs/addon-bundle-r138.md'
+      - 'scripts/refresh_release_addon.py'
+      - 'scripts/test_refresh_release_addon.py'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/test_native_storage_probe_contracts.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-v4.1.74-addon-bundle-r138-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      digest: ${{ steps.refresh.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Verify archive and native-probe guards
+        run: |
+          PYTHONPATH=scripts python3 -m unittest \
+            scripts/test_refresh_release_addon.py \
+            scripts/test_verify_published_addon_bundle.py \
+            scripts/test_verify_addon_bytecode.py \
+            scripts/test_native_storage_probe_contracts.py
+      - name: Download pinned published inputs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/current work/new
+          gh release download v4.1.74 --repo "$GITHUB_REPOSITORY" \
+            --pattern SF_Addons_1.21.11-26.3.zip \
+            --pattern Slimefun-Legacy4.1.74.jar \
+            --dir work/current
+          gh release download v1.1.15 --repo wickidcow/SF_MagicExpansion \
+            --pattern SF_MagicExpansion1.1.15.jar --dir work/new
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          cfg=json.loads(Path('compatibility/bundle-refresh-r138.json').read_text())
+          assert hashlib.sha256((Path('work/current')/cfg['core_jar']).read_bytes()).hexdigest()==cfg['core_sha256']
+          assert hashlib.sha256((Path('work/new')/cfg['new_jar']).read_bytes()).hexdigest()==cfg['new_sha256']
+          PY
+      - name: Create deterministic targeted r138 refresh
+        id: refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/refresh_release_addon.py \
+            --config compatibility/bundle-refresh-r138.json \
+            --matrix compatibility/sfl-addon-release-matrix.json \
+            --original work/current/SF_Addons_1.21.11-26.3.zip \
+            --addon work/new/SF_MagicExpansion1.1.15.jar \
+            --output work/SF_Addons_1.21.11-26.3.zip | tee work/validation.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report=json.loads(Path('work/validation.json').read_text())
+          assert report['bundle_revision']==138
+          assert report['unchanged_addons']==44
+          assert report['new_jar']=='SF_MagicExpansion1.1.15.jar'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as out:
+              out.write('digest='+report['bundle_sha256']+'\n')
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon-bundle-r138-candidate
+          path: |
+            work/SF_Addons_1.21.11-26.3.zip
+            work/current/Slimefun-Legacy4.1.74.jar
+            work/validation.json
+          if-no-files-found: error
+
+  runtime:
+    name: r138 full stack — ${{ matrix.software }} ${{ matrix.minecraft }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {software: paper, minecraft: '1.21.11', java: '21', lane: '1.21.11'}
+          - {software: paper, minecraft: '26.2', java: '25', lane: '26.2'}
+          - {software: paper, minecraft: '26.3', java: '25', lane: '26.3'}
+          - {software: purpur, minecraft: '26.3', java: '25', lane: 'purpur-26.3'}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon-bundle-r138-candidate
+          path: candidate
+      - name: Boot exact r138 bundle twice
+        env:
+          SERVER_SOFTWARE: ${{ matrix.software }}
+          SERVER_MINECRAFT_VERSION: ${{ matrix.minecraft }}
+          SLIMEFUN_SMOKE_VERSION: '4.1.74'
+          PURPUR_SMOKE_BUILD: '2646'
+          SERVER_DOWNLOAD_USER_AGENT: Slimefun-Legacy-r138-Refresh/1.0
+        run: |
+          bash scripts/full_stack_runtime_smoke.sh \
+            candidate/Slimefun-Legacy4.1.74.jar \
+            candidate/SF_Addons_1.21.11-26.3.zip \
+            "build/full-stack-${{ matrix.lane }}"
+      - name: Verify native Networks/Fluffy conservation
+        if: matrix.software == 'paper' && matrix.minecraft == '26.3'
+        run: |
+          python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
+            --runtime-dir build/full-stack-26.3 \
+            --bundle candidate/SF_Addons_1.21.11-26.3.zip
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: r138-runtime-${{ matrix.lane }}
+          path: |
+            build/full-stack-${{ matrix.lane }}/smoke-result.txt
+            build/full-stack-${{ matrix.lane }}/runtime-build.txt
+            build/full-stack-${{ matrix.lane }}/*.console.log
+            build/full-stack-${{ matrix.lane }}/*.normalized.log
+            build/full-stack-${{ matrix.lane }}/native-r135-result.json
+            build/full-stack-${{ matrix.lane }}/native-r135-compile.log
+          if-no-files-found: warn
+
+  ready:
+    needs: [prepare, runtime]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon-bundle-r138-candidate
+          path: candidate
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: r138-runtime-*
+          path: evidence
+      - name: Require four runtime lanes and an unchanged live release lease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/latest" > candidate/latest.json
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > candidate/release.json
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          cfg=json.loads(Path('compatibility/bundle-refresh-r138.json').read_text())
+          report=json.loads(Path('candidate/validation.json').read_text())
+          assert report['bundle_revision']==138 and report['unchanged_addons']==44
+          assert report['bundle_sha256']==hashlib.sha256(Path('candidate/SF_Addons_1.21.11-26.3.zip').read_bytes()).hexdigest()
+          for lane in ('1.21.11','26.2','26.3','purpur-26.3'):
+              matches=list((Path('evidence')/f'r138-runtime-{lane}').rglob('smoke-result.txt'))
+              assert len(matches)==1 and 'runtime smoke: PASS' in matches[0].read_text(), lane
+          native=list((Path('evidence')/'r138-runtime-26.3').rglob('native-r135-result.json'))
+          assert len(native)==1
+          n=json.loads(native[0].read_text())
+          assert n['result']=='PASS' and n['bundle_revision']==138 and n['process_exit_code']==0
+          latest=json.loads(Path('candidate/latest.json').read_text())
+          release=json.loads(Path('candidate/release.json').read_text())
+          assert latest['tag_name']==cfg['release_tag']
+          assert release['target_commitish']==cfg['core_source_commit']
+          assets={a['name']:a for a in release['assets']}
+          assert assets[cfg['core_jar']]['digest']=='sha256:'+cfg['core_sha256']
+          assert assets[cfg['resource_pack']]['digest']=='sha256:'+cfg['resource_pack_sha256']
+          assert assets[cfg['bundle_name']]['digest']=='sha256:'+cfg['old_bundle_sha256']
+          PY
+
+  publish:
+    needs: [prepare, runtime, ready]
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Publish addon bundle r138 with MagicExpansion 1.1.15')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon-bundle-r138-candidate
+          path: work
+      - name: Preserve r137 rollback and publish exact r138 bytes
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_DIGEST: ${{ needs.prepare.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p work/live
+          gh api "repos/$GITHUB_REPOSITORY/releases/latest" > work/latest.json
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > work/release.json
+          gh release download v4.1.74 --repo "$GITHUB_REPOSITORY" \
+            --pattern SF_Addons_1.21.11-26.3.zip --dir work/live
+          python3 - <<'PY'
+          import hashlib, json, os
+          from pathlib import Path
+          cfg=json.loads(Path('compatibility/bundle-refresh-r138.json').read_text())
+          release=json.loads(Path('work/release.json').read_text())
+          latest=json.loads(Path('work/latest.json').read_text())
+          assert latest['tag_name']==cfg['release_tag']
+          assert release['target_commitish']==cfg['core_source_commit']
+          assets={a['name']:a for a in release['assets']}
+          assert assets[cfg['core_jar']]['digest']=='sha256:'+cfg['core_sha256']
+          assert assets[cfg['resource_pack']]['digest']=='sha256:'+cfg['resource_pack_sha256']
+          assert assets[cfg['bundle_name']]['digest']=='sha256:'+cfg['old_bundle_sha256']
+          assert hashlib.sha256((Path('work/live')/cfg['bundle_name']).read_bytes()).hexdigest()==cfg['old_bundle_sha256']
+          candidate=Path('work')/cfg['bundle_name']
+          assert hashlib.sha256(candidate.read_bytes()).hexdigest()==os.environ['CANDIDATE_DIGEST']
+          assert os.environ['CANDIDATE_DIGEST']!=cfg['old_bundle_sha256']
+          PY
+          cp work/live/SF_Addons_1.21.11-26.3.zip work/SF_Addons_r137_1.21.11-26.3.zip
+          gh release upload v4.1.74 work/SF_Addons_r137_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload v4.1.74 work/SF_Addons_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > work/published.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          cfg=json.loads(Path('compatibility/bundle-refresh-r138.json').read_text())
+          release=json.loads(Path('work/published.json').read_text())
+          assets={a['name']:a for a in release['assets']}
+          assert assets[cfg['bundle_name']]['digest']=='sha256:'+os.environ['CANDIDATE_DIGEST']
+          assert assets['SF_Addons_r137_1.21.11-26.3.zip']['digest']=='sha256:'+cfg['old_bundle_sha256']
+          assert assets[cfg['core_jar']]['digest']=='sha256:'+cfg['core_sha256']
+          assert assets[cfg['resource_pack']]['digest']=='sha256:'+cfg['resource_pack_sha256']
+          marker='<!-- verified-r138-'+os.environ['CANDIDATE_DIGEST'][:16]+' -->'
+          body=release.get('body') or ''
+          section=Path('docs/addon-bundle-r138.md').read_text().rstrip()
+          section += '\n\n- r138 ZIP SHA-256: `'+os.environ['CANDIDATE_DIGEST']+'`'
+          if marker not in body:
+              body=marker+'\n'+section+'\n\n---\n\n'+body
+          Path('work/release-notes.md').write_text(body)
+          PY
+          gh release edit v4.1.74 --repo "$GITHUB_REPOSITORY" --notes-file work/release-notes.md
