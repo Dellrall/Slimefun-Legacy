@@ -1,0 +1,116 @@
+name: Verify 4.1.75 candidate reproducibility without publishing
+
+on:
+  push:
+    branches: ['workbench/4.1.75-reproducibility-20261015']
+    paths: ['.github/workflows/workbench-4.1.75-reproducibility.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Check out the exact versioned candidate
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+        with:
+          ref: 933a4b8ae925d99f45936aa1e60d46826f9c76f1
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up existing Java 25 toolchain
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Pin source and establish evidence directory
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 933a4b8ae925d99f45936aa1e60d46826f9c76f1
+          test "$(sed -n 's/^projectVersion=//p' gradle.properties)" = 4.1.75
+          test -z "$(git status --porcelain --untracked-files=no)"
+          echo "SOURCE_COMMIT=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          echo "SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD)" >> "$GITHUB_ENV"
+          echo "EVIDENCE_DIR=$RUNNER_TEMP/sfl-4.1.75-reproducibility" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/sfl-4.1.75-reproducibility"
+      - name: Run unchanged source invariant suite
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_legacy.py . 2>&1 | tee "$EVIDENCE_DIR/invariants.log"
+      - name: Two independent clean JAR builds and artifact checks
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          for attempt in first second; do
+            ./gradlew clean shadowJar -PprojectVersion=4.1.75 --no-daemon --no-build-cache --no-configuration-cache --console=plain 2>&1 | tee "$EVIDENCE_DIR/$attempt-build.log"
+            jar="$(find build/libs -maxdepth 1 -name 'Slimefun-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)"
+            test -s "$jar"
+            cp "$jar" "$EVIDENCE_DIR/$attempt.jar"
+            python3 scripts/check_bytecode_target.py "$EVIDENCE_DIR/$attempt.jar" --expected-java 21 --report "$EVIDENCE_DIR/$attempt-bytecode.txt"
+            python3 scripts/verify_release_artifact.py "$EVIDENCE_DIR/$attempt.jar" --root . --json-report "$EVIDENCE_DIR/$attempt-artifact.json" --summary "$EVIDENCE_DIR/$attempt-artifact.md"
+          done
+          cmp "$EVIDENCE_DIR/first.jar" "$EVIDENCE_DIR/second.jar"
+          sha256sum "$EVIDENCE_DIR/first.jar" "$EVIDENCE_DIR/second.jar" | tee "$EVIDENCE_DIR/checksums.txt"
+          git diff --exit-code
+          test -z "$(git status --porcelain --untracked-files=no)"
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          root = Path(os.environ['EVIDENCE_DIR'])
+          a = (root / 'first.jar').read_bytes()
+          b = (root / 'second.jar').read_bytes()
+          assert a == b
+          with ZipFile(root / 'first.jar') as jar:
+              names = jar.namelist()
+              metadata = jar.read('git.properties').decode('utf-8')
+              assert 'git.source.commit=933a4b8ae925d99f45936aa1e60d46826f9c76f1' in metadata
+              assert 'git.build.version=4.1.75' in metadata
+              plugin = jar.read('plugin.yml').decode('utf-8')
+              assert '4.1.75' in plugin
+              required = [
+                  'com/xzavier0722/mc/plugin/slimefun4/storage/common/BackpackInventoryBatch.class',
+                  'com/xzavier0722/mc/plugin/slimefun4/storage/adapter/sqlcommon/SqlBackpackInventoryTransaction.class',
+              ]
+              assert all(name in names for name in required)
+              forbidden = [name for name in names if any(token in name for token in (
+                  'org/junit/', 'org/mockito/', 'org/mockbukkit/', 'be/seeseemelk/mockbukkit/',
+                  'BackpackAtomicMoveProcess', 'BackpackProcessProbe', 'BackpackJdbcProbe',
+              ))]
+              assert not forbidden, forbidden
+              baseline = json.loads(jar.read('compatibility/release-baselines.json'))
+              assert baseline['candidate']['version'] == '4.1.75'
+              assert baseline['previous_stable']['version'] == '4.1.74'
+              assert baseline['previous_stable']['source']['ref'] == '4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a'
+          result = {
+              'result': 'PASS', 'source': os.environ['SOURCE_COMMIT'], 'version': '4.1.75',
+              'sha256': hashlib.sha256(a).hexdigest(), 'size': len(a),
+              'two_clean_builds_byte_identical': True, 'tracked_sources_unchanged': True,
+              'test_helpers_excluded': True, 'publication_performed': False,
+              'scope': 'Versioned candidate build reproducibility and packaging only; no new JUnit or gameplay test in this helper; final-merge publication requires separate verification.'
+          }
+          (root / 'result.json').write_text(json.dumps(result, indent=2) + '\n')
+          (root / 'git.properties').write_text(metadata)
+          (root / 'plugin.yml').write_text(plugin)
+          (root / 'first.jar').rename(root / 'Slimefun-Legacy4.1.75.jar')
+          (root / 'second.jar').unlink()
+          print(json.dumps(result, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('Two exact-source 4.1.75 candidate builds are byte-identical. SHA-256: `' + result['sha256'] + '`.\n\nNo publication, ref/tag changes or server deployment. This does not replace PR or final-merge runtime gates.\n')
+          PY
+      - name: Preserve candidate artifact and evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: nonpublishing-4.1.75-reproducibility
+          path: ${{ runner.temp }}/sfl-4.1.75-reproducibility/
+          if-no-files-found: error
+          retention-days: 14
