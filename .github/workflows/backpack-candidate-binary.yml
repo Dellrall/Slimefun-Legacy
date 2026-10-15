@@ -1,0 +1,107 @@
+name: Atomic Backpack Candidate Binary
+on:
+  push:
+    branches: [diagnostic/backpack-transaction-workbench-20261015]
+    paths: [.github/workflows/backpack-candidate-binary.yml]
+permissions:
+  contents: read
+  actions: read
+jobs:
+  binary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: b5db114abe5703a8fb80466724c74e1796feab5a
+          persist-credentials: false
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Retrieve the exact candidate and fixture patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run download 38811758873 --repo wickidcow/Slimefun-Legacy --name issue390-candidate-evidence --dir reviewed
+          printf '%s  %s\n' 275fcdfb8d49799b467e7e9b37dd55a15e80d9574590c0530163d8188bbe08fe reviewed/candidate-formatted.patch | sha256sum --check --strict
+          printf '%s  %s\n' 2f9a5f1475790aaab031589d772c8aa56ca4d8321bf7a70f5cb6ead15b6c1c8c reviewed/issue390-NOT-FOR-DISTRIBUTION.jar | sha256sum --check --strict
+          git apply --check reviewed/candidate-formatted.patch
+          git apply reviewed/candidate-formatted.patch
+          mkdir -p binary-evidence
+          echo "SFL_EXPECTED_CORE_PATH=$GITHUB_WORKSPACE/reviewed/issue390-NOT-FOR-DISTRIBUTION.jar" >> "$GITHUB_ENV"
+          echo "SFL_BACKPACK_EVIDENCE=$GITHUB_WORKSPACE/binary-evidence/processes" >> "$GITHUB_ENV"
+          sha256sum reviewed/issue390-NOT-FOR-DISTRIBUTION.jar > binary-evidence/core.sha256
+      - name: Require actual candidate-JAR origin in every child JVM
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          path=Path('src/test/java/com/xzavier0722/mc/plugin/slimefun4/storage/controller/BackpackAtomicMoveProcessProbe.java')
+          text=path.read_text()
+          anchor='        try {\n            if (arguments.length != 4)'
+          replacement='''        try {
+                      Path expectedCore = Path.of(System.getenv("SFL_EXPECTED_CORE_PATH")).toRealPath();
+                      for (Class<?> type : new Class<?>[] {
+                              ProfileDataController.class, ADataController.class, SqliteAdapter.class,
+                              com.xzavier0722.mc.plugin.slimefun4.storage.adapter.sqlcommon.SqlCommonAdapter.class,
+                              com.xzavier0722.mc.plugin.slimefun4.storage.adapter.IDataSourceAdapter.class,
+                              com.xzavier0722.mc.plugin.slimefun4.storage.common.BackpackInventoryBatch.class,
+                              PlayerBackpack.class, DataUtils.class, RecordSet.class}) {
+                          Path actual = Path.of(type.getProtectionDomain().getCodeSource().getLocation().toURI()).toRealPath();
+                          assertEquals(expectedCore, actual, "Incorrect production-class origin: " + type.getName());
+                          System.out.println("CANDIDATE_CORE_CLASS:" + type.getName() + ":" + actual);
+                      }
+                      if (arguments.length != 4)'''
+          assert text.count(anchor)==1
+          path.write_text(text.replace(anchor,replacement,1))
+          Path('binary-evidence/BackpackAtomicMoveProcessProbe.java').write_text(path.read_text())
+          PY
+          cat > "$RUNNER_TEMP/atomic-binary.init.gradle" <<'GRADLE'
+          gradle.projectsEvaluated {
+              def project=gradle.rootProject
+              def mainOutput=project.extensions.getByName('sourceSets').getByName('main').output
+              def originals=mainOutput.files.collect { it.canonicalFile }.toSet()
+              def candidate=new File(System.getenv('SFL_EXPECTED_CORE_PATH')).canonicalFile
+              project.tasks.named('test').configure { task ->
+                  task.classpath=project.files(candidate)+(task.classpath-mainOutput)
+                  task.doFirst {
+                      def actual=task.classpath.files.collect { it.canonicalFile }
+                      if(actual.first()!=candidate || actual.any { originals.contains(it) }) throw new GradleException('Fresh main output entered binary test')
+                      project.file('binary-evidence/runtime-classpath.txt').text=actual.join('\n')+'\n'
+                  }
+              }
+          }
+          GRADLE
+          cp "$RUNNER_TEMP/atomic-binary.init.gradle" binary-evidence/
+      - name: Exercise seven boundaries using packaged production classes
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash gradlew test --tests '*BackpackAtomicMoveProcessTest' -I "$RUNNER_TEMP/atomic-binary.init.gradle" --no-daemon --no-build-cache --no-configuration-cache --console=plain 2>&1 | tee binary-evidence/test.log
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          root=ET.parse('build/test-results/test/TEST-com.xzavier0722.mc.plugin.slimefun4.storage.controller.BackpackAtomicMoveProcessTest.xml').getroot()
+          assert int(root.get('tests','0'))==7,root.attrib
+          assert all(int(root.get(k,'0'))==0 for k in ('failures','errors','skipped')),root.attrib
+          logs=list(Path('binary-evidence/processes').rglob('*.log'))
+          assert len(logs)==21,len(logs)
+          for log in logs:
+              assert len([line for line in log.read_text().splitlines() if line.startswith('CANDIDATE_CORE_CLASS:')])==9,log
+          print(root.attrib)
+          print('All 7 packaged-JAR cases passed; 189 class-origin assertions across 21 child processes.')
+          PY
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: issue390-candidate-binary-evidence
+          path: |
+            binary-evidence/
+            build/test-results/test/TEST-*.xml
+          retention-days: 14
+          if-no-files-found: error
