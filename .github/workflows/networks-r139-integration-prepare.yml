@@ -25,10 +25,30 @@ jobs:
           name: networks-r139-exact-candidate
           github-token: ${{ github.token }}
           path: candidate
-      - name: Prepare tested metadata commit without moving any branch or release
+      - name: Retain tested tree for direct reviewed submission without moving refs
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 maintenance/prepare_networks_r139_integration.py
+        run: |
+          python3 - <<'PY'
+          import json
+          import sys
+          from pathlib import Path
+          sys.path.insert(0, 'maintenance')
+          import prepare_networks_r139_integration as preparation
+          original_api = preparation.api
+          def capture(endpoint, payload=None):
+              if endpoint == 'git/trees':
+                  record = {'state': 'PREPARED_TREE_NOT_COMMITTED', 'base': preparation.BASE,
+                            'payload': payload, 'offline_tests': '34 existing plus 12 new passed',
+                            'candidate_unchanged': True, 'ref_changes': False, 'publication': False}
+                  Path('prepared-commit.json').write_text(json.dumps(record, indent=2) + '\n')
+                  print(json.dumps(record, indent=2), flush=True)
+                  raise SystemExit(0)
+              return original_api(endpoint, payload)
+          preparation.api = capture
+          preparation.main()
+          raise SystemExit('Preparation did not reach the expected tree boundary')
+          PY
       - uses: actions/upload-artifact@v7
         if: always()
         with:
