@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/paper-26.3-full-stack.yml'
       - 'scripts/full_stack_runtime_smoke.sh'
+      - 'scripts/runtime/black_market/**'
+      - 'scripts/test_black_market_probe_contracts.py'
       - 'scripts/test_full_stack_purpur_26_3.py'
       - 'scripts/prepare_worldedit_runtime.py'
       - 'scripts/test_prepare_worldedit_runtime.py'
@@ -28,6 +30,8 @@ on:
     paths:
       - '.github/workflows/paper-26.3-full-stack.yml'
       - 'scripts/full_stack_runtime_smoke.sh'
+      - 'scripts/runtime/black_market/**'
+      - 'scripts/test_black_market_probe_contracts.py'
       - 'scripts/test_full_stack_purpur_26_3.py'
       - 'scripts/prepare_worldedit_runtime.py'
       - 'scripts/test_prepare_worldedit_runtime.py'
@@ -65,6 +69,8 @@ jobs:
         run: python3 -m unittest discover -s scripts -p 'test_*worldedit*.py' -v
       - name: Verify Purpur full-stack offline contracts
         run: python3 -m unittest discover -s scripts -p 'test_full_stack_purpur_26_3.py' -v
+      - name: Verify native Black Market admission contracts
+        run: python3 -m unittest discover -s scripts -p 'test_black_market_probe_contracts.py' -v
       - name: Resolve latest Paper 26.3 API
         id: paper
         shell: bash
@@ -195,7 +201,7 @@ jobs:
     name: Full stack Paper ${{ matrix.minecraft }}
     needs: [build-core, fetch-bundle]
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -223,12 +229,18 @@ jobs:
         run: |
           chmod +x scripts/full_stack_runtime_smoke.sh
           bash scripts/full_stack_runtime_smoke.sh             candidate/Slimefun-Legacy-full-stack.jar             bundle/SF_Addons_1.21.11-26.3.zip             "build/full-stack-${{ matrix.minecraft }}"
-      - name: Probe native Networks + Fluffy Barrel conservation on r135/r136
+      - name: Probe native Networks + Fluffy Barrel conservation on r135/r136/r137
         if: matrix.minecraft == '26.3'
         run: |
           python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
             --runtime-dir build/full-stack-26.3 \
             --bundle bundle/SF_Addons_1.21.11-26.3.zip
+      - name: Probe native Black Market receipts across four JVM boots
+        run: |
+          python3 scripts/runtime/black_market/run_probe.py \
+            --runtime-dir "build/full-stack-${{ matrix.minecraft }}" \
+            --bundle bundle/SF_Addons_1.21.11-26.3.zip \
+            --allow-disposable-writes
       - name: Publish result
         if: always()
         run: |
@@ -256,13 +268,16 @@ jobs:
             build/full-stack-${{ matrix.minecraft }}/native-r135-compile.log
             build/full-stack-${{ matrix.minecraft }}/native-r135.console.log
             build/full-stack-${{ matrix.minecraft }}/plugins/worldedit-runtime.json
+            build/full-stack-${{ matrix.minecraft }}/black-market-result.json
+            build/full-stack-${{ matrix.minecraft }}/black-market-compile.log
+            build/full-stack-${{ matrix.minecraft }}/plugins/BlackMarketRestartProbe/*.result
           if-no-files-found: warn
 
   purpur-26-3-full-stack:
     name: Full stack experimental Purpur 26.3 build 2646
     needs: [build-core, fetch-bundle]
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v6
         with:
@@ -293,6 +308,12 @@ jobs:
             candidate/Slimefun-Legacy-full-stack.jar \
             bundle/SF_Addons_1.21.11-26.3.zip \
             build/full-stack-purpur-26.3
+      - name: Probe native Black Market receipts across four JVM boots
+        run: |
+          python3 scripts/runtime/black_market/run_probe.py \
+            --runtime-dir build/full-stack-purpur-26.3 \
+            --bundle bundle/SF_Addons_1.21.11-26.3.zip \
+            --allow-disposable-writes
       - name: Publish Purpur build and bundle provenance
         if: always()
         shell: bash
@@ -322,5 +343,8 @@ jobs:
             build/full-stack-purpur-26.3/dependency-gated-addons.txt
             build/full-stack-purpur-26.3/smoke-result.txt
             build/full-stack-purpur-26.3/plugins/worldedit-runtime.json
+            build/full-stack-purpur-26.3/black-market-result.json
+            build/full-stack-purpur-26.3/black-market-compile.log
+            build/full-stack-purpur-26.3/plugins/BlackMarketRestartProbe/*.result
             bundle/bundle-source.txt
           if-no-files-found: warn

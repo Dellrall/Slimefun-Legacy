@@ -1,0 +1,260 @@
+#!/usr/bin/env python3
+"""Non-shipping native receipt/restart gate, only in a disposable full-stack fixture.
+
+Four fresh JVMs execute the installed MagicExpansion store: seed, read after
+restart, refuse a missing marker, and read after exact synthetic restoration.
+No live plugin data is used. This is not a client-click or crash-atomicity test.
+"""
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import subprocess
+import sys
+import time
+import uuid
+import zipfile
+
+HERE = Path(__file__).resolve().parent
+OWNER = "8160641d-8db8-49cc-9716-d19e4da49bfb"
+MAGIC = "wickidcow/SF_MagicExpansion"
+MAGIC_COMMIT = "3a8818528cf32701d19c99fc33fa7f7ef2545be4"
+MAGIC_JAR = "SF_MagicExpansion1.1.12.jar"
+DIRECTORIES = {"full-stack-1.21.11", "full-stack-26.2", "full-stack-26.3", "full-stack-purpur-26.3"}
+PLUGIN = "BlackMarketRestartProbe"
+PHASES = ("seed", "verify", "missing", "restored")
+DESCRIPTOR = """name: BlackMarketRestartProbe
+version: '1'
+main: audit.BlackMarketRestartProbe
+api-version: '1.21.11'
+depend: [Slimefun, magicexpansion]
+commands:
+  bmreceiptprobe:
+    description: Disposable console-only test command. Never ship this plugin.
+"""
+
+
+def digest(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def properties(path: Path) -> dict[str, str]:
+    result = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.strip() and not line.lstrip().startswith(("#", "!")) and "=" in line:
+            key, value = line.split("=", 1)
+            result[key.strip()] = value.strip()
+    return result
+
+
+def validate_fixture(work: Path, bundle: Path) -> dict:
+    """Read-only admission. All assertions precede compilation or fixture writes."""
+    expected_parent = Path.cwd() / "build"
+    if work.parent != expected_parent or work.name not in DIRECTORIES:
+        raise RuntimeError("Only an exact build/full-stack-* fixture is allowed")
+    for path in (expected_parent, work, work / "plugins"):
+        if path.is_symlink() or not path.is_dir():
+            raise RuntimeError(f"Fixture must use real directories: {path}")
+    for name in ("smoke-result.txt", "server.jar", "server.properties", "eula.txt", "runtime-build.txt"):
+        path = work / name
+        if path.is_symlink() or not path.is_file():
+            raise RuntimeError(f"Missing or linked fixture file: {path}")
+    if "runtime smoke: PASS" not in (work / "smoke-result.txt").read_text(encoding="utf-8"):
+        raise RuntimeError("A passing two-boot full-stack fixture is mandatory")
+    props = properties(work / "server.properties")
+    if props.get("level-name") != "full-stack-smoke-world" or props.get("online-mode") != "false":
+        raise RuntimeError("Not the generated offline full-stack world")
+    if props.get("enable-rcon") != "false" or props.get("enable-query") != "false":
+        raise RuntimeError("Remote administration/query must be disabled")
+    if properties(work / "eula.txt").get("eula") != "true":
+        raise RuntimeError("Fixture EULA not accepted by its creating workflow")
+    for path in (work / "bm-probe-classes", work / "plugins" / PLUGIN,
+                 work / "plugins" / f"{PLUGIN}.jar", work / "black-market-result.json"):
+        if path.exists() or path.is_symlink():
+            raise RuntimeError(f"Refusing stale probe files: {path}")
+
+    with zipfile.ZipFile(bundle) as archive:
+        names = archive.namelist()
+        if len(set(names)) != len(names):
+            raise RuntimeError("Duplicate ZIP entries")
+        manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
+        if type(manifest.get("bundle_revision")) is not int or manifest["bundle_revision"] != 137:
+            raise RuntimeError("This exact-source probe requires candidate r137")
+        rows = manifest.get("addons", [])
+        if len(rows) != 45 or len({r["repository"] for r in rows}) != 45:
+            raise RuntimeError("Expected 45 unique canonical addon repositories")
+        if len({r["jar"] for r in rows}) != 45:
+            raise RuntimeError("Duplicate addon filenames")
+        magic = [r for r in rows if r["repository"] == MAGIC]
+        if len(magic) != 1 or magic[0].get("commit") != MAGIC_COMMIT or magic[0].get("jar") != MAGIC_JAR:
+            raise RuntimeError("Wrong MagicExpansion source or JAR")
+        tested = {}
+        for row in rows:
+            name = row["jar"]
+            if Path(name).name != name or not name.endswith(".jar"):
+                raise RuntimeError("Unsafe addon filename")
+            expected = row.get("sha256", "")
+            if not re.fullmatch(r"[0-9a-f]{64}", expected):
+                raise RuntimeError("Missing/invalid addon checksum")
+            binary = work / "plugins" / name
+            if binary.is_symlink() or not binary.is_file():
+                raise RuntimeError(f"Missing/linked staged addon: {name}")
+            if digest(binary) != expected or hashlib.sha256(archive.read(name)).hexdigest() != expected:
+                raise RuntimeError(f"Bundle/staged addon checksum mismatch: {name}")
+            tested[row["repository"]] = {"jar": name, "commit": row["commit"], "sha256": expected}
+    core = work / "plugins" / "Slimefun-Legacy-full-stack.jar"
+    if core.is_symlink() or not core.is_file():
+        raise RuntimeError("Candidate core missing or linked")
+    return {"schema": 1, "result": "STARTED", "bundle_revision": 137,
+            "bundle_sha256": digest(bundle), "server_sha256": digest(work / "server.jar"),
+            "core_sha256": digest(core), "tested_addons": tested, "phases": [],
+            "runtime_build": (work / "runtime-build.txt").read_text(encoding="utf-8")}
+
+
+def prepare(work: Path, java: Path, token: str) -> None:
+    libraries = sorted({jar.resolve() for directory in ("libraries", "versions", "plugins")
+                        for jar in (work / directory).rglob("*.jar") if ".paper-remapped" not in jar.parts})
+    if len(libraries) < 3 or not java.is_file() or not java.with_name("javac").is_file():
+        raise RuntimeError("Full JDK and initialized server libraries are required")
+    classes = work / "bm-probe-classes"
+    classes.mkdir()
+    result = subprocess.run([str(java.with_name("javac")), "--release", "21", "-encoding", "UTF-8",
+                             "-cp", os.pathsep.join(map(str, libraries)), "-d", str(classes),
+                             str(HERE / "BlackMarketRestartProbe.java")],
+                            text=True, capture_output=True, timeout=120, check=False)
+    (work / "black-market-compile.log").write_text(result.stdout + result.stderr, encoding="utf-8")
+    if result.returncode != 0:
+        raise RuntimeError("Native probe compilation failed; see black-market-compile.log")
+    with zipfile.ZipFile(work / "plugins" / f"{PLUGIN}.jar", "x", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("plugin.yml", DESCRIPTOR)
+        for path in sorted(classes.rglob("*.class")):
+            archive.write(path, path.relative_to(classes).as_posix())
+    data = work / "plugins" / PLUGIN
+    data.mkdir()
+    (data / "authorization.txt").write_text(token, encoding="utf-8")
+    # Bind only the already-admitted disposable fixture to loopback for these boots.
+    path = work / "server.properties"
+    lines = [line for line in path.read_text(encoding="utf-8").splitlines()
+             if not line.strip().startswith("server-ip=")]
+    path.write_text("\n".join(lines) + "\nserver-ip=127.0.0.1\n", encoding="utf-8")
+
+
+def native_phase(work: Path, java: Path, token: str, phase: str, timeout: int) -> dict:
+    data = work / "plugins" / PLUGIN
+    result_path = data / f"{phase}.result"
+    log_path = work / f"black-market-{phase}.console.log"
+    if result_path.exists() or log_path.exists():
+        raise RuntimeError("Stale phase evidence")
+    command = [str(java), f"-Dsfl.blackmarket.probe.token={token}", "-Dterminal.jline=false",
+               "-Dterminal.ansi=false", "-Xms768M", "-Xmx3G", "-jar", "server.jar", "--nogui"]
+    with log_path.open("x", encoding="utf-8") as output:
+        process = subprocess.Popen(command, cwd=work, stdin=subprocess.PIPE, stdout=output,
+                                   stderr=subprocess.STDOUT, text=True)
+        try:
+            deadline = time.monotonic() + timeout
+            ready = False
+            while process.poll() is None and time.monotonic() < deadline:
+                text = log_path.read_text(encoding="utf-8", errors="replace")
+                if "Done (" in text and "BLACK_MARKET_PROBE READY" in text:
+                    ready = True
+                    break
+                if "Error occurred while enabling" in text or "Could not load plugin" in text:
+                    break
+                time.sleep(1)
+            if not ready:
+                raise RuntimeError(f"Native {phase} did not start correctly")
+            assert process.stdin is not None
+            process.stdin.write(f"bmreceiptprobe {phase}\n")
+            process.stdin.flush()
+            while process.poll() is None and time.monotonic() < deadline and not result_path.is_file():
+                time.sleep(1)
+            if not result_path.is_file():
+                raise RuntimeError(f"Native {phase} did not execute or produce evidence")
+        finally:
+            if process.poll() is None:
+                try:
+                    assert process.stdin is not None
+                    process.stdin.write("stop\n")
+                    process.stdin.flush()
+                except (BrokenPipeError, OSError):
+                    pass
+                try:
+                    process.wait(timeout=90)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.wait(timeout=20)
+            if process.stdin:
+                process.stdin.close()
+    lines = result_path.read_text(encoding="utf-8").splitlines()
+    text = log_path.read_text(encoding="utf-8", errors="replace")
+    if process.returncode != 0 or len(lines) != 5 or lines[:3] != ["PASS", phase, token]:
+        raise RuntimeError(f"Native {phase} failed or exited abnormally")
+    if lines[3] != str(process.pid) or not lines[4].isdigit() or int(lines[4]) < 10:
+        raise RuntimeError("Native evidence PID/assertions mismatch")
+    if f"BLACK_MARKET_PROBE PASS {phase}" not in text:
+        raise RuntimeError("Native success absent from console")
+    for error in ("Error occurred while enabling", "Could not load plugin", "NoClassDefFoundError",
+                  "NoSuchMethodError", "BLACK_MARKET_PROBE FAIL"):
+        if error in text:
+            raise RuntimeError(f"Unexpected runtime failure in {phase}: {error}")
+    return {"phase": phase, "result": "PASS", "pid": process.pid, "exit_code": process.returncode,
+            "assertions": int(lines[4]), "console_sha256": digest(log_path),
+            "evidence_sha256": digest(result_path)}
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--runtime-dir", type=Path, required=True)
+    parser.add_argument("--bundle", type=Path, required=True)
+    parser.add_argument("--timeout", type=int, default=420)
+    parser.add_argument("--allow-disposable-writes", action="store_true", required=True)
+    args = parser.parse_args()
+    # Do not resolve away a symlink before the real-directory admission check.
+    work = Path(os.path.abspath(args.runtime_dir))
+    evidence = validate_fixture(work, args.bundle.resolve())
+    token = str(uuid.uuid4())
+    java = Path(os.environ["JAVA_HOME"]) / "bin" / "java"
+    out = work / "black-market-result.json"
+    try:
+        prepare(work, java, token)
+        evidence["probe_jar_sha256"] = digest(work / "plugins" / f"{PLUGIN}.jar")
+        data = work / "plugins" / PLUGIN
+        cycle = data / "synthetic-ledger" / "cycle.yml"
+        player = data / "synthetic-ledger" / "players" / f"{OWNER}.yml"
+        held = data / "cycle.stopped-fixture"
+        for phase in PHASES:
+            # This loop runs only after the preceding JVM has exited cleanly.
+            if phase == "missing":
+                if cycle.read_bytes() != (data / "cycle.baseline").read_bytes():
+                    raise RuntimeError("Cannot prepare missing-marker case from changed seed")
+                cycle.rename(held)
+            elif phase == "restored":
+                if cycle.exists() or player.read_bytes() != (data / "player.baseline").read_bytes():
+                    raise RuntimeError("Missing-marker phase changed receipts or recreated the marker")
+                held.rename(cycle)
+            evidence["phases"].append(native_phase(work, java, token, phase, args.timeout))
+            if digest(work / "server.jar") != evidence["server_sha256"]:
+                raise RuntimeError("Server binary changed between restarts")
+            if digest(work / "plugins" / "Slimefun-Legacy-full-stack.jar") != evidence["core_sha256"]:
+                raise RuntimeError("Core binary changed between restarts")
+            for row in evidence["tested_addons"].values():
+                if digest(work / "plugins" / row["jar"]) != row["sha256"]:
+                    raise RuntimeError("Addon binary changed between restarts")
+        evidence["result"] = "PASS"
+        evidence["limits"] = "Installed store + native Bukkit serialization; synthetic records, not client clicks, live recovery, or crash-atomic proof."
+    except Exception as error:
+        evidence["result"] = "FAIL"
+        evidence["error"] = str(error)
+        raise
+    finally:
+        out.write_text(json.dumps(evidence, indent=2) + "\n", encoding="utf-8")
+        print(json.dumps(evidence, indent=2), flush=True)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
