@@ -38,6 +38,9 @@ jobs:
           test "$(git rev-parse HEAD)" = b5db114abe5703a8fb80466724c74e1796feab5a
           git apply --check --unidiff-zero ../evidence/input.patch
           git apply --unidiff-zero ../evidence/input.patch
+          git apply --check ../helper/.github/diagnostics/issue390-followup.patch
+          git apply ../helper/.github/diagnostics/issue390-followup.patch
+          cp ../helper/.github/diagnostics/issue390-followup.patch ../evidence/
           git add -N src docs .github/workflows/universal-migration-validation.yml
           git diff --name-only > ../evidence/changed-paths.txt
           python3 - <<'PY'
