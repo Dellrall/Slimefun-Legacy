@@ -82,8 +82,8 @@ def validate_fixture(work: Path, bundle: Path) -> dict:
         if len(set(names)) != len(names):
             raise RuntimeError("Duplicate ZIP entries")
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
-        if type(manifest.get("bundle_revision")) is not int or manifest["bundle_revision"] != 137:
-            raise RuntimeError("This exact-source probe requires candidate r137")
+        if type(manifest.get("bundle_revision")) is not int or manifest["bundle_revision"] not in (137, 139):
+            raise RuntimeError("This exact-source probe requires candidate r137 or pinned Networks r139")
         rows = manifest.get("addons", [])
         if len(rows) != 45 or len({r["repository"] for r in rows}) != 45:
             raise RuntimeError("Expected 45 unique canonical addon repositories")
@@ -92,6 +92,12 @@ def validate_fixture(work: Path, bundle: Path) -> dict:
         magic = [r for r in rows if r["repository"] == MAGIC]
         if len(magic) != 1 or magic[0].get("commit") != MAGIC_COMMIT or magic[0].get("jar") != MAGIC_JAR:
             raise RuntimeError("Wrong MagicExpansion source or JAR")
+        if manifest["bundle_revision"] == 139:
+            network = [r for r in rows if r["repository"] == "wickidcow/SF_NetworksExp"]
+            if (len(network) != 1 or network[0].get("commit") != "c0b388e45e929c1a721d7a8aa968b2e0d4fc10e9"
+                    or network[0].get("jar") != "SF_Networks1.0.56.jar"
+                    or network[0].get("sha256") != "25a1bbeef780bb3d263506892df3b8b8cb42ec3be5ee5d36393c8fe1e7c52d89"):
+                raise RuntimeError("Wrong exact Networks release for r139")
         tested = {}
         for row in rows:
             name = row["jar"]
@@ -109,7 +115,7 @@ def validate_fixture(work: Path, bundle: Path) -> dict:
     core = work / "plugins" / "Slimefun-Legacy-full-stack.jar"
     if core.is_symlink() or not core.is_file():
         raise RuntimeError("Candidate core missing or linked")
-    return {"schema": 1, "result": "STARTED", "bundle_revision": 137,
+    return {"schema": 1, "result": "STARTED", "bundle_revision": manifest["bundle_revision"],
             "bundle_sha256": digest(bundle), "server_sha256": digest(work / "server.jar"),
             "core_sha256": digest(core), "tested_addons": tested, "phases": [],
             "runtime_build": (work / "runtime-build.txt").read_text(encoding="utf-8")}

@@ -27,6 +27,7 @@ NETWORK_VERSIONS = {
     136: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
     # r137 changes only MagicExpansion; keep the exact r136 storage adapters.
     137: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
+    139: ("SF_Networks1.0.56.jar", "c0b388e45e929c1a721d7a8aa968b2e0d4fc10e9"),
 }
 
 
@@ -39,7 +40,7 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
     if type(revision) is not int or revision not in NETWORK_VERSIONS:
-        raise RuntimeError(f"Native conservation test requires r135, r136 or r137; found bundle revision {revision!r}")
+        raise RuntimeError(f"Native conservation test requires r135, r136 or r137, or explicitly pinned r139; found bundle revision {revision!r}")
     expected_versions = dict(EXPECTED_VERSIONS)
     expected_versions["wickidcow/SF_NetworksExp"] = NETWORK_VERSIONS[revision]
 
@@ -106,7 +107,7 @@ def run(work: Path, java: Path, evidence: dict, timeout: int) -> None:
     result_file = work / "plugins" / "R135FluffyNetworksProbe" / "result.txt"
     if result_file.exists():
         raise RuntimeError("Stale probe evidence is forbidden")
-    version = "1.0.54" if evidence["bundle_revision"] == 135 else "1.0.55"
+    version = NETWORK_VERSIONS[evidence["bundle_revision"]][0].removeprefix("SF_Networks").removesuffix(".jar")
     command = [str(java), f"-Dalbion.probe.networks.version={version}",
                "-Dterminal.jline=false", "-Dterminal.ansi=false",
                "-Xms768M", "-Xmx3G", "-jar", "server.jar", "--nogui"]

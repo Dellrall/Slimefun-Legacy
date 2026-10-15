@@ -1,0 +1,41 @@
+{
+  "release_id": 412654205,
+  "release_tag": "v4.1.74",
+  "core_source_commit": "4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a",
+  "baseline_assets": {
+    "SF_Addons_1.21.11-26.3.zip": {
+      "id": 642338930,
+      "size": 24444372,
+      "sha256": "534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d"
+    },
+    "SF_Addons_r136_1.21.11-26.3.zip": {
+      "id": 641318435,
+      "size": 24440999,
+      "sha256": "79b9cb70a522a9ed97de3d9107d4750a913c4372043e5ee8cfeca0a1f85afc9f"
+    },
+    "Slimefun-Legacy4.1.74.jar": {
+      "id": 640213945,
+      "size": 8668060,
+      "sha256": "72a524d7c0d6f75a9decbf06679515887273ae53673d3f5ee38f355bef952c96"
+    },
+    "SlimefunLegacyRP.zip": {
+      "id": 640213951,
+      "size": 9143959,
+      "sha256": "1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83"
+    }
+  },
+  "bundle_revision": 139,
+  "expected_addons": 45,
+  "repository": "wickidcow/SF_NetworksExp",
+  "old_bundle_sha256": "534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d",
+  "old_jar": "SF_Networks1.0.55.jar",
+  "old_commit": "bcdef34d362dc74aa1aab23c8961a629daa79950",
+  "new_jar": "SF_Networks1.0.56.jar",
+  "new_version": "1.0.56",
+  "new_commit": "c0b388e45e929c1a721d7a8aa968b2e0d4fc10e9",
+  "new_sha256": "25a1bbeef780bb3d263506892df3b8b8cb42ec3be5ee5d36393c8fe1e7c52d89",
+  "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+  "new_build_core_version": "4.1.74",
+  "new_paper_26_3_api": "26.3.build.176-stable",
+  "compatibility_note": "r139 Networks-only candidate: published Networks 1.0.56 guards failed VOID cleanup and exact item snapshots. All other 44 addon JARs, including MagicExpansion 1.1.13, remain identical to published r137. This does not repair the original source conflict. r138 is reserved for separate MagicExpansion work. No core/resource-pack or live-server change."
+}

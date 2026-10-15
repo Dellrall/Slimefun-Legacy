@@ -1,16 +1,9 @@
-name: r137 exact-byte release candidate
+name: Historical r137 exact-byte release candidate
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/r137-release-candidate.yml'
-      - 'compatibility/r137-release-candidate.json'
-      - 'compatibility/sfl-addon-release-matrix.json'
-      - 'scripts/prepare_r137_release_candidate.py'
-      - 'scripts/test_r137_release_candidate.py'
-      - 'scripts/runtime/black_market/**'
   workflow_dispatch:
 
+# Historical pre-r137 release lease; newer selections have separate validation.
 permissions:
   contents: read
   actions: read

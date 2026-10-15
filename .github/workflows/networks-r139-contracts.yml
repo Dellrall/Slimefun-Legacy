@@ -1,0 +1,33 @@
+name: Networks r139 admission contracts
+on:
+  pull_request:
+    paths:
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'compatibility/networks-r139-release.json'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/runtime/black_market/**'
+      - 'tests/runtime_contracts/test_networks_r139_admission.py'
+      - '.github/workflows/networks-r139-contracts.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - name: Download exact public Networks fixture
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p .ci/networks-r139
+          gh release download v1.0.56 --repo wickidcow/SF_NetworksExp --pattern SF_Networks1.0.56.jar --dir .ci/networks-r139
+          echo '25a1bbeef780bb3d263506892df3b8b8cb42ec3be5ee5d36393c8fe1e7c52d89  .ci/networks-r139/SF_Networks1.0.56.jar' | sha256sum --check
+      - name: Preserve existing admission contracts
+        run: |
+          python3 -m unittest discover -s scripts -p test_native_storage_probe_contracts.py -v
+          python3 -m unittest discover -s scripts -p test_black_market_probe_contracts.py -v
+      - name: Check r139 acceptance and rejection without starting a server
+        run: |
+          SFL_R139_SOURCE_ROOT="$PWD" SFL_R139_NETWORKS_JAR="$PWD/.ci/networks-r139/SF_Networks1.0.56.jar"             python3 tests/runtime_contracts/test_networks_r139_admission.py
