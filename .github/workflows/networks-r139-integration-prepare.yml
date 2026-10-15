@@ -1,0 +1,40 @@
+name: Prepare Networks r139 integration objects
+on:
+  push:
+    branches: [maintenance/networks-r139-integration-20261015]
+    paths:
+      - maintenance/prepare_networks_r139_integration.py
+      - maintenance/test_networks_r139_admission.py
+      - .github/workflows/networks-r139-integration-prepare.yml
+permissions:
+  contents: write
+  actions: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          repository: wickidcow/Slimefun-Legacy
+          run-id: 38823000873
+          name: networks-r139-exact-candidate
+          github-token: ${{ github.token }}
+          path: candidate
+      - name: Prepare tested metadata commit without moving any branch or release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 maintenance/prepare_networks_r139_integration.py
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: networks-r139-prepared-integration
+          retention-days: 14
+          if-no-files-found: error
+          path: |
+            prepared-commit.json
+            integration-admission-tests.log
