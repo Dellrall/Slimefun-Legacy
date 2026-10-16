@@ -1,12 +1,26 @@
 name: Addons r140 Magic + Networks + IE2 candidate
 
 on:
+  pull_request:
+    paths:
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'compatibility/r140-release-candidate.json'
+      - 'scripts/refresh_release_addons_r140.py'
+      - 'scripts/runtime/black_market/**'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/test_black_market_probe_contracts.py'
+      - 'scripts/test_native_storage_probe_contracts.py'
+      - '.github/workflows/addons-r140-candidate.yml'
   push:
     branches: ['bundle/addons-r140-networks-ie2-20261016']
     paths:
       - 'compatibility/sfl-addon-release-matrix.json'
       - 'compatibility/r140-release-candidate.json'
       - 'scripts/refresh_release_addons_r140.py'
+      - 'scripts/runtime/black_market/**'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/test_black_market_probe_contracts.py'
+      - 'scripts/test_native_storage_probe_contracts.py'
       - '.github/workflows/addons-r140-candidate.yml'
 
 permissions:
@@ -22,6 +36,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
+      - name: Verify r140 offline contracts
+        run: |
+          set -euo pipefail
+          python3 -m py_compile scripts/refresh_release_addons_r140.py
+          python3 -m unittest scripts/test_native_storage_probe_contracts.py scripts/test_black_market_probe_contracts.py -v
+
       - name: Download exact published r137 baseline and public replacement JARs
         env:
           GH_TOKEN: ${{ github.token }}
