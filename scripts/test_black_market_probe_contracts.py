@@ -136,7 +136,7 @@ class AdmissionTests(unittest.TestCase):
         self.rejects()
 
     def test_linked_addon_refused(self):
-        path = self.work / "plugins" / probe.MAGIC_JAR
+        path = self.work / "plugins" / probe.MAGIC_RELEASES[138][1]
         original = self.home / "outside.jar"
         path.rename(original)
         path.symlink_to(original)
