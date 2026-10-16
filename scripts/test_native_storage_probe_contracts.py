@@ -22,6 +22,7 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name).resolve()
+        (self.root / "gradle.properties").write_text("projectVersion=4.1.75\n", encoding="utf-8")
         self.work = self.root / "build/full-stack-26.3"
         self.plugins = self.work / "plugins"
         self.plugins.mkdir(parents=True)
@@ -162,6 +163,71 @@ class NativeStorageProbeContracts(unittest.TestCase):
             self.prepare()
         self.assertFalse((self.plugins / "R135FluffyNetworksProbe.jar").exists())
         self.launch.assert_not_called()
+
+
+    def test_core_version_is_taken_from_the_checkout(self):
+        evidence = self.prepare()
+        self.assertEqual("4.1.75", evidence["expected_core_version"])
+        self.assertNotIn("result", evidence)
+
+    def test_previous_core_version_can_be_explicitly_tested(self):
+        (self.root / "gradle.properties").write_text("projectVersion=4.1.74\n", encoding="utf-8")
+        self.assertEqual("4.1.74", self.prepare()["expected_core_version"])
+
+    def test_missing_core_version_is_refused_before_compilation(self):
+        (self.root / "gradle.properties").write_text("unrelated=value\n", encoding="utf-8")
+        self.reject("one valid projectVersion")
+
+    def test_duplicate_core_versions_are_refused(self):
+        (self.root / "gradle.properties").write_text(
+            "projectVersion=4.1.75\nprojectVersion=4.1.75\n", encoding="utf-8")
+        self.reject("one valid projectVersion")
+
+    def test_invalid_core_version_is_refused_before_compilation(self):
+        for value in ("", "4.1", "4.1.75-SNAPSHOT", "4.1.75 -Devil=true", "4.1.75\\"):
+            with self.subTest(value=value):
+                (self.root / "gradle.properties").write_text("projectVersion=" + value + "\n", encoding="utf-8")
+                self.reject("one valid projectVersion")
+
+    def test_missing_properties_file_is_not_silently_defaulted(self):
+        (self.root / "gradle.properties").unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.prepare()
+        self.compile.assert_not_called()
+        self.launch.assert_not_called()
+
+    def test_comments_and_crlf_preserve_one_explicit_version(self):
+        (self.root / "gradle.properties").write_bytes(
+            b"# projectVersion=0.0.0\r\n  projectVersion = 4.1.75  \r\nother=value\r\n")
+        self.assertEqual("4.1.75", self.prepare()["expected_core_version"])
+
+    def test_java_command_receives_exact_expected_core_version(self):
+        evidence = self.prepare()
+        with self.assertRaisesRegex(AssertionError, "No server may run"):
+            probe.run(self.work, self.java, evidence, 1)
+        command = self.launch.call_args.args[0]
+        self.assertEqual(str(self.java), command[0])
+        self.assertIn("-Dalbion.probe.slimefun.version=4.1.75", command)
+        self.assertIn("-Dalbion.probe.networks.version=1.0.55", command)
+        self.assertNotIn("-Dalbion.probe.slimefun.version=4.1.74", command)
+        self.assertEqual(self.work, self.launch.call_args.kwargs["cwd"])
+
+    def test_invalid_launch_version_is_refused_without_starting_a_server(self):
+        evidence = self.prepare()
+        for value in (None, "", "4.1.75 -Devil=true", 475):
+            with self.subTest(value=value):
+                evidence["expected_core_version"] = value
+                with self.assertRaisesRegex(RuntimeError, "valid expected core version"):
+                    probe.run(self.work, self.java, evidence, 1)
+                self.launch.assert_not_called()
+
+    def test_java_still_requires_the_declared_version_and_exact_equality(self):
+        java = (SOURCE.parent / "R135FluffyNetworksProbe.java").read_text(encoding="utf-8")
+        self.assertIn('requireVersion("Slimefun", System.getProperty("albion.probe.slimefun.version"));', java)
+        self.assertNotIn('requireVersion("Slimefun", "4.1.74");', java)
+        self.assertIn('check(expected != null && expected.equals(plugin.getPluginMeta().getVersion()),', java)
+        self.assertIn('check(plugin != null && plugin.isEnabled(),', java)
+
 
 
 if __name__ == "__main__":
