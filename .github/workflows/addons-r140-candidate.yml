@@ -33,17 +33,17 @@ jobs:
             --pattern 'SF_Addons_1.21.11-26.3.zip' --dir .ci/baseline
           gh release download v1.1.15 --repo wickidcow/SF_MagicExpansion \
             --pattern 'SF_MagicExpansion1.1.15.jar' --dir .ci/jars
-          gh release download v1.0.57 --repo wickidcow/SF_NetworksExp \
-            --pattern 'SF_Networks1.0.57.jar' --dir .ci/jars
+          gh release download v1.0.58 --repo wickidcow/SF_NetworksExp \
+            --pattern 'SF_Networks1.0.58.jar' --dir .ci/jars
           gh release download v2.0.14 --repo wickidcow/SF_InfinityExpansion2 \
             --pattern 'SF_InfinityExpansion2.0.14.jar' --dir .ci/jars
           printf '%s\n' \
             '534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d  .ci/baseline/SF_Addons_1.21.11-26.3.zip' \
             '46c01290c54d918c39e8bb0f58d3ce135e2143c86b0f45858245f78fcafeeaad  .ci/jars/SF_MagicExpansion1.1.15.jar' \
-            '125a54605244f3ecaa2d873cca4dff7a78ff7772a445ad5d6f4c38f3603d57ab  .ci/jars/SF_Networks1.0.57.jar' \
+            '39608f4ad4e49d81e69d48d0c3f9d4a57162d7803938dcba933a81643307da63  .ci/jars/SF_Networks1.0.58.jar' \
             '4c3d5a19b751d13f769937d6e5faf18f67ddb40465db3d9759a1d8800c0cbdb9  .ci/jars/SF_InfinityExpansion2.0.14.jar' | sha256sum --check
 
-      - name: Build deterministic two-addon r140
+      - name: Build deterministic three-addon r140
         run: |
           python3 scripts/refresh_release_addons_r140.py \
             --config compatibility/r140-release-candidate.json \
@@ -65,6 +65,7 @@ jobs:
             build/r140/work/r140-result.json
             build/r140/work/stage-1-report.json
             build/r140/work/stage-2-report.json
+            build/r140/work/stage-3-report.json
           retention-days: 14
           if-no-files-found: error
 
