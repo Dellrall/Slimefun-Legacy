@@ -10,7 +10,9 @@ on:
       - 'scripts/refresh_release_addon.py'
       - 'scripts/test_refresh_release_addon.py'
       - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/runtime/black_market/**'
       - 'scripts/test_native_storage_probe_contracts.py'
+      - 'scripts/test_black_market_probe_contracts.py'
   push:
     branches: [master]
     paths:
@@ -45,7 +47,8 @@ jobs:
             scripts/test_refresh_release_addon.py \
             scripts/test_verify_published_addon_bundle.py \
             scripts/test_verify_addon_bytecode.py \
-            scripts/test_native_storage_probe_contracts.py
+            scripts/test_native_storage_probe_contracts.py \
+            scripts/test_black_market_probe_contracts.py
       - name: Download pinned published inputs
         env:
           GH_TOKEN: ${{ github.token }}
@@ -132,6 +135,12 @@ jobs:
             candidate/Slimefun-Legacy4.1.74.jar \
             candidate/SF_Addons_1.21.11-26.3.zip \
             "build/full-stack-${{ matrix.lane }}"
+      - name: Probe Black Market receipt persistence across four JVM boots
+        run: |
+          python3 scripts/runtime/black_market/run_probe.py \
+            --runtime-dir "build/full-stack-${{ matrix.lane }}" \
+            --bundle candidate/SF_Addons_1.21.11-26.3.zip \
+            --allow-disposable-writes
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -141,6 +150,10 @@ jobs:
             build/full-stack-${{ matrix.lane }}/runtime-build.txt
             build/full-stack-${{ matrix.lane }}/*.console.log
             build/full-stack-${{ matrix.lane }}/*.normalized.log
+            build/full-stack-${{ matrix.lane }}/black-market-result.json
+            build/full-stack-${{ matrix.lane }}/black-market-compile.log
+            build/full-stack-${{ matrix.lane }}/black-market-*.console.log
+            build/full-stack-${{ matrix.lane }}/plugins/BlackMarketRestartProbe/*.result
           if-no-files-found: warn
 
   ready:
@@ -175,6 +188,14 @@ jobs:
           for lane in ('1.21.11','26.2','26.3','purpur-26.3'):
               matches=list((Path('evidence')/f'r138-runtime-{lane}').rglob('smoke-result.txt'))
               assert len(matches)==1 and 'runtime smoke: PASS' in matches[0].read_text(), lane
+              receipts=list((Path('evidence')/f'r138-runtime-{lane}').rglob('black-market-result.json'))
+              assert len(receipts)==1, lane
+              receipt=json.loads(receipts[0].read_text())
+              assert receipt['result']=='PASS' and receipt['bundle_revision']==138, lane
+              magic=receipt['tested_addons']['wickidcow/SF_MagicExpansion']
+              assert magic['commit']=='9443393b3ef5f0982194d9084eaed91d7d820dca', lane
+              assert magic['jar']=='SF_MagicExpansion1.1.15.jar', lane
+              assert len(receipt['phases'])==4 and all(p['result']=='PASS' for p in receipt['phases']), lane
           latest=json.loads(Path('candidate/latest.json').read_text())
           release=json.loads(Path('candidate/release.json').read_text())
           assert latest['tag_name']==cfg['release_tag']
