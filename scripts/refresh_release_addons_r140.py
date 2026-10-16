@@ -122,22 +122,24 @@ def build(config: dict, matrix: dict, original: Path, jar_dir: Path, output: Pat
         require(all(older.read(name) == newer.read(name) for name in unchanged_other),
                 "An unrelated non-addon ZIP member changed")
 
-    # Re-run the final stage from the exact first-stage bytes and require deterministic output.
-    first_stage = stage_outputs[0]
+    # Re-run the final stage from the exact penultimate-stage bytes and require deterministic output.
+    penultimate = stage_outputs[-2]
     final_item = replacements[-1]
-    first_manifest = manifest(first_stage)
-    final_old_row = next(r for r in first_manifest["addons"] if r["repository"] == final_item["repository"])
+    penultimate_manifest = manifest(penultimate)
+    final_old_row = next(
+        r for r in penultimate_manifest["addons"] if r["repository"] == final_item["repository"]
+    )
     final_config = {
         "release_tag": config["release_tag"],
         "core_source_commit": config["core_source_commit"],
         "expected_addons": config["expected_addons"],
         "bundle_revision": config["bundle_revision"],
         **final_item,
-        "old_bundle_sha256": digest(first_stage),
+        "old_bundle_sha256": digest(penultimate),
         "old_jar": final_old_row["jar"],
     }
     repeated = work / "repeated-final.zip"
-    refresh(final_config, matrix, first_stage, jar_dir / final_item["new_jar"], repeated)
+    refresh(final_config, matrix, penultimate, jar_dir / final_item["new_jar"], repeated)
     require(digest(repeated) == digest(output), "r140 output is not deterministic")
 
     result = {
