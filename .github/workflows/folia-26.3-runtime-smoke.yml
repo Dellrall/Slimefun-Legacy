@@ -59,11 +59,13 @@ jobs:
           java-version: '25'
           cache: gradle
 
-      - name: Test supported version boundaries
+      - name: Test supported version and Folia safety boundaries
         run: |
           set -euo pipefail
           bash -n scripts/paper_family_26_2_runtime_smoke.sh
           python3 -m unittest scripts/test_purpur_26_3_runtime_contract.py -v
+          python3 scripts/verify_folia_phase1.py .
+          python3 scripts/verify_part4.py
 
       - name: Verify core compatibility invariants
         run: python3 scripts/verify_legacy.py .
