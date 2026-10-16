@@ -29,7 +29,7 @@ permissions:
 
 concurrency:
   group: refresh-v4.1.74-addon-bundle-r138-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   prepare:
