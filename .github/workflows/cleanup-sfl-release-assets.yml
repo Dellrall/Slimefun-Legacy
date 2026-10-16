@@ -5,95 +5,73 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/cleanup-sfl-release-assets.yml'
+      - 'scripts/verify_sfl_release_assets.py'
+      - 'scripts/test_verify_sfl_release_assets.py'
+  pull_request:
+    paths:
+      - '.github/workflows/cleanup-sfl-release-assets.yml'
+      - 'scripts/verify_sfl_release_assets.py'
+      - 'scripts/test_verify_sfl_release_assets.py'
   workflow_run:
     workflows: ['Build SF Addons 1.21.11-26.3 Bundle']
     types: [completed]
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
-  group: clean-slimefun-legacy-release-assets
-  cancel-in-progress: true
+  group: clean-slimefun-legacy-release-assets-${{ github.event_name == 'pull_request' && github.ref || 'release' }}
+  cancel-in-progress: false
 
 jobs:
+  policy-tests:
+    name: Verify release preservation policy offline
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - run: python3 scripts/test_verify_sfl_release_assets.py
+
   clean:
     name: Keep Slimefun Legacy release core-focused
-    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    needs: policy-tests
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.ref == 'refs/heads/master' &&
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.event != 'pull_request'))
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Normalize latest Slimefun Legacy release assets
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Normalize latest stable Slimefun Legacy release assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-
-          TAG="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 20 --json tagName,isDraft --jq '[.[] | select(.isDraft == false)][0].tagName')"
-          test -n "$TAG"
-          echo "Normalizing Slimefun Legacy release $TAG"
-
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets-before.txt
-
-          REMOVED=0
-          while IFS= read -r asset; do
-            case "$asset" in
-              SF_*.jar|SFL_AddonsNDependencies.zip|SFL_AddonsNDependencies.sha256|SFL_Addons_1.21.11-26.3.zip|SlimefunLegacy-ResourcePack-*.zip)
-                echo "Removing obsolete/non-core release asset: $asset"
-                gh release delete-asset "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" -y
-                REMOVED=$((REMOVED + 1))
-                ;;
-            esac
-          done < assets-before.txt
-
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > assets-after.txt
-
-          if grep -Eq '^SF_.*\.jar$' assets-after.txt; then
-            echo 'Raw SF addon JARs remain on the Slimefun Legacy release:' >&2
-            grep -E '^SF_.*\.jar$' assets-after.txt >&2
-            exit 1
-          fi
-
-          if grep -Eq '^SFL_Addons' assets-after.txt; then
-            echo 'An obsolete SFL_Addons* bundle remains on the Slimefun Legacy release:' >&2
-            grep -E '^SFL_Addons' assets-after.txt >&2
-            exit 1
-          fi
-
-          if ! grep -Fxq 'SF_Addons_1.21.11-26.3.zip' assets-after.txt; then
-            echo 'Expected canonical compatibility bundle is missing from the latest Slimefun Legacy release.' >&2
-            exit 1
-          fi
-
-          CORE_COUNT="$(grep -Ec '^Slimefun-Legacy[^/]*\.jar$' assets-after.txt || true)"
-          if [[ "$CORE_COUNT" -ne 1 ]]; then
-            echo "Expected exactly one Slimefun Legacy core JAR; found ${CORE_COUNT}." >&2
-            cat assets-after.txt >&2
-            exit 1
-          fi
-
-          ASSET_COUNT="$(wc -l < assets-after.txt | tr -d ' ')"
-          if [[ "$ASSET_COUNT" -ne 2 && "$ASSET_COUNT" -ne 3 ]]; then
-            echo "Expected two base assets or the final three-asset Slimefun Legacy release layout; found ${ASSET_COUNT}." >&2
-            cat assets-after.txt >&2
-            exit 1
-          fi
-
-          if [[ "$ASSET_COUNT" -eq 3 ]]; then
-            if ! grep -Fxq 'SlimefunLegacyRP.zip' assets-after.txt; then
-              echo 'A third release asset exists, but it is not the canonical SlimefunLegacyRP.zip.' >&2
-              cat assets-after.txt >&2
-              exit 1
-            fi
-            echo 'Verified final release layout: one core JAR + canonical addon bundle + resource pack.'
-          else
-            echo 'Verified base release layout: core + addon bundle. Resource-pack mirror may still be pending.'
-          fi
-
-          echo "Removed ${REMOVED} obsolete/non-core assets from ${TAG}"
-          cat assets-after.txt
+          gh api "repos/${GITHUB_REPOSITORY}/releases/latest" > release-before.json
+          python3 scripts/verify_sfl_release_assets.py plan release-before.json \
+            --delete-ids delete-ids.txt > release-plan.json
+          RELEASE_ID="$(python3 -c 'import json; print(json.load(open("release-plan.json"))["release_id"])')"
+          while IFS= read -r asset_id; do
+            [[ "$asset_id" =~ ^[0-9]+$ ]]
+            echo "Removing preflighted obsolete asset ID ${asset_id}"
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}"
+          done < delete-ids.txt
+          gh api "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}" > release-after.json
+          python3 scripts/verify_sfl_release_assets.py verify release-before.json \
+            --after release-after.json > release-verified.json
 
       - name: Publish summary
         shell: bash
@@ -101,11 +79,24 @@ jobs:
           {
             echo '## Slimefun Legacy release cleanup'
             echo
-            echo '- Exactly one `Slimefun-Legacy*.jar` core asset is required'
-            echo '- `SF_Addons_1.21.11-26.3.zip` is retained'
-            echo '- `SlimefunLegacyRP.zip` is retained when present'
-            echo '- Raw `SF_*.jar` addon assets are removed'
-            echo '- Obsolete `SFL_Addons*` bundles and legacy resource-pack names are removed'
-            echo '- Two base assets are allowed while the mirror is pending; final releases contain exactly three'
-            echo '- Individual addon releases remain the responsibility of their own repositories'
+            echo '- Exact tag-matching core JAR and canonical addon bundle are required.'
+            echo '- The optional resource pack and explicitly pinned r136 rollback are preserved.'
+            echo '- Unknown assets fail preflight before deletion; no blanket four-asset exception.'
+            echo '- Retained IDs, sizes and API digests must match before and after cleanup.'
+            echo '- Only the established obsolete-asset families may be removed.'
+            echo '- Individual addon releases remain the responsibility of their own repositories.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Preserve cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-asset-preservation-evidence
+          path: |
+            release-before.json
+            release-plan.json
+            delete-ids.txt
+            release-after.json
+            release-verified.json
+          if-no-files-found: warn
+          retention-days: 14
