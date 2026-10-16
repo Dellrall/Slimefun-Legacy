@@ -5,7 +5,17 @@ This selection replaces only Networks 1.0.55 with the published 1.0.56 release a
 source pins. r138 remains reserved for separate MagicExpansion work; this is not
 permission to replace a newer published selection with the old r137 baseline.
 
-The separately prepared exact-byte ZIP is
+## Public filename convention
+
+Addon bundle filenames include their bundle revision. The currently published r137
+selection is retained as `SF_Addons_r137_1.21.11-26.3.zip`. This Networks refresh
+is published, if approved, as `SF_Addons_r139_1.21.11-26.3.zip`.
+
+Do not relabel r139 contents as r137. The filename revision must agree with the
+internal `bundle_revision` and release notes so rollback files remain unambiguous.
+There is no longer a requirement for a revisionless canonical addon ZIP name.
+
+The separately prepared exact-byte r139 ZIP is
 `541708ca969bb6d6c7a0b11510e856b221c2dbd984e6523404a53ebdaa60ff1c`.
 Its Networks JAR is
 `25a1bbeef780bb3d263506892df3b8b8cb42ec3be5ee5d36393c8fe1e7c52d89`.
