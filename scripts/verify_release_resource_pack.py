@@ -61,6 +61,7 @@ def verify_static(root: Path, pin: dict) -> None:
     release_workflow = (root / ".github/workflows/reproducible-release.yml").read_text(encoding="utf-8")
     mirror_workflow = (root / ".github/workflows/mirror-resource-pack-release.yml").read_text(encoding="utf-8")
     cleanup_workflow = (root / ".github/workflows/cleanup-sfl-release-assets.yml").read_text(encoding="utf-8")
+    cleanup_policy = (root / "scripts/verify_sfl_release_assets.py").read_text(encoding="utf-8")
     docs = (root / "docs/RESOURCE_PACK.md").read_text(encoding="utf-8")
 
     checks = {
@@ -73,9 +74,12 @@ def verify_static(root: Path, pin: dict) -> None:
         "release layout requires three assets": 'if [[ "$ASSET_COUNT" -ne 3 ]]' in release_workflow,
         "mirror workflow uploads pack": 'gh release upload "$TARGET_TAG" "$PACK"' in mirror_workflow,
         "mirror workflow verifies published digest": "Published Slimefun release resource-pack digest mismatch" in mirror_workflow,
-        "cleanup preserves canonical pack": "`SlimefunLegacyRP.zip` is retained when present" in cleanup_workflow,
-        "cleanup recognizes final three-asset layout": 'if [[ "$ASSET_COUNT" -ne 2 && "$ASSET_COUNT" -ne 3 ]]' in cleanup_workflow,
-        "cleanup rejects unknown third asset": "it is not the canonical SlimefunLegacyRP.zip" in cleanup_workflow,
+        "cleanup uses preflight policy": "python3 scripts/verify_sfl_release_assets.py plan" in cleanup_workflow,
+        "cleanup verifies retained assets": "python3 scripts/verify_sfl_release_assets.py verify" in cleanup_workflow,
+        "cleanup policy names canonical pack": 'PACK = "SlimefunLegacyRP.zip"' in cleanup_policy,
+        "cleanup policy retains canonical pack": "if name in {core, BUNDLE, PACK}:" in cleanup_policy,
+        "cleanup policy rejects unknown assets": "Unapproved release asset: {name}; no cleanup is authorized" in cleanup_policy,
+        "cleanup policy verifies retained identity": 'if actual["retained"] != planned["retained"]:' in cleanup_policy,
         "docs describe separate asset": "separate** `SlimefunLegacyRP.zip` asset" in docs,
         "docs identify pin": "`compatibility/resource-pack-release.json`" in docs,
     }
