@@ -1,6 +1,12 @@
 # Folia 26.3 experimental readiness
 
-**Status: experimental core-readiness lane only. Not production certification.**
+**Status: experimental core-readiness passed. Not production certification.**
+
+Exact-head run 38895908119 tested official **Folia 26.3 build 3 (ALPHA)**,
+server commit `597e413`, API `26.3.build.3-alpha`, on Java 25. The disposable
+server booted twice with Slimefun Legacy 4.1.75. `/sf doctor upgrade` ran on both
+boots without a BLOCKED result, storage reported ready with zero pending writes, and
+the second boot observed the prior Slimefun shutdown as clean.
 
 Slimefun Legacy keeps Paper as its primary platform. This milestone adds a dedicated
 Folia **26.3** core smoke test after Folia builds became available for the 26.3 line.
