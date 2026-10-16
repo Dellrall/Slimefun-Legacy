@@ -77,9 +77,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - {software: paper, minecraft: '1.21.11', java: '21', lane: 'paper-1.21.11'}
-          - {software: paper, minecraft: '26.2', java: '25', lane: 'paper-26.2'}
-          - {software: paper, minecraft: '26.3', java: '25', lane: 'paper-26.3'}
+          - {software: paper, minecraft: '1.21.11', java: '21', lane: '1.21.11'}
+          - {software: paper, minecraft: '26.2', java: '25', lane: '26.2'}
+          - {software: paper, minecraft: '26.3', java: '25', lane: '26.3'}
           - {software: purpur, minecraft: '26.3', java: '25', lane: 'purpur-26.3'}
     steps:
       - uses: actions/checkout@v6
@@ -113,6 +113,21 @@ jobs:
             .ci/core/Slimefun-Legacy4.1.74.jar \
             candidate/SF_Addons_r140_1.21.11-26.3.zip \
             'build/full-stack-${{ matrix.lane }}'
+
+      - name: Probe Black Market receipt persistence across four JVM boots
+        run: |
+          python3 scripts/runtime/black_market/run_probe.py \
+            --runtime-dir 'build/full-stack-${{ matrix.lane }}' \
+            --bundle candidate/SF_Addons_r140_1.21.11-26.3.zip \
+            --allow-disposable-writes
+
+      - name: Verify Networks / Fluffy conservation on Paper 26.3
+        if: matrix.software == 'paper' && matrix.minecraft == '26.3'
+        run: |
+          python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
+            --runtime-dir build/full-stack-26.3 \
+            --bundle candidate/SF_Addons_r140_1.21.11-26.3.zip
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -124,6 +139,14 @@ jobs:
             build/full-stack-${{ matrix.lane }}/runtime-build.txt
             build/full-stack-${{ matrix.lane }}/expected-addons.txt
             build/full-stack-${{ matrix.lane }}/dependency-gated-addons.txt
+            build/full-stack-${{ matrix.lane }}/black-market-result.json
+            build/full-stack-${{ matrix.lane }}/black-market-compile.log
+            build/full-stack-${{ matrix.lane }}/black-market-*.console.log
+            build/full-stack-${{ matrix.lane }}/native-r135-result.json
+            build/full-stack-${{ matrix.lane }}/native-r135-compile.log
+            build/full-stack-${{ matrix.lane }}/native-r135.console.log
+            build/full-stack-${{ matrix.lane }}/plugins/BlackMarketRestartProbe/*.result
+            build/full-stack-${{ matrix.lane }}/plugins/R135FluffyNetworksProbe/result.txt
           retention-days: 14
           if-no-files-found: warn
 
