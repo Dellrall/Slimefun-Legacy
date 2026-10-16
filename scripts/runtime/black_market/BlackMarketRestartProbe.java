@@ -51,7 +51,11 @@ public final class BlackMarketRestartProbe extends JavaPlugin {
                     "Unexpected world: production use forbidden");
             Plugin magic = Bukkit.getPluginManager().getPlugin("magicexpansion");
             check(magic != null && magic.isEnabled(), "Real MagicExpansion must be enabled");
-            check("1.1.13".equals(magic.getDescription().getVersion()), "Unexpected candidate version");
+            String expectedVersion = System.getProperty("sfl.blackmarket.probe.magic.version", "");
+            check(!expectedVersion.isBlank(), "Expected MagicExpansion version missing");
+            check(expectedVersion.equals(magic.getDescription().getVersion()),
+                    "Unexpected candidate version: expected " + expectedVersion
+                        + " but loaded " + magic.getDescription().getVersion());
             Plugin core = Bukkit.getPluginManager().getPlugin("Slimefun");
             check(core != null && core.isEnabled(), "Real Slimefun must be enabled");
             ClassLoader loader = magic.getClass().getClassLoader();
