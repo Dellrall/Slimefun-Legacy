@@ -63,6 +63,8 @@ class NativeStorageProbeContracts(unittest.TestCase):
             if revision == 135 else
             ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba")
             if revision == 139 else
+            ("SF_Networks1.0.58.jar", "4ebecea309e89cc60fc4f6d932505312b5468ed1")
+            if revision == 140 else
             ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950")
         )
         rows = []
@@ -112,13 +114,13 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.populate(138)
         self.assertEqual(self.prepare()["bundle_revision"], 138)
 
-    def test_r140_is_supported_with_networks_1_0_57(self):
+    def test_r140_is_supported_with_networks_1_0_58(self):
         self.populate(140)
         evidence = self.prepare()
         self.assertEqual(evidence["bundle_revision"], 140)
         networks = evidence["tested_addons"]["wickidcow/SF_NetworksExp"]
-        self.assertEqual(networks["jar"], "SF_Networks1.0.57.jar")
-        self.assertEqual(networks["commit"], "f5486918ab7e115298b453dc23e26a2225aedaba")
+        self.assertEqual(networks["jar"], "SF_Networks1.0.58.jar")
+        self.assertEqual(networks["commit"], "4ebecea309e89cc60fc4f6d932505312b5468ed1")
 
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
         self.manifest["bundle_revision"] = 141
