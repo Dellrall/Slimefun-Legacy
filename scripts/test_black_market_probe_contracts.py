@@ -37,14 +37,15 @@ class AdmissionTests(unittest.TestCase):
         self.rows = []
         self.blobs = {}
         for i in range(45):
-            name = probe.MAGIC_JAR if i == 0 else f"Addon{i}.jar"
+            commit, jar = probe.MAGIC_RELEASES[138]
+            name = jar if i == 0 else f"Addon{i}.jar"
             blob = f"synthetic-jar-{i}".encode()
             self.blobs[name] = blob
             (self.work / "plugins" / name).write_bytes(blob)
             self.rows.append({"repository": probe.MAGIC if i == 0 else f"fixture/Addon{i}", "jar": name,
-                              "commit": probe.MAGIC_COMMIT if i == 0 else "a" * 40,
+                              "commit": commit if i == 0 else "a" * 40,
                               "sha256": hashlib.sha256(blob).hexdigest()})
-        self.manifest = {"bundle_revision": 137, "addons": self.rows}
+        self.manifest = {"bundle_revision": 138, "addons": self.rows}
         self.bundle = self.home / "candidate.zip"
         self.write_bundle()
 
@@ -90,8 +91,22 @@ class AdmissionTests(unittest.TestCase):
         self.work.symlink_to(destination, target_is_directory=True)
         self.rejects()
 
+    def test_r137_is_still_supported(self):
+        old_commit, old_jar = probe.MAGIC_RELEASES[137]
+        new_jar = self.rows[0]["jar"]
+        blob = self.blobs.pop(new_jar)
+        (self.work / "plugins" / new_jar).unlink()
+        self.blobs[old_jar] = blob
+        (self.work / "plugins" / old_jar).write_bytes(blob)
+        self.rows[0]["jar"] = old_jar
+        self.rows[0]["commit"] = old_commit
+        self.manifest["bundle_revision"] = 137
+        self.write_bundle()
+        evidence = self.validate()
+        self.assertEqual(evidence["bundle_revision"], 137)
+
     def test_bad_or_noninteger_revision_refused(self):
-        for revision in (136, 138, "137", 137.0, True):
+        for revision in (136, 139, "138", 138.0, True):
             with self.subTest(revision=revision):
                 self.manifest["bundle_revision"] = revision
                 self.write_bundle()
@@ -112,7 +127,7 @@ class AdmissionTests(unittest.TestCase):
         self.rejects()
 
     def test_bundle_bytes_changed_refused(self):
-        self.blobs[probe.MAGIC_JAR] = b"changed"
+        self.blobs[probe.MAGIC_RELEASES[138][1]] = b"changed"
         self.write_bundle()
         self.rejects()
 
