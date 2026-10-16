@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136/r137 Paper 26.3 full-stack data.
+"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136/r137/r138/r139/r140 Paper 26.3 full-stack data.
 
 The regular full-stack smoke has already booted and shut down cleanly twice.
 This runner adds only a temporary test plugin, starts one more offline local Paper
@@ -26,8 +26,11 @@ EXPECTED_VERSIONS = {
 NETWORK_VERSIONS = {
     135: ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d"),
     136: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
-    # r137 changes only MagicExpansion; keep the exact r136 storage adapters.
+    # r137/r138 change only MagicExpansion; keep the exact r136 storage adapters.
     137: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
+    138: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
+    139: ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba"),
+    140: ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba"),
 }
 
 
@@ -50,7 +53,7 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
     if type(revision) is not int or revision not in NETWORK_VERSIONS:
-        raise RuntimeError(f"Native conservation test requires r135, r136 or r137; found bundle revision {revision!r}")
+        raise RuntimeError(f"Native conservation test requires r135, r136, r137, r138, r139 or r140; found bundle revision {revision!r}")
     expected_versions = dict(EXPECTED_VERSIONS)
     expected_versions["wickidcow/SF_NetworksExp"] = NETWORK_VERSIONS[revision]
 
@@ -120,7 +123,7 @@ def run(work: Path, java: Path, evidence: dict, timeout: int) -> None:
     result_file = work / "plugins" / "R135FluffyNetworksProbe" / "result.txt"
     if result_file.exists():
         raise RuntimeError("Stale probe evidence is forbidden")
-    version = "1.0.54" if evidence["bundle_revision"] == 135 else "1.0.55"
+    version = NETWORK_VERSIONS[evidence["bundle_revision"]][0].removeprefix("SF_Networks").removesuffix(".jar")
     core_version = evidence.get("expected_core_version")
     if not isinstance(core_version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", core_version) is None:
         raise RuntimeError("Native conservation test is missing a valid expected core version")
