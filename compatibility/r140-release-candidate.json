@@ -1,0 +1,35 @@
+{
+  "release_tag": "v4.1.74",
+  "core_source_commit": "4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a",
+  "expected_addons": 45,
+  "input_bundle_revision": 137,
+  "bundle_revision": 140,
+  "published_old_bundle_sha256": "534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d",
+  "output_name": "SF_Addons_r140_1.21.11-26.3.zip",
+  "replacements": [
+    {
+      "repository": "wickidcow/SF_NetworksExp",
+      "old_commit": "bcdef34d362dc74aa1aab23c8961a629daa79950",
+      "new_jar": "SF_Networks1.0.57.jar",
+      "new_version": "1.0.57",
+      "new_commit": "f5486918ab7e115298b453dc23e26a2225aedaba",
+      "new_sha256": "125a54605244f3ecaa2d873cca4dff7a78ff7772a445ad5d6f4c38f3603d57ab",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.74",
+      "new_paper_26_3_api": "26.3.build.176-stable",
+      "compatibility_note": "r140: Networks 1.0.57 adds deterministic controller conflict cleanup, manual-crafter transaction safety, batched Auto Crafter availability preflight and full-line push/grab traversal reuse. Existing item IDs, recipes, storage serialization, default 8/12 transfer budgets and Quantum routing policy are unchanged."
+    },
+    {
+      "repository": "wickidcow/SF_InfinityExpansion2",
+      "old_commit": "c9ad8394ee65e5577c3e031e24b562a8a7b2d0f5",
+      "new_jar": "SF_InfinityExpansion2.0.14.jar",
+      "new_version": "2.0.14",
+      "new_commit": "8ce79a3fac44424b3fca3d7b3fe7c48c2767fe12",
+      "new_sha256": "4c3d5a19b751d13f769937d6e5faf18f67ddb40465db3d9759a1d8800c0cbdb9",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.74",
+      "new_paper_26_3_api": "26.3-rc-3.build.1-alpha",
+      "compatibility_note": "r140: InfinityExpansion2 2.0.14 synchronizes the HopperMachine converter family, eliminating the verified Dust Extractor/Networks producer race without moving heavier Quarry/Growing-style machines onto the synchronized ticker. Recipes, rates, IDs, storage formats and migration behavior are unchanged."
+    }
+  ]
+}
