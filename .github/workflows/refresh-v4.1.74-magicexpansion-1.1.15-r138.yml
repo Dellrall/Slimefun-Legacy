@@ -59,6 +59,7 @@ jobs:
             --dir work/current
           gh release download v1.1.15 --repo wickidcow/SF_MagicExpansion \
             --pattern SF_MagicExpansion1.1.15.jar --dir work/new
+          cp work/current/Slimefun-Legacy4.1.74.jar work/Slimefun-Legacy4.1.74.jar
           python3 - <<'PY'
           import hashlib, json
           from pathlib import Path
@@ -92,7 +93,7 @@ jobs:
           name: addon-bundle-r138-candidate
           path: |
             work/SF_Addons_1.21.11-26.3.zip
-            work/current/Slimefun-Legacy4.1.74.jar
+            work/Slimefun-Legacy4.1.74.jar
             work/validation.json
           if-no-files-found: error
 
