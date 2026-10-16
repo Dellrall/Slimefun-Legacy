@@ -214,7 +214,9 @@ class NativeStorageProbeContracts(unittest.TestCase):
         command = self.launch.call_args.args[0]
         self.assertEqual(str(self.java), command[0])
         self.assertIn("-Dalbion.probe.slimefun.version=4.1.75", command)
-        self.assertIn("-Dalbion.probe.networks.version=1.0.55", command)
+        expected_networks_jar = probe.NETWORK_VERSIONS[evidence["bundle_revision"]][0]
+        expected_networks_version = expected_networks_jar.removeprefix("SF_Networks").removesuffix(".jar")
+        self.assertIn(f"-Dalbion.probe.networks.version={expected_networks_version}", command)
         self.assertNotIn("-Dalbion.probe.slimefun.version=4.1.74", command)
         self.assertEqual(self.work, self.launch.call_args.kwargs["cwd"])
 
