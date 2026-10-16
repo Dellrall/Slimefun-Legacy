@@ -22,8 +22,18 @@ import zipfile
 HERE = Path(__file__).resolve().parent
 OWNER = "8160641d-8db8-49cc-9716-d19e4da49bfb"
 MAGIC = "wickidcow/SF_MagicExpansion"
-MAGIC_COMMIT = "13924991a1960daa40fe221cab5a4eef95d46ecb"
-MAGIC_JAR = "SF_MagicExpansion1.1.13.jar"
+MAGIC_RELEASES = {
+    137: ("13924991a1960daa40fe221cab5a4eef95d46ecb", "SF_MagicExpansion1.1.13.jar"),
+    138: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
+    139: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
+    140: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
+}
+MAGIC_VERSIONS = {
+    137: "1.1.13",
+    138: "1.1.15",
+    139: "1.1.15",
+    140: "1.1.15",
+}
 DIRECTORIES = {"full-stack-1.21.11", "full-stack-26.2", "full-stack-26.3", "full-stack-purpur-26.3"}
 PLUGIN = "BlackMarketRestartProbe"
 PHASES = ("seed", "verify", "missing", "restored")
@@ -82,16 +92,18 @@ def validate_fixture(work: Path, bundle: Path) -> dict:
         if len(set(names)) != len(names):
             raise RuntimeError("Duplicate ZIP entries")
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
-        if type(manifest.get("bundle_revision")) is not int or manifest["bundle_revision"] != 137:
-            raise RuntimeError("This exact-source probe requires candidate r137")
+        revision = manifest.get("bundle_revision")
+        if type(revision) is not int or revision not in MAGIC_RELEASES:
+            raise RuntimeError("This exact-source probe requires candidate r137, r138, r139 or r140")
+        magic_commit, magic_jar = MAGIC_RELEASES[revision]
         rows = manifest.get("addons", [])
         if len(rows) != 45 or len({r["repository"] for r in rows}) != 45:
             raise RuntimeError("Expected 45 unique canonical addon repositories")
         if len({r["jar"] for r in rows}) != 45:
             raise RuntimeError("Duplicate addon filenames")
         magic = [r for r in rows if r["repository"] == MAGIC]
-        if len(magic) != 1 or magic[0].get("commit") != MAGIC_COMMIT or magic[0].get("jar") != MAGIC_JAR:
-            raise RuntimeError("Wrong MagicExpansion source or JAR")
+        if len(magic) != 1 or magic[0].get("commit") != magic_commit or magic[0].get("jar") != magic_jar:
+            raise RuntimeError("Wrong MagicExpansion source or JAR for bundle revision")
         tested = {}
         for row in rows:
             name = row["jar"]
@@ -109,7 +121,8 @@ def validate_fixture(work: Path, bundle: Path) -> dict:
     core = work / "plugins" / "Slimefun-Legacy-full-stack.jar"
     if core.is_symlink() or not core.is_file():
         raise RuntimeError("Candidate core missing or linked")
-    return {"schema": 1, "result": "STARTED", "bundle_revision": 137,
+    return {"schema": 1, "result": "STARTED", "bundle_revision": revision,
+            "magic_version": MAGIC_VERSIONS[revision],
             "bundle_sha256": digest(bundle), "server_sha256": digest(work / "server.jar"),
             "core_sha256": digest(core), "tested_addons": tested, "phases": [],
             "runtime_build": (work / "runtime-build.txt").read_text(encoding="utf-8")}
@@ -143,13 +156,17 @@ def prepare(work: Path, java: Path, token: str) -> None:
     path.write_text("\n".join(lines) + "\nserver-ip=127.0.0.1\n", encoding="utf-8")
 
 
-def native_phase(work: Path, java: Path, token: str, phase: str, timeout: int) -> dict:
+def native_phase(
+    work: Path, java: Path, token: str, expected_magic_version: str, phase: str, timeout: int
+) -> dict:
     data = work / "plugins" / PLUGIN
     result_path = data / f"{phase}.result"
     log_path = work / f"black-market-{phase}.console.log"
     if result_path.exists() or log_path.exists():
         raise RuntimeError("Stale phase evidence")
-    command = [str(java), f"-Dsfl.blackmarket.probe.token={token}", "-Dterminal.jline=false",
+    command = [str(java), f"-Dsfl.blackmarket.probe.token={token}",
+               f"-Dsfl.blackmarket.probe.magic.version={expected_magic_version}",
+               "-Dterminal.jline=false",
                "-Dterminal.ansi=false", "-Xms768M", "-Xmx3G", "-jar", "server.jar", "--nogui"]
     with log_path.open("x", encoding="utf-8") as output:
         process = subprocess.Popen(command, cwd=work, stdin=subprocess.PIPE, stdout=output,
@@ -236,7 +253,9 @@ def main() -> int:
                 if cycle.exists() or player.read_bytes() != (data / "player.baseline").read_bytes():
                     raise RuntimeError("Missing-marker phase changed receipts or recreated the marker")
                 held.rename(cycle)
-            evidence["phases"].append(native_phase(work, java, token, phase, args.timeout))
+            evidence["phases"].append(
+                native_phase(work, java, token, evidence["magic_version"], phase, args.timeout)
+            )
             if digest(work / "server.jar") != evidence["server_sha256"]:
                 raise RuntimeError("Server binary changed between restarts")
             if digest(work / "plugins" / "Slimefun-Legacy-full-stack.jar") != evidence["core_sha256"]:
