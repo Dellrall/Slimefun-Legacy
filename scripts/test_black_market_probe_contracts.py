@@ -37,7 +37,7 @@ class AdmissionTests(unittest.TestCase):
         self.rows = []
         self.blobs = {}
         for i in range(45):
-            commit, jar = probe.MAGIC_RELEASES[138]
+            commit, jar = probe.MAGIC_RELEASES[139]
             name = jar if i == 0 else f"Addon{i}.jar"
             blob = f"synthetic-jar-{i}".encode()
             self.blobs[name] = blob
@@ -45,7 +45,7 @@ class AdmissionTests(unittest.TestCase):
             self.rows.append({"repository": probe.MAGIC if i == 0 else f"fixture/Addon{i}", "jar": name,
                               "commit": commit if i == 0 else "a" * 40,
                               "sha256": hashlib.sha256(blob).hexdigest()})
-        self.manifest = {"bundle_revision": 138, "addons": self.rows}
+        self.manifest = {"bundle_revision": 139, "addons": self.rows}
         self.bundle = self.home / "candidate.zip"
         self.write_bundle()
 
@@ -105,8 +105,14 @@ class AdmissionTests(unittest.TestCase):
         evidence = self.validate()
         self.assertEqual(evidence["bundle_revision"], 137)
 
+    def test_r138_is_still_supported(self):
+        self.manifest["bundle_revision"] = 138
+        self.write_bundle()
+        evidence = self.validate()
+        self.assertEqual(evidence["bundle_revision"], 138)
+
     def test_bad_or_noninteger_revision_refused(self):
-        for revision in (136, 139, "138", 138.0, True):
+        for revision in (136, 140, "139", 139.0, True):
             with self.subTest(revision=revision):
                 self.manifest["bundle_revision"] = revision
                 self.write_bundle()
@@ -127,7 +133,7 @@ class AdmissionTests(unittest.TestCase):
         self.rejects()
 
     def test_bundle_bytes_changed_refused(self):
-        self.blobs[probe.MAGIC_RELEASES[138][1]] = b"changed"
+        self.blobs[probe.MAGIC_RELEASES[139][1]] = b"changed"
         self.write_bundle()
         self.rejects()
 
@@ -136,7 +142,7 @@ class AdmissionTests(unittest.TestCase):
         self.rejects()
 
     def test_linked_addon_refused(self):
-        path = self.work / "plugins" / probe.MAGIC_RELEASES[138][1]
+        path = self.work / "plugins" / probe.MAGIC_RELEASES[139][1]
         original = self.home / "outside.jar"
         path.rename(original)
         path.symlink_to(original)

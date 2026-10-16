@@ -42,8 +42,8 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.sources.mkdir()
         (self.sources / "plugin.yml").write_text("name: SyntheticContractOnly\n", encoding="utf-8")
         self.bundle = self.root / "bundle.zip"
-        self.manifest = {"bundle_revision": 138, "addons": []}
-        self.populate(138)
+        self.manifest = {"bundle_revision": 139, "addons": []}
+        self.populate(139)
         self.addCleanup(patch.stopall)
         patch.object(probe.Path, "cwd", return_value=self.root).start()
         patch.object(probe, "HERE", self.sources).start()
@@ -61,6 +61,8 @@ class NativeStorageProbeContracts(unittest.TestCase):
         expected["wickidcow/SF_NetworksExp"] = (
             ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d")
             if revision == 135 else
+            ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba")
+            if revision == 139 else
             ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950")
         )
         rows = []
@@ -82,14 +84,14 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.compile.assert_not_called()
         self.launch.assert_not_called()
 
-    def test_r138_reaches_native_setup_with_unchanged_exact_storage_pins(self):
+    def test_r139_reaches_native_setup_with_exact_networks_pin(self):
         evidence = self.prepare()
-        self.assertEqual(evidence["bundle_revision"], 138)
+        self.assertEqual(evidence["bundle_revision"], 139)
         self.assertEqual(evidence["status"], "STARTED")
         self.assertNotIn("result", evidence)  # Setup success must not claim a native PASS.
         networks = evidence["tested_addons"]["wickidcow/SF_NetworksExp"]
-        self.assertEqual(networks["commit"], "bcdef34d362dc74aa1aab23c8961a629daa79950")
-        self.assertEqual(networks["jar"], "SF_Networks1.0.55.jar")
+        self.assertEqual(networks["commit"], "f5486918ab7e115298b453dc23e26a2225aedaba")
+        self.assertEqual(networks["jar"], "SF_Networks1.0.57.jar")
         self.compile.assert_called_once()
         self.launch.assert_not_called()
 
@@ -106,15 +108,19 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.populate(137)
         self.assertEqual(self.prepare()["bundle_revision"], 137)
 
+    def test_r138_is_still_supported(self):
+        self.populate(138)
+        self.assertEqual(self.prepare()["bundle_revision"], 138)
+
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
-        self.manifest["bundle_revision"] = 139
-        self.reject("requires r135, r136, r137 or r138")
+        self.manifest["bundle_revision"] = 140
+        self.reject("requires r135, r136, r137, r138 or r139")
 
     def test_non_integer_revisions_are_rejected(self):
-        for value in (138.0, "138", True, None):
+        for value in (139.0, "139", True, None):
             with self.subTest(value=value):
                 self.manifest["bundle_revision"] = value
-                self.reject("requires r135, r136, r137 or r138")
+                self.reject("requires r135, r136, r137, r138 or r139")
 
     def test_wrong_networks_pin_is_rejected(self):
         self.manifest["addons"][1]["commit"] = "0" * 40

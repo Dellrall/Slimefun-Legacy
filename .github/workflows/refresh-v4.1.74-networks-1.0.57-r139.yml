@@ -1,0 +1,316 @@
+name: Refresh v4.1.74 addon bundle r139 with Networks 1.0.57
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/refresh-v4.1.74-networks-1.0.57-r139.yml'
+      - 'compatibility/bundle-refresh-r139.json'
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'docs/addon-bundle-r139.md'
+      - 'scripts/refresh_release_addon.py'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/runtime/black_market/**'
+      - 'scripts/test_native_storage_probe_contracts.py'
+      - 'scripts/test_black_market_probe_contracts.py'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/refresh-v4.1.74-networks-1.0.57-r139.yml'
+      - 'compatibility/bundle-refresh-r139.json'
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'docs/addon-bundle-r139.md'
+      - 'scripts/refresh_release_addon.py'
+      - 'scripts/runtime/r135_fluffy_networks/**'
+      - 'scripts/runtime/black_market/**'
+      - 'scripts/test_native_storage_probe_contracts.py'
+      - 'scripts/test_black_market_probe_contracts.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: refresh-v4.1.74-addon-bundle-r139-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  revision_scope:
+    runs-on: ubuntu-latest
+    outputs:
+      revision: ${{ steps.read.outputs.revision }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: read
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_OUTPUT"
+          import json
+          from pathlib import Path
+          print("revision="+str(json.loads(Path("compatibility/sfl-addon-release-matrix.json").read_text())["bundle_revision"]))
+          PY
+
+  prepare:
+    needs: revision_scope
+    if: needs.revision_scope.outputs.revision == '139'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      digest: ${{ steps.refresh.outputs.digest }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          repository: wickidcow/Slimefun-Legacy
+          run-id: 38828417722
+          name: addon-bundle-r138-candidate
+          github-token: ${{ github.token }}
+          path: work/r138
+      - name: Verify offline admission contracts
+        run: |
+          PYTHONPATH=scripts python3 -m unittest \
+            scripts/test_refresh_release_addon.py \
+            scripts/test_verify_published_addon_bundle.py \
+            scripts/test_verify_addon_bytecode.py \
+            scripts/test_native_storage_probe_contracts.py \
+            scripts/test_black_market_probe_contracts.py
+      - name: Download exact published Networks 1.0.57
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p work/new
+          gh release download v1.0.57 --repo wickidcow/SF_NetworksExp \
+            --pattern SF_Networks1.0.57.jar --dir work/new
+      - name: Verify frozen r138 and Networks inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo 'f0870efbe26f007d7c95d419c7ba112875492ef75520c23052aca6ec6fd18419  work/r138/SF_Addons_1.21.11-26.3.zip' | sha256sum --check
+          echo '72a524d7c0d6f75a9decbf06679515887273ae53673d3f5ee38f355bef952c96  work/r138/Slimefun-Legacy4.1.74.jar' | sha256sum --check
+          echo '125a54605244f3ecaa2d873cca4dff7a78ff7772a445ad5d6f4c38f3603d57ab  work/new/SF_Networks1.0.57.jar' | sha256sum --check
+      - name: Create deterministic targeted r139 refresh
+        id: refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/refresh_release_addon.py \
+            --config compatibility/bundle-refresh-r139.json \
+            --matrix compatibility/sfl-addon-release-matrix.json \
+            --original work/r138/SF_Addons_1.21.11-26.3.zip \
+            --addon work/new/SF_Networks1.0.57.jar \
+            --output work/SF_Addons_r139_1.21.11-26.3.zip | tee work/validation.json
+          python3 scripts/refresh_release_addon.py \
+            --config compatibility/bundle-refresh-r139.json \
+            --matrix compatibility/sfl-addon-release-matrix.json \
+            --original work/r138/SF_Addons_1.21.11-26.3.zip \
+            --addon work/new/SF_Networks1.0.57.jar \
+            --output work/repeat-r139.zip >/dev/null
+          cmp work/SF_Addons_r139_1.21.11-26.3.zip work/repeat-r139.zip
+          rm work/repeat-r139.zip
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report=json.loads(Path("work/validation.json").read_text())
+          assert report["bundle_revision"]==139
+          assert report["unchanged_addons"]==44
+          assert report["new_jar"]=="SF_Networks1.0.57.jar"
+          with open(os.environ["GITHUB_OUTPUT"],"a") as out:
+              out.write("digest="+report["bundle_sha256"]+"\n")
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: addon-bundle-r139-candidate
+          path: |
+            work/SF_Addons_r139_1.21.11-26.3.zip
+            work/r138/Slimefun-Legacy4.1.74.jar
+            work/validation.json
+          if-no-files-found: error
+          retention-days: 30
+
+  runtime:
+    name: r139 full stack — ${{ matrix.software }} ${{ matrix.minecraft }}
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 65
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {software: paper, minecraft: '1.21.11', java: '21', lane: '1.21.11'}
+          - {software: paper, minecraft: '26.2', java: '25', lane: '26.2'}
+          - {software: paper, minecraft: '26.3', java: '25', lane: '26.3'}
+          - {software: purpur, minecraft: '26.3', java: '25', lane: 'purpur-26.3'}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: ${{ matrix.java }}
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon-bundle-r139-candidate
+          path: candidate
+      - name: Boot exact r139 bundle twice
+        env:
+          SERVER_SOFTWARE: ${{ matrix.software }}
+          SERVER_MINECRAFT_VERSION: ${{ matrix.minecraft }}
+          SLIMEFUN_SMOKE_VERSION: '4.1.74'
+          PURPUR_SMOKE_BUILD: '2646'
+          SERVER_DOWNLOAD_USER_AGENT: Slimefun-Legacy-r139-Refresh/1.0
+        run: |
+          bash scripts/full_stack_runtime_smoke.sh \
+            candidate/Slimefun-Legacy4.1.74.jar \
+            candidate/SF_Addons_r139_1.21.11-26.3.zip \
+            "build/full-stack-${{ matrix.lane }}"
+      - name: Probe Networks and Fluffy item conservation
+        if: matrix.software == 'paper' && matrix.minecraft == '26.3'
+        run: |
+          python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
+            --runtime-dir build/full-stack-26.3 \
+            --bundle candidate/SF_Addons_r139_1.21.11-26.3.zip
+      - name: Probe Black Market receipts across four JVM boots
+        run: |
+          python3 scripts/runtime/black_market/run_probe.py \
+            --runtime-dir "build/full-stack-${{ matrix.lane }}" \
+            --bundle candidate/SF_Addons_r139_1.21.11-26.3.zip \
+            --allow-disposable-writes
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: r139-runtime-${{ matrix.lane }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            build/full-stack-${{ matrix.lane }}/smoke-result.txt
+            build/full-stack-${{ matrix.lane }}/runtime-build.txt
+            build/full-stack-${{ matrix.lane }}/*.console.log
+            build/full-stack-${{ matrix.lane }}/*.normalized.log
+            build/full-stack-${{ matrix.lane }}/black-market-result.json
+            build/full-stack-${{ matrix.lane }}/black-market-compile.log
+            build/full-stack-${{ matrix.lane }}/plugins/BlackMarketRestartProbe/*.result
+            build/full-stack-${{ matrix.lane }}/native-r135-result.json
+            build/full-stack-${{ matrix.lane }}/native-r135-compile.log
+
+  ready:
+    needs: [prepare, runtime]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon-bundle-r139-candidate
+          path: candidate
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: r139-runtime-*
+          path: evidence
+      - name: Verify exact r139 evidence and publication dependency
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > candidate/release.json
+          python3 - <<'PY'
+          import hashlib, json
+          from pathlib import Path
+          cfg=json.loads(Path("compatibility/bundle-refresh-r139.json").read_text())
+          report=json.loads(Path("candidate/validation.json").read_text())
+          bundle=Path("candidate/SF_Addons_r139_1.21.11-26.3.zip")
+          assert report["bundle_revision"]==139 and report["unchanged_addons"]==44
+          assert report["bundle_sha256"]==hashlib.sha256(bundle.read_bytes()).hexdigest()
+          assert report["new_jar_sha256"]==cfg["new_sha256"]
+          for lane in ("1.21.11","26.2","26.3","purpur-26.3"):
+              root=Path("evidence")/f"r139-runtime-{lane}"
+              smoke=list(root.rglob("smoke-result.txt"))
+              assert len(smoke)==1 and "runtime smoke: PASS" in smoke[0].read_text(), lane
+              receipts=list(root.rglob("black-market-result.json"))
+              assert len(receipts)==1, lane
+              receipt=json.loads(receipts[0].read_text())
+              assert receipt["result"]=="PASS" and receipt["bundle_revision"]==139, lane
+              magic=receipt["tested_addons"]["wickidcow/SF_MagicExpansion"]
+              assert magic["commit"]=="9443393b3ef5f0982194d9084eaed91d7d820dca", lane
+              assert len(receipt["phases"])==4 and all(p["result"]=="PASS" for p in receipt["phases"]), lane
+          native=list((Path("evidence")/"r139-runtime-26.3").rglob("native-r135-result.json"))
+          assert len(native)==1
+          native=json.loads(native[0].read_text())
+          assert native["result"]=="PASS" and native["bundle_revision"]==139
+          nw=native["tested_addons"]["wickidcow/SF_NetworksExp"]
+          assert nw["jar"]=="SF_Networks1.0.57.jar"
+          assert nw["commit"]=="f5486918ab7e115298b453dc23e26a2225aedaba"
+          assert nw["sha256"]=="125a54605244f3ecaa2d873cca4dff7a78ff7772a445ad5d6f4c38f3603d57ab"
+
+          release=json.loads(Path("candidate/release.json").read_text())
+          assets={a["name"]:a for a in release["assets"]}
+          assert assets[cfg["core_jar"]]["digest"]=="sha256:"+cfg["core_sha256"]
+          assert assets[cfg["resource_pack"]]["digest"]=="sha256:"+cfg["resource_pack_sha256"]
+          r138=assets.get(cfg["old_bundle_name"])
+          if r138 is not None:
+              assert r138["digest"]=="sha256:"+cfg["old_bundle_sha256"]
+              print("PUBLICATION DEPENDENCY READY: live r138 matches frozen candidate")
+          else:
+              # r139 can be reviewed before r138 publication, but cannot publish.
+              canonical=assets["SF_Addons_1.21.11-26.3.zip"]
+              assert canonical["digest"]=="sha256:534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d"
+              print("PUBLICATION DEPENDENCY PENDING: r138 revision-specific asset not yet live")
+          PY
+
+  publish:
+    needs: [prepare, runtime, ready]
+    if: github.event_name == 'push' && contains(github.event.head_commit.message, 'Publish addon bundle r139 with Networks 1.0.57')
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v8
+        with:
+          name: addon-bundle-r139-candidate
+          path: work
+      - name: Require exact live r138 lease and publish revision-specific r139
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_DIGEST: ${{ needs.prepare.outputs.digest }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > work/release.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          cfg=json.loads(Path("compatibility/bundle-refresh-r139.json").read_text())
+          release=json.loads(Path("work/release.json").read_text())
+          assert release["target_commitish"]==cfg["core_source_commit"]
+          assets={a["name"]:a for a in release["assets"]}
+          assert assets[cfg["core_jar"]]["digest"]=="sha256:"+cfg["core_sha256"]
+          assert assets[cfg["resource_pack"]]["digest"]=="sha256:"+cfg["resource_pack_sha256"]
+          assert assets[cfg["old_bundle_name"]]["digest"]=="sha256:"+cfg["old_bundle_sha256"]
+          assert os.environ["CANDIDATE_DIGEST"] != cfg["old_bundle_sha256"]
+          PY
+          cp work/SF_Addons_r139_1.21.11-26.3.zip work/SF_Addons_1.21.11-26.3.zip
+          gh release upload v4.1.74 work/SF_Addons_r139_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload v4.1.74 work/SF_Addons_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > work/published.json
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          cfg=json.loads(Path("compatibility/bundle-refresh-r139.json").read_text())
+          release=json.loads(Path("work/published.json").read_text())
+          assets={a["name"]:a for a in release["assets"]}
+          expected="sha256:"+os.environ["CANDIDATE_DIGEST"]
+          assert assets["SF_Addons_r139_1.21.11-26.3.zip"]["digest"]==expected
+          assert assets["SF_Addons_1.21.11-26.3.zip"]["digest"]==expected
+          assert assets[cfg["old_bundle_name"]]["digest"]=="sha256:"+cfg["old_bundle_sha256"]
+          assert assets[cfg["core_jar"]]["digest"]=="sha256:"+cfg["core_sha256"]
+          assert assets[cfg["resource_pack"]]["digest"]=="sha256:"+cfg["resource_pack_sha256"]
+          body=release.get("body") or ""
+          marker="<!-- verified-r139-"+os.environ["CANDIDATE_DIGEST"][:16]+" -->"
+          section=Path("docs/addon-bundle-r139.md").read_text().rstrip()
+          section += "\n\n- r139 ZIP SHA-256: `"+os.environ["CANDIDATE_DIGEST"]+"`"
+          if marker not in body:
+              body=marker+"\n"+section+"\n\n---\n\n"+body
+          Path("work/release-notes.md").write_text(body)
+          PY
+          gh release edit v4.1.74 --repo "$GITHUB_REPOSITORY" --notes-file work/release-notes.md
