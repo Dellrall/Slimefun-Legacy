@@ -102,6 +102,7 @@ jobs:
         env:
           SERVER_SOFTWARE: ${{ matrix.software }}
           SERVER_MINECRAFT_VERSION: ${{ matrix.minecraft }}
+          SLIMEFUN_SMOKE_VERSION: '4.1.74'
           PURPUR_SMOKE_BUILD: '2646'
           SERVER_DOWNLOAD_USER_AGENT: Slimefun-Legacy-r140/1.0
         run: |
