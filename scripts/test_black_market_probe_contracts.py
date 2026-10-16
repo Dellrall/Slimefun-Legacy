@@ -68,6 +68,7 @@ class AdmissionTests(unittest.TestCase):
         evidence = self.validate()
         self.assertEqual(len(evidence["tested_addons"]), 45)
         self.assertEqual(evidence["result"], "STARTED")
+        self.assertEqual(evidence["magic_version"], "1.1.15")
         self.assertEqual(before, {p.relative_to(self.work): p.read_bytes() for p in self.work.rglob("*") if p.is_file()})
 
     def test_all_four_runtime_names_supported(self):
@@ -104,6 +105,7 @@ class AdmissionTests(unittest.TestCase):
         self.write_bundle()
         evidence = self.validate()
         self.assertEqual(evidence["bundle_revision"], 137)
+        self.assertEqual(evidence["magic_version"], "1.1.13")
 
     def test_bad_or_noninteger_revision_refused(self):
         for revision in (136, 139, "138", 138.0, True):
