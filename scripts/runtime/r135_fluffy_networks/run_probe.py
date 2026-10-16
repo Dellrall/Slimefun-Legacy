@@ -30,7 +30,7 @@ NETWORK_VERSIONS = {
     137: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
     138: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
     139: ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba"),
-    140: ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba"),
+    140: ("SF_Networks1.0.58.jar", "4ebecea309e89cc60fc4f6d932505312b5468ed1"),
 }
 
 
