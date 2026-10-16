@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build deterministic r140 from the exact published r137 ZIP with only Networks and IE2 replaced."""
+"""Build deterministic r140 from exact published r137 with MagicExpansion, Networks and IE2 replacements."""
 from __future__ import annotations
 
 import argparse
@@ -43,11 +43,13 @@ def build(config: dict, matrix: dict, original: Path, jar_dir: Path, output: Pat
     old_rows = {row["repository"]: row for row in before["addons"]}
     locked = {row["repository"]: row["source_commit"] for row in matrix["addons"]}
     replacements = config["replacements"]
-    require([r["repository"] for r in replacements] ==
-            ["wickidcow/SF_NetworksExp", "wickidcow/SF_InfinityExpansion2"],
-            "Unexpected r140 replacement order")
+    require([r["repository"] for r in replacements] == [
+            "wickidcow/SF_MagicExpansion",
+            "wickidcow/SF_NetworksExp",
+            "wickidcow/SF_InfinityExpansion2",
+        ], "Unexpected r140 replacement order")
     changing = {r["repository"] for r in replacements}
-    require(len(changing) == 2, "Expected exactly two changed addons")
+    require(len(changing) == 3, "Expected exactly three changed addons")
 
     for item in replacements:
         old = old_rows.get(item["repository"])
@@ -109,7 +111,7 @@ def build(config: dict, matrix: dict, original: Path, jar_dir: Path, output: Pat
         require(len(old_jars) == len(new_jars) == 45, "Addon count changed")
         require(new_jars == (old_jars - removed) | added, "Unexpected JAR set change")
         unchanged = old_jars - removed
-        require(len(unchanged) == 43, "Expected 43 unchanged JARs")
+        require(len(unchanged) == 42, "Expected 42 unchanged JARs")
         require(all(older.read(name) == newer.read(name) for name in unchanged),
                 "An unrelated addon JAR changed")
         for item in replacements:
@@ -144,7 +146,7 @@ def build(config: dict, matrix: dict, original: Path, jar_dir: Path, output: Pat
         "bundle_sha256": digest(output),
         "previous_bundle_sha256": digest(original),
         "addon_count": 45,
-        "unchanged_addons": 43,
+        "unchanged_addons": 42,
         "changed_repositories": [r["repository"] for r in replacements],
         "stages": reports,
     }
