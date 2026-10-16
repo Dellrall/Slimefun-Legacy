@@ -22,12 +22,16 @@ case "$SOFTWARE" in
         ;;
 esac
 
-# Keep all existing Paper-family 26.2 lanes intact; 26.3 is currently a
-# deliberately scoped Purpur-only compatibility candidate (not Folia/Leaf).
-if [[ "$MC_VERSION" != "26.2" && ( "$SOFTWARE" != "purpur" || "$MC_VERSION" != "26.3" ) ]]; then
-    echo "Unsupported server/version combination: ${SOFTWARE} ${MC_VERSION} (allowed: Paper-family 26.2 or Purpur 26.3)." >&2
-    exit 1
-fi
+# Keep all existing Paper-family 26.2 lanes intact. Minecraft 26.3 remains
+# explicitly scoped: Purpur and Folia have dedicated experimental readiness lanes;
+# Leaf 26.3 is not implicitly certified by this shared harness.
+case "${SOFTWARE}:${MC_VERSION}" in
+    purpur:26.2|folia:26.2|leaf:26.2|purpur:26.3|folia:26.3) ;;
+    *)
+        echo "Unsupported server/version combination: ${SOFTWARE} ${MC_VERSION} (allowed: Paper-family 26.2, Purpur 26.3, or Folia 26.3)." >&2
+        exit 1
+        ;;
+esac
 
 if [[ -z "$EXPECTED_PLUGIN_VERSION" ]]; then
     echo "Could not resolve the expected Slimefun Legacy version." >&2
