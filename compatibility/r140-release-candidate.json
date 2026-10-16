@@ -8,6 +8,15 @@
   "output_name": "SF_Addons_r140_1.21.11-26.3.zip",
   "replacements": [
     {
+      "repository": "wickidcow/SF_MagicExpansion",
+      "old_commit": "13924991a1960daa40fe221cab5a4eef95d46ecb",
+      "new_jar": "SF_MagicExpansion1.1.15.jar",
+      "new_version": "1.1.15",
+      "new_commit": "9443393b3ef5f0982194d9084eaed91d7d820dca",
+      "new_sha256": "46c01290c54d918c39e8bb0f58d3ce135e2143c86b0f45858245f78fcafeeaad",
+      "compatibility_note": "r140 carries forward the r138 MagicExpansion 1.1.15 Black Market restart/authorization safety fixes. Purchase receipts, rotation, costs/rewards and saved market data remain protected."
+    },
+    {
       "repository": "wickidcow/SF_NetworksExp",
       "old_commit": "bcdef34d362dc74aa1aab23c8961a629daa79950",
       "new_jar": "SF_Networks1.0.57.jar",
