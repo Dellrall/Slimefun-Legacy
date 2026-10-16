@@ -249,7 +249,10 @@ jobs:
           assert os.environ['CANDIDATE_DIGEST']!=cfg['old_bundle_sha256']
           PY
           cp work/live/SF_Addons_1.21.11-26.3.zip work/SF_Addons_r137_1.21.11-26.3.zip
+          cp work/SF_Addons_1.21.11-26.3.zip work/SF_Addons_r138_1.21.11-26.3.zip
           gh release upload v4.1.74 work/SF_Addons_r137_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
+          gh release upload v4.1.74 work/SF_Addons_r138_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
+          # Keep the historical revisionless path as a compatibility alias for existing links.
           gh release upload v4.1.74 work/SF_Addons_1.21.11-26.3.zip --repo "$GITHUB_REPOSITORY" --clobber
           gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.74" > work/published.json
           python3 - <<'PY'
@@ -259,6 +262,7 @@ jobs:
           release=json.loads(Path('work/published.json').read_text())
           assets={a['name']:a for a in release['assets']}
           assert assets[cfg['bundle_name']]['digest']=='sha256:'+os.environ['CANDIDATE_DIGEST']
+          assert assets['SF_Addons_r138_1.21.11-26.3.zip']['digest']=='sha256:'+os.environ['CANDIDATE_DIGEST']
           assert assets['SF_Addons_r137_1.21.11-26.3.zip']['digest']=='sha256:'+cfg['old_bundle_sha256']
           assert assets[cfg['core_jar']]['digest']=='sha256:'+cfg['core_sha256']
           assert assets[cfg['resource_pack']]['digest']=='sha256:'+cfg['resource_pack_sha256']
