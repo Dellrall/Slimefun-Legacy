@@ -28,7 +28,7 @@ MAGIC_RELEASES = {
     138: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
     139: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
     140: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
-    141: ("b79e119b8fa8dd009a6eaa5caaed931614859c2b", "SF_MagicExpansion1.1.16.jar"),
+    141: ("1f7f6fed1e4b7b8cda9331cedc8a963332808101", "SF_MagicExpansion1.1.16.jar"),
 }
 MAGIC_VERSIONS = {
     137: "1.1.13",
