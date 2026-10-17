@@ -122,11 +122,29 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(evidence["magic_version"], "1.1.15")
 
     def test_bad_or_noninteger_revision_refused(self):
-        for revision in (136, 141, "140", 140.0, True):
+        for revision in (136, 142, "141", 141.0, True):
             with self.subTest(revision=revision):
                 self.manifest["bundle_revision"] = revision
                 self.write_bundle()
                 self.rejects()
+
+    def test_r141_requires_magic_1_1_16_and_its_exact_source(self):
+        commit, jar = probe.MAGIC_RELEASES[141]
+        old_jar = self.rows[0]["jar"]
+        blob = self.blobs.pop(old_jar)
+        (self.work / "plugins" / old_jar).unlink()
+        self.blobs[jar] = blob
+        (self.work / "plugins" / jar).write_bytes(blob)
+        self.rows[0].update(jar=jar, commit=commit)
+        self.manifest["bundle_revision"] = 141
+        self.write_bundle()
+        evidence = self.validate()
+        self.assertEqual(evidence["bundle_revision"], 141)
+        self.assertEqual(evidence["magic_version"], "1.1.16")
+        self.assertEqual(jar, "SF_MagicExpansion1.1.16.jar")
+        self.rows[0]["commit"] = probe.MAGIC_RELEASES[140][0]
+        self.write_bundle()
+        self.rejects()
 
     def test_wrong_magic_source_refused(self):
         self.rows[0]["commit"] = "b" * 40
