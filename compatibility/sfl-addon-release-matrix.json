@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "bundle_revision": 140,
-  "bundle_name": "SF_Addons_r140_1.21.11-26.3.zip",
+  "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
     "addon_name_source": "SF_ repository name by default with explicit artifact_base overrides",

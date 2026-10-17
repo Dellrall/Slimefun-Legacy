@@ -3,7 +3,7 @@ name: Addons r140 Magic + Networks + IE2 candidate
 on:
   pull_request:
     paths:
-      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'compatibility/r140-validation-matrix.json'
       - 'compatibility/r140-release-candidate.json'
       - 'scripts/refresh_release_addons_r140.py'
       - 'scripts/runtime/black_market/**'
@@ -14,7 +14,7 @@ on:
   push:
     branches: ['bundle/addons-r140-networks-ie2-20261016']
     paths:
-      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'compatibility/r140-validation-matrix.json'
       - 'compatibility/r140-release-candidate.json'
       - 'scripts/refresh_release_addons_r140.py'
       - 'scripts/runtime/black_market/**'
@@ -67,7 +67,7 @@ jobs:
         run: |
           python3 scripts/refresh_release_addons_r140.py \
             --config compatibility/r140-release-candidate.json \
-            --matrix compatibility/sfl-addon-release-matrix.json \
+            --matrix compatibility/r140-validation-matrix.json \
             --original .ci/baseline/SF_Addons_1.21.11-26.3.zip \
             --jar-dir .ci/jars \
             --output build/r140/SF_Addons_r140_1.21.11-26.3.zip \
