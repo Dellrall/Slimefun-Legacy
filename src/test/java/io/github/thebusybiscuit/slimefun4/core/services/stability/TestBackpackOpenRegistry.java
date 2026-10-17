@@ -89,4 +89,81 @@ class TestBackpackOpenRegistry {
         registry.release(modernPlayer);
         Assertions.assertTrue(registry.reserve(thirdPlayer, "uuid:canonical"));
     }
+
+    @Test
+    void staleRequestCannotActivateOrReleaseSameKeySuccessor() {
+        BackpackOpenRegistry registry = new BackpackOpenRegistry();
+        UUID player = UUID.randomUUID();
+        UUID oldToken = UUID.randomUUID();
+        UUID currentToken = UUID.randomUUID();
+
+        Assertions.assertTrue(registry.reserve(player, "uuid:same", oldToken));
+        Assertions.assertTrue(registry.releaseOwned(player, oldToken));
+        Assertions.assertTrue(registry.reserve(player, "uuid:same", currentToken));
+
+        Assertions.assertFalse(registry.activate(player, "uuid:same", "uuid:same", oldToken));
+        Assertions.assertFalse(registry.releaseOwned(player, oldToken));
+        Assertions.assertTrue(registry.ownsRequest(player, currentToken));
+        Assertions.assertTrue(registry.isOpening(player));
+        Assertions.assertFalse(registry.reserve(UUID.randomUUID(), "uuid:same"));
+        Assertions.assertTrue(registry.activate(player, "uuid:same", "uuid:same", currentToken));
+        Assertions.assertTrue(registry.releaseOwned(player, currentToken));
+    }
+
+    @Test
+    void requestTokenSurvivesCanonicalPromotionUntilRelease() {
+        BackpackOpenRegistry registry = new BackpackOpenRegistry();
+        UUID player = UUID.randomUUID();
+        UUID token = UUID.randomUUID();
+
+        Assertions.assertTrue(registry.reserve(player, "legacy:owner:18", token));
+        Assertions.assertTrue(registry.activate(player, "legacy:owner:18", "uuid:canonical", token));
+        Assertions.assertEquals(token, registry.getRequestToken(player));
+        Assertions.assertTrue(registry.ownsRequest(player, token));
+        Assertions.assertFalse(registry.isOpening(player));
+        Assertions.assertTrue(registry.reserve(UUID.randomUUID(), "legacy:owner:18"));
+        Assertions.assertFalse(registry.reserve(UUID.randomUUID(), "uuid:canonical"));
+
+        Assertions.assertTrue(registry.releaseOwned(player, token));
+        Assertions.assertNull(registry.getRequestToken(player));
+        Assertions.assertTrue(registry.reserve(UUID.randomUUID(), "uuid:canonical"));
+    }
+
+    @Test
+    void failedCanonicalActivationCannotReleaseAnotherPlayer() {
+        BackpackOpenRegistry registry = new BackpackOpenRegistry();
+        UUID legacyPlayer = UUID.randomUUID();
+        UUID modernPlayer = UUID.randomUUID();
+        UUID legacyToken = UUID.randomUUID();
+        UUID modernToken = UUID.randomUUID();
+
+        Assertions.assertTrue(registry.reserve(legacyPlayer, "legacy:owner:18", legacyToken));
+        Assertions.assertTrue(registry.reserve(modernPlayer, "uuid:canonical", modernToken));
+        Assertions.assertFalse(registry.activate(legacyPlayer, "legacy:owner:18", "uuid:canonical", legacyToken));
+        Assertions.assertFalse(registry.releaseOwned(modernPlayer, legacyToken));
+        Assertions.assertTrue(registry.releaseOwned(legacyPlayer, legacyToken));
+        Assertions.assertTrue(registry.ownsRequest(modernPlayer, modernToken));
+        Assertions.assertTrue(registry.isOpening(modernPlayer));
+        Assertions.assertFalse(registry.reserve(UUID.randomUUID(), "uuid:canonical"));
+    }
+
+    @Test
+    void duplicateCompletionCannotReleaseDifferentKeySuccessor() {
+        BackpackOpenRegistry registry = new BackpackOpenRegistry();
+        UUID player = UUID.randomUUID();
+
+        Assertions.assertTrue(registry.reserve(player, "uuid:first"));
+        UUID oldToken = registry.getRequestToken(player);
+        Assertions.assertTrue(registry.releaseOwned(player, oldToken));
+        Assertions.assertTrue(registry.reserve(player, "uuid:second"));
+        UUID currentToken = registry.getRequestToken(player);
+
+        Assertions.assertFalse(registry.releaseOwned(player, oldToken));
+        Assertions.assertFalse(registry.releaseOwned(player, null));
+        Assertions.assertFalse(registry.ownsRequest(player, null));
+        Assertions.assertTrue(registry.ownsRequest(player, currentToken));
+        Assertions.assertFalse(registry.reserve(UUID.randomUUID(), "uuid:second"));
+        Assertions.assertTrue(registry.releaseOwned(player, currentToken));
+        Assertions.assertTrue(registry.reserve(UUID.randomUUID(), "uuid:second"));
+    }
 }

@@ -360,7 +360,7 @@ jobs:
           if-no-files-found: warn
 
   paper-runtime-smoke:
-    name: Paper 26.3 pre-release runtime smoke
+    name: Paper 26.3 runtime smoke
     needs: detect-paper-26-3
     if: ${{ github.repository == 'wickidcow/Slimefun-Legacy' && needs.detect-paper-26-3.outputs.api_available == 'true' && needs.detect-paper-26-3.outputs.server_available == 'true' }}
     runs-on: ubuntu-latest

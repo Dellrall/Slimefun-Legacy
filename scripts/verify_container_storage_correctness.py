@@ -369,7 +369,7 @@ def main() -> int:
     )
     require(
         listener,
-        "if (!backpack.getUniqueId().equals(backpacks.get(playerId))) { saveDetachedBackpack(backpack, context); return; }",
+        "if (requestToken == null || !backpack.getUniqueId().equals(backpacks.get(playerId))) { saveDetachedBackpack(backpack, context); return; }",
         "detached backpack saves are kept out of tracked player-session state",
     )
     require(
@@ -380,7 +380,7 @@ def main() -> int:
     require(listener, "saveBackpackInventoryAsync(backpack)", "listener async backpack save")
     require(
         listener,
-        "if (!pendingSaves.containsKey(playerId)) { finishBackpackSession(playerId, null); }",
+        "if (!pendingSaves.containsKey(playerId)) { finishBackpackSession(playerId, requestToken); }",
         "quit keeps reservation while save is pending",
     )
     require_before(
@@ -391,8 +391,8 @@ def main() -> int:
     )
     require(
         listener,
-        "pendingSaves.remove(playerId, save); finishBackpackSession(playerId, backpack.getUniqueId());",
-        "pending save cleared before session reservation release",
+        "pendingSaves.remove(playerId, save); finishBackpackSession(playerId, requestToken);",
+        "exact pending save cleared before releasing its own request",
     )
     require(
         listener,
@@ -412,13 +412,28 @@ def main() -> int:
     )
     require(
         listener,
-        "private void finishBackpackSession(@Nonnull UUID playerId, @Nullable UUID backpackId)",
+        "private void finishBackpackSession(@Nonnull UUID playerId, @Nullable UUID requestToken)",
         "central backpack session release helper",
     )
     require(
         listener,
-        "openRegistry.release(playerId)",
-        "canonical reservation release in session cleanup helper",
+        "synchronized (openRegistry) { if (pendingSaves.containsKey(playerId) || !openRegistry.releaseOwned(playerId, requestToken)) { return; } backpacks.remove(playerId); backpackInstances.remove(playerId); }",
+        "pending persistence and request ownership checked atomically before listener state is removed",
+    )
+    require(
+        listener,
+        "openRegistry.reserve(playerId, reservationKey, requestToken)",
+        "new request token accompanies backpack reservation",
+    )
+    require(
+        listener,
+        "openRegistry.activate(playerId, reservationKey, canonicalKey, requestToken)",
+        "canonical activation retains exact request ownership",
+    )
+    require(
+        listener,
+        "profile -> ThreadUtils.getEntityThreadExecutor(p) .execute(() -> openBackpackInternal(",
+        "initial profile continuation dispatches onto the player owner",
     )
 
     doctor = compact(
