@@ -65,6 +65,8 @@ class NativeStorageProbeContracts(unittest.TestCase):
             if revision == 139 else
             ("SF_Networks1.0.58.jar", "4ebecea309e89cc60fc4f6d932505312b5468ed1")
             if revision == 140 else
+            probe.NETWORK_VERSIONS[141]
+            if revision == 141 else
             ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950")
         )
         rows = []
@@ -123,14 +125,25 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.assertEqual(networks["commit"], "4ebecea309e89cc60fc4f6d932505312b5468ed1")
 
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
-        self.manifest["bundle_revision"] = 141
-        self.reject("requires r135, r136, r137, r138, r139 or r140")
+        self.manifest["bundle_revision"] = 142
+        self.reject("requires r135, r136, r137, r138, r139, r140 or r141")
 
     def test_non_integer_revisions_are_rejected(self):
-        for value in (140.0, "140", True, None):
+        for value in (141.0, "141", True, None):
             with self.subTest(value=value):
                 self.manifest["bundle_revision"] = value
-                self.reject("requires r135, r136, r137, r138, r139 or r140")
+                self.reject("requires r135, r136, r137, r138, r139, r140 or r141")
+
+    def test_r141_requires_networks_1_0_59_and_its_exact_source(self):
+        self.populate(141)
+        evidence = self.prepare()
+        self.assertEqual(evidence["bundle_revision"], 141)
+        networks = evidence["tested_addons"]["wickidcow/SF_NetworksExp"]
+        self.assertEqual(networks["jar"], "SF_Networks1.0.59.jar")
+        self.assertEqual(networks["commit"], probe.NETWORK_VERSIONS[141][1])
+        self.compile.reset_mock()
+        self.manifest["addons"][1]["commit"] = probe.NETWORK_VERSIONS[140][1]
+        self.reject("addon source mismatch")
 
     def test_wrong_networks_pin_is_rejected(self):
         self.manifest["addons"][1]["commit"] = "0" * 40

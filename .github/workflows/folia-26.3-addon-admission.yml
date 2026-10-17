@@ -1,0 +1,127 @@
+name: Folia 26.3 Addon Admission Audit
+
+on:
+  pull_request:
+    paths:
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'scripts/audit_folia_addon_admission.py'
+      - 'scripts/test_audit_folia_addon_admission.py'
+      - 'scripts/download_candidate_bundle.py'
+      - 'scripts/test_download_candidate_bundle.py'
+      - '.github/workflows/folia-26.3-addon-admission.yml'
+      - 'docs/compatibility/FOLIA_26_3_ADDONS.md'
+  push:
+    branches: [master]
+    paths:
+      - 'compatibility/sfl-addon-release-matrix.json'
+      - 'scripts/audit_folia_addon_admission.py'
+      - 'scripts/test_audit_folia_addon_admission.py'
+      - 'scripts/download_candidate_bundle.py'
+      - 'scripts/test_download_candidate_bundle.py'
+      - '.github/workflows/folia-26.3-addon-admission.yml'
+      - 'docs/compatibility/FOLIA_26_3_ADDONS.md'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: folia-26-3-addon-admission-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    name: Audit exact 45-addon Folia admission metadata
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install descriptor parser
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
+
+      - name: Test audit parser offline
+        run: |
+          PYTHONPATH=scripts python3 -m unittest \
+            scripts/test_audit_folia_addon_admission.py \
+            scripts/test_download_candidate_bundle.py -v
+
+      - name: Wait for exact-source canonical addon bundle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              python3 scripts/download_candidate_bundle.py \
+                --repository "$GITHUB_REPOSITORY" --event pull_request --head "$PR_HEAD_SHA" \
+                --source "$GITHUB_SHA" --output build/bundle --timeout 4800
+              ;;
+            push|workflow_dispatch)
+              # A manual audit reuses only a successful push build of this same
+              # checkout. PR merge artifacts and release archives are ineligible.
+              python3 scripts/download_candidate_bundle.py \
+                --repository "$GITHUB_REPOSITORY" --event push --head "$GITHUB_SHA" \
+                --source "$GITHUB_SHA" --output build/bundle --timeout 4800
+              ;;
+            *)
+              echo "Unsupported Folia admission audit event: $GITHUB_EVENT_NAME" >&2
+              exit 1
+              ;;
+          esac
+
+      - name: Audit descriptor-level Folia admission
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/audit_folia_addon_admission.py \
+            build/bundle/SF_Addons_1.21.11-26.3.zip \
+            --expect-addons 45 --expect-source "$GITHUB_SHA" \
+            --output build/folia-26.3-addon-admission.json
+
+      - name: Publish admission summary
+        shell: bash
+        run: |
+          python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          report=json.loads(Path('build/folia-26.3-addon-admission.json').read_text())
+          counts=report['counts']
+          print('## Folia 26.3 addon admission audit')
+          print()
+          print(f"- Bundle revision: {report['bundle_revision']}")
+          print(f"- Exact addon count: {report['addon_count']}")
+          print(f"- Declared `folia-supported: true`: **{counts['declared_true']}**")
+          print(f"- Declared `folia-supported: false`: **{counts['declared_false']}**")
+          print(f"- Undeclared: **{counts['undeclared']}**")
+          print()
+          print('This is descriptor admission metadata only, not runtime/gameplay certification.')
+          print()
+          print('### Declared true')
+          for row in report['addons']:
+              if row['admission']=='declared-true':
+                  print(f"- `{row['repository']}` — `{row['jar']}`")
+          print()
+          print('### Undeclared')
+          for row in report['addons']:
+              if row['admission']=='undeclared':
+                  print(f"- `{row['repository']}` — `{row['jar']}`")
+          PY
+
+      - name: Upload admission evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: folia-26.3-addon-admission
+          path: |
+            build/folia-26.3-addon-admission.json
+            build/bundle/bundle-source.txt
+          if-no-files-found: error

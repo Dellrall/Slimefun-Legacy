@@ -28,12 +28,14 @@ MAGIC_RELEASES = {
     138: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
     139: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
     140: ("9443393b3ef5f0982194d9084eaed91d7d820dca", "SF_MagicExpansion1.1.15.jar"),
+    141: ("b79e119b8fa8dd009a6eaa5caaed931614859c2b", "SF_MagicExpansion1.1.16.jar"),
 }
 MAGIC_VERSIONS = {
     137: "1.1.13",
     138: "1.1.15",
     139: "1.1.15",
     140: "1.1.15",
+    141: "1.1.16",
 }
 DIRECTORIES = {"full-stack-1.21.11", "full-stack-26.2", "full-stack-26.3", "full-stack-purpur-26.3"}
 PLUGIN = "BlackMarketRestartProbe"
@@ -95,7 +97,7 @@ def validate_fixture(work: Path, bundle: Path) -> dict:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
         revision = manifest.get("bundle_revision")
         if type(revision) is not int or revision not in MAGIC_RELEASES:
-            raise RuntimeError("This exact-source probe requires candidate r137, r138, r139 or r140")
+            raise RuntimeError("This exact-source probe requires candidate r137, r138, r139, r140 or r141")
         magic_commit, magic_jar = MAGIC_RELEASES[revision]
         rows = manifest.get("addons", [])
         if len(rows) != 45 or len({r["repository"] for r in rows}) != 45:
