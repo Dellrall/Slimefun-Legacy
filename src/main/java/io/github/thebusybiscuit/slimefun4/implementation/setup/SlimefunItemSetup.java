@@ -195,6 +195,7 @@ import io.github.thebusybiscuit.slimefun4.implementation.items.tools.PortableCra
 import io.github.thebusybiscuit.slimefun4.implementation.items.tools.PortableDustbin;
 import io.github.thebusybiscuit.slimefun4.implementation.items.tools.SmeltersPickaxe;
 import io.github.thebusybiscuit.slimefun4.implementation.items.tools.TapeMeasure;
+import io.github.thebusybiscuit.slimefun4.implementation.items.weapons.CowHearder;
 import io.github.thebusybiscuit.slimefun4.implementation.items.weapons.ExplosiveBow;
 import io.github.thebusybiscuit.slimefun4.implementation.items.weapons.IcyBow;
 import io.github.thebusybiscuit.slimefun4.implementation.items.weapons.SeismicAxe;
@@ -237,6 +238,7 @@ public final class SlimefunItemSetup {
 
         // Restore the orphaned EnderPanda helmet without rewriting existing item data.
         LegacyShulkerHelmet.register(plugin, itemGroups.armor);
+        CowHearder.register(plugin, itemGroups.weapons);
 
         // @formatter:off (We will need to refactor this one day)
         new SlimefunItem(

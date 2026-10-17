@@ -7,6 +7,7 @@ import io.github.thebusybiscuit.slimefun4.api.diagnostics.LegacyItemSchemaMigrat
 import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItem;
 import io.github.thebusybiscuit.slimefun4.api.researches.Research;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
+import io.github.thebusybiscuit.slimefun4.implementation.items.weapons.CowHearder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -317,7 +318,9 @@ class SlimefunTabCompleter implements TabCompleter {
         List<SlimefunItem> list = Slimefun.getRegistry().getEnabledSlimefunItems();
         List<String> names = new ArrayList<>(list.size());
         for (SlimefunItem item : list) {
-            names.add(item.getId());
+            if (!CowHearder.ID.equals(item.getId())) {
+                names.add(item.getId());
+            }
         }
         return names;
     }
