@@ -19,8 +19,8 @@ class CowHearderTest {
 
     @Test
     void scalesLethalDamageToHealthWithoutOverflowingOrdinaryPlayerHits() {
-        assertEquals(16_384.0D, CowHearder.strikeDamage(20.0D, 0.0D));
-        assertEquals(16_384.0D, CowHearder.strikeDamage(20.0D, 16.0D));
+        assertEquals(20_480.0D, CowHearder.strikeDamage(20.0D, 0.0D));
+        assertEquals(36_864.0D, CowHearder.strikeDamage(20.0D, 16.0D));
         assertEquals(102_400.0D, CowHearder.strikeDamage(100.0D, 0.0D));
         assertEquals(1_048_576.0D, CowHearder.strikeDamage(1_000.0D, 24.0D));
     }
