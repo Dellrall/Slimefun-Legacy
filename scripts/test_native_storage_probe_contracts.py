@@ -183,12 +183,33 @@ class NativeStorageProbeContracts(unittest.TestCase):
 
     def test_core_version_is_taken_from_the_checkout(self):
         evidence = self.prepare()
+        self.assertEqual("4.1.75", evidence["source_core_version"])
         self.assertEqual("4.1.75", evidence["expected_core_version"])
         self.assertNotIn("result", evidence)
 
     def test_previous_core_version_can_be_explicitly_tested(self):
         (self.root / "gradle.properties").write_text("projectVersion=4.1.74\n", encoding="utf-8")
-        self.assertEqual("4.1.74", self.prepare()["expected_core_version"])
+        evidence = self.prepare()
+        self.assertEqual("4.1.74", evidence["source_core_version"])
+        self.assertEqual("4.1.74", evidence["expected_core_version"])
+
+    def test_explicit_runtime_core_version_can_differ_from_source(self):
+        with zipfile.ZipFile(self.bundle, "w") as archive:
+            archive.writestr("SF_ADDON_MANIFEST.json", json.dumps(self.manifest))
+        evidence = probe.prepare(self.work, self.bundle, self.java, "4.1.74")
+        self.assertEqual("4.1.75", evidence["source_core_version"])
+        self.assertEqual("4.1.74", evidence["expected_core_version"])
+        self.assertNotIn("result", evidence)
+
+    def test_invalid_explicit_runtime_core_version_is_refused_before_compilation(self):
+        with zipfile.ZipFile(self.bundle, "w") as archive:
+            archive.writestr("SF_ADDON_MANIFEST.json", json.dumps(self.manifest))
+        for value in ("", "4.1", "4.1.74-SNAPSHOT", "4.1.74 -Devil=true"):
+            with self.subTest(value=value):
+                self.compile.reset_mock()
+                with self.assertRaisesRegex(RuntimeError, "valid expected runtime core version"):
+                    probe.prepare(self.work, self.bundle, self.java, value)
+                self.compile.assert_not_called()
 
     def test_missing_core_version_is_refused_before_compilation(self):
         (self.root / "gradle.properties").write_text("unrelated=value\n", encoding="utf-8")
