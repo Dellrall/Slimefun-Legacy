@@ -13,6 +13,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -259,6 +260,13 @@ def main() -> int:
             for row in evidence["tested_addons"].values():
                 if digest(work / "plugins" / row["jar"]) != row["sha256"]:
                     raise RuntimeError("Addon binary changed between restarts")
+        # The restart probe is intentionally temporary. Remove only the loadable
+        # test-plugin JAR and compiler scratch directory after all four JVMs pass so a later
+        # native probe reusing this disposable server does not load BlackMarketRestartProbe
+        # without its authorization/version system properties. Retain its data/results/logs.
+        (work / "plugins" / f"{PLUGIN}.jar").unlink(missing_ok=True)
+        shutil.rmtree(work / "bm-probe-classes", ignore_errors=True)
+
         evidence["result"] = "PASS"
         evidence["limits"] = "Installed store + native Bukkit serialization; synthetic records, not client clicks, live recovery, or crash-atomic proof."
     except Exception as error:
