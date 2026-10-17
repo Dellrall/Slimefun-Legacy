@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Offline compatibility contracts for the shared 26.2/Purpur-26.3 runtime smoke harness."""
+"""Offline compatibility contracts for the shared 26.2/Purpur/Folia-26.3 runtime smoke harness."""
 
 from __future__ import annotations
 
@@ -42,18 +42,18 @@ class TestPurpur263RuntimeContract(unittest.TestCase):
                 self.assertIn("Slimefun JAR not found or empty", result.stderr)
                 self.assertNotIn("Unsupported server/version combination", result.stderr)
 
-    def test_purpur_26_3_is_accepted_as_a_candidate(self) -> None:
-        result = probe("purpur", "26.3")
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("Slimefun JAR not found or empty", result.stderr)
-        self.assertNotIn("Unsupported server/version combination", result.stderr)
-
-    def test_folia_and_leaf_26_3_not_prematurely_claimed(self) -> None:
-        for software in ("folia", "leaf"):
+    def test_purpur_and_folia_26_3_are_explicit_candidates(self) -> None:
+        for software in ("purpur", "folia"):
             with self.subTest(software=software):
                 result = probe(software, "26.3")
                 self.assertNotEqual(result.returncode, 0)
-                self.assertIn("Unsupported server/version combination", result.stderr)
+                self.assertIn("Slimefun JAR not found or empty", result.stderr)
+                self.assertNotIn("Unsupported server/version combination", result.stderr)
+
+    def test_leaf_26_3_is_not_prematurely_claimed(self) -> None:
+        result = probe("leaf", "26.3")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Unsupported server/version combination", result.stderr)
 
     def test_future_purpur_versions_are_not_implicitly_certified(self) -> None:
         result = probe("purpur", "26.4")
