@@ -133,7 +133,7 @@ jobs:
     if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     name: Fetch exact addon bundle under test
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 70
     steps:
       - uses: actions/checkout@v6
         with:
@@ -152,11 +152,11 @@ jobs:
           if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
             python3 scripts/download_candidate_bundle.py \
               --repository "$GITHUB_REPOSITORY" --head "$PR_HEAD_SHA" \
-              --source "$GITHUB_SHA" --output bundle
+              --source "$GITHUB_SHA" --output bundle --timeout 3600
           elif [[ "$GITHUB_EVENT_NAME" == "push" ]]; then
             python3 scripts/download_candidate_bundle.py \
               --repository "$GITHUB_REPOSITORY" --event push --head "$GITHUB_SHA" \
-              --source "$GITHUB_SHA" --output bundle
+              --source "$GITHUB_SHA" --output bundle --timeout 3600
           elif [[ "$GITHUB_EVENT_NAME" == "workflow_run" ]]; then
             test -n "${TRIGGER_RUN_ID:-}"
             test -n "${TRIGGER_HEAD_SHA:-}"

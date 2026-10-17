@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136/r137 Paper 26.3 full-stack data.
+"""Run a test-only Networks↔Fluffy integration probe on disposable r135/r136/r137/r138/r139/r140 Paper 26.3 full-stack data.
 
 The regular full-stack smoke has already booted and shut down cleanly twice.
 This runner adds only a temporary test plugin, starts one more offline local Paper
@@ -26,8 +26,11 @@ EXPECTED_VERSIONS = {
 NETWORK_VERSIONS = {
     135: ("SF_Networks1.0.54.jar", "c24064cbeafe4f112c7d46bf3de5617fa151d88d"),
     136: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
-    # r137 changes only MagicExpansion; keep the exact r136 storage adapters.
+    # r137/r138 change only MagicExpansion; keep the exact r136 storage adapters.
     137: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
+    138: ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950"),
+    139: ("SF_Networks1.0.57.jar", "f5486918ab7e115298b453dc23e26a2225aedaba"),
+    140: ("SF_Networks1.0.58.jar", "4ebecea309e89cc60fc4f6d932505312b5468ed1"),
 }
 
 
@@ -45,12 +48,18 @@ def expected_core_version(properties: Path) -> str:
     return values[0]
 
 
-def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
+def validated_core_version(value: str, label: str) -> str:
+    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value or "") is None:
+        raise RuntimeError(f"Native conservation test requires a valid {label} core version")
+    return value
+
+
+def prepare(work: Path, bundle: Path, java: Path, runtime_core_version: str | None = None) -> dict | None:
     with zipfile.ZipFile(bundle) as archive:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
     if type(revision) is not int or revision not in NETWORK_VERSIONS:
-        raise RuntimeError(f"Native conservation test requires r135, r136 or r137; found bundle revision {revision!r}")
+        raise RuntimeError(f"Native conservation test requires r135, r136, r137, r138, r139 or r140; found bundle revision {revision!r}")
     expected_versions = dict(EXPECTED_VERSIONS)
     expected_versions["wickidcow/SF_NetworksExp"] = NETWORK_VERSIONS[revision]
 
@@ -64,7 +73,11 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
     if not (work / "eula.txt").is_file() or not (work / "server.properties").is_file():
         raise RuntimeError("Disposable test server fixture is incomplete")
 
-    core_version = expected_core_version(Path.cwd() / "gradle.properties")
+    source_core_version = expected_core_version(Path.cwd() / "gradle.properties")
+    core_version = validated_core_version(
+        runtime_core_version if runtime_core_version is not None else source_core_version,
+        "expected runtime",
+    )
 
     rows = {row["repository"]: row for row in manifest["addons"]}
     resolved = {}
@@ -108,6 +121,7 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
             archive.write(item, item.relative_to(classes).as_posix())
     return {
         "status": "STARTED", "schema": 1, "bundle_revision": revision,
+        "source_core_version": source_core_version,
         "expected_core_version": core_version,
         "plugin_jar_sha256": sha256(plugin_jar), "tested_addons": resolved,
         "core_jar_sha256": sha256(work / "plugins" / "Slimefun-Legacy-full-stack.jar"),
@@ -120,7 +134,7 @@ def run(work: Path, java: Path, evidence: dict, timeout: int) -> None:
     result_file = work / "plugins" / "R135FluffyNetworksProbe" / "result.txt"
     if result_file.exists():
         raise RuntimeError("Stale probe evidence is forbidden")
-    version = "1.0.54" if evidence["bundle_revision"] == 135 else "1.0.55"
+    version = NETWORK_VERSIONS[evidence["bundle_revision"]][0].removeprefix("SF_Networks").removesuffix(".jar")
     core_version = evidence.get("expected_core_version")
     if not isinstance(core_version, str) or re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", core_version) is None:
         raise RuntimeError("Native conservation test is missing a valid expected core version")
@@ -182,12 +196,16 @@ def main() -> int:
     parser.add_argument("--runtime-dir", type=Path, required=True)
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=420)
+    parser.add_argument(
+        "--expected-core-version",
+        help="Exact Slimefun version staged in the disposable runtime; defaults to projectVersion",
+    )
     args = parser.parse_args()
     work = args.runtime_dir.resolve()
     java = Path(os.environ["JAVA_HOME"]) / "bin" / "java"
     if not java.is_file():
         raise RuntimeError("The native r135 test requires a complete JDK 25")
-    evidence = prepare(work, args.bundle.resolve(), java)
+    evidence = prepare(work, args.bundle.resolve(), java, args.expected_core_version)
     out = work / "native-r135-result.json"
     try:
         run(work, java, evidence, args.timeout)

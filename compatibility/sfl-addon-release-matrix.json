@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "bundle_revision": 137,
-  "bundle_name": "SF_Addons_1.21.11-26.3.zip",
+  "bundle_revision": 140,
+  "bundle_name": "SF_Addons_r140_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
     "addon_name_source": "SF_ repository name by default with explicit artifact_base overrides",
@@ -172,7 +172,7 @@
       "repository": "wickidcow/SF_InfinityExpansion2",
       "slug": "infinityexpansion2",
       "artifact_base": "InfinityExpansion",
-      "source_commit": "c9ad8394ee65e5577c3e031e24b562a8a7b2d0f5"
+      "source_commit": "8ce79a3fac44424b3fca3d7b3fe7c48c2767fe12"
     },
     {
       "repository": "wickidcow/SF_LiteXpansion",
@@ -193,7 +193,7 @@
     {
       "repository": "wickidcow/SF_MagicExpansion",
       "slug": "magicexpansion",
-      "source_commit": "13924991a1960daa40fe221cab5a4eef95d46ecb"
+      "source_commit": "9443393b3ef5f0982194d9084eaed91d7d820dca"
     },
     {
       "repository": "wickidcow/SF_MilitaryArsenal",
@@ -214,7 +214,7 @@
       "repository": "wickidcow/SF_NetworksExp",
       "slug": "networksexp",
       "artifact_base": "Networks",
-      "source_commit": "bcdef34d362dc74aa1aab23c8961a629daa79950"
+      "source_commit": "4ebecea309e89cc60fc4f6d932505312b5468ed1"
     },
     {
       "repository": "wickidcow/SF_RelicsOfCthonia",
