@@ -48,7 +48,13 @@ def expected_core_version(properties: Path) -> str:
     return values[0]
 
 
-def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
+def validated_core_version(value: str, label: str) -> str:
+    if re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value or "") is None:
+        raise RuntimeError(f"Native conservation test requires a valid {label} core version")
+    return value
+
+
+def prepare(work: Path, bundle: Path, java: Path, runtime_core_version: str | None = None) -> dict | None:
     with zipfile.ZipFile(bundle) as archive:
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
@@ -67,7 +73,11 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
     if not (work / "eula.txt").is_file() or not (work / "server.properties").is_file():
         raise RuntimeError("Disposable test server fixture is incomplete")
 
-    core_version = expected_core_version(Path.cwd() / "gradle.properties")
+    source_core_version = expected_core_version(Path.cwd() / "gradle.properties")
+    core_version = validated_core_version(
+        runtime_core_version if runtime_core_version is not None else source_core_version,
+        "expected runtime",
+    )
 
     rows = {row["repository"]: row for row in manifest["addons"]}
     resolved = {}
@@ -111,6 +121,7 @@ def prepare(work: Path, bundle: Path, java: Path) -> dict | None:
             archive.write(item, item.relative_to(classes).as_posix())
     return {
         "status": "STARTED", "schema": 1, "bundle_revision": revision,
+        "source_core_version": source_core_version,
         "expected_core_version": core_version,
         "plugin_jar_sha256": sha256(plugin_jar), "tested_addons": resolved,
         "core_jar_sha256": sha256(work / "plugins" / "Slimefun-Legacy-full-stack.jar"),
@@ -185,12 +196,16 @@ def main() -> int:
     parser.add_argument("--runtime-dir", type=Path, required=True)
     parser.add_argument("--bundle", type=Path, required=True)
     parser.add_argument("--timeout", type=int, default=420)
+    parser.add_argument(
+        "--expected-core-version",
+        help="Exact Slimefun version staged in the disposable runtime; defaults to projectVersion",
+    )
     args = parser.parse_args()
     work = args.runtime_dir.resolve()
     java = Path(os.environ["JAVA_HOME"]) / "bin" / "java"
     if not java.is_file():
         raise RuntimeError("The native r135 test requires a complete JDK 25")
-    evidence = prepare(work, args.bundle.resolve(), java)
+    evidence = prepare(work, args.bundle.resolve(), java, args.expected_core_version)
     out = work / "native-r135-result.json"
     try:
         run(work, java, evidence, args.timeout)
