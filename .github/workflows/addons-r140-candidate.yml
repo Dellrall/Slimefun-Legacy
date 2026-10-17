@@ -147,7 +147,8 @@ jobs:
         run: |
           python3 scripts/runtime/r135_fluffy_networks/run_probe.py \
             --runtime-dir build/full-stack-26.3 \
-            --bundle candidate/SF_Addons_r140_1.21.11-26.3.zip
+            --bundle candidate/SF_Addons_r140_1.21.11-26.3.zip \
+            --expected-core-version 4.1.74
 
       - uses: actions/upload-artifact@v7
         if: always()
