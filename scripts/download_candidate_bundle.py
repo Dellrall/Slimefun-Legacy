@@ -103,8 +103,8 @@ def main() -> int:
         parser.error('Invalid repository name')
     if not all(re.fullmatch(r'[0-9a-f]{40}', value) for value in (args.head, args.source)):
         parser.error('Expected full commit hashes')
-    if not 1 <= args.timeout <= 3600:
-        parser.error('Timeout must be between 1 and 3600 seconds')
+    if not 1 <= args.timeout <= 4800:
+        parser.error('Timeout must be between 1 and 4800 seconds')
     args.output.mkdir(parents=True, exist_ok=True)
     target = args.output / BUNDLE
     if target.exists():

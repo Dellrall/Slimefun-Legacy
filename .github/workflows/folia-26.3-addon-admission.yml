@@ -6,6 +6,8 @@ on:
       - 'compatibility/sfl-addon-release-matrix.json'
       - 'scripts/audit_folia_addon_admission.py'
       - 'scripts/test_audit_folia_addon_admission.py'
+      - 'scripts/download_candidate_bundle.py'
+      - 'scripts/test_download_candidate_bundle.py'
       - '.github/workflows/folia-26.3-addon-admission.yml'
       - 'docs/compatibility/FOLIA_26_3_ADDONS.md'
   push:
@@ -14,6 +16,8 @@ on:
       - 'compatibility/sfl-addon-release-matrix.json'
       - 'scripts/audit_folia_addon_admission.py'
       - 'scripts/test_audit_folia_addon_admission.py'
+      - 'scripts/download_candidate_bundle.py'
+      - 'scripts/test_download_candidate_bundle.py'
       - '.github/workflows/folia-26.3-addon-admission.yml'
       - 'docs/compatibility/FOLIA_26_3_ADDONS.md'
   workflow_dispatch:
@@ -35,49 +39,54 @@ jobs:
       - name: Check out exact source
         uses: actions/checkout@v6
 
-      - name: Test audit parser offline
-        run: PYTHONPATH=scripts python3 -m unittest scripts/test_audit_folia_addon_admission.py -v
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
 
-      - name: Wait for exact-head canonical addon bundle
+      - name: Install descriptor parser
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
+
+      - name: Test audit parser offline
+        run: |
+          PYTHONPATH=scripts python3 -m unittest \
+            scripts/test_audit_folia_addon_admission.py \
+            scripts/test_download_candidate_bundle.py -v
+
+      - name: Wait for exact-source canonical addon bundle
         env:
           GH_TOKEN: ${{ github.token }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         shell: bash
         run: |
           set -euo pipefail
-          TARGET_SHA="${{ github.event.pull_request.head.sha || github.sha }}"
-          RUN_ID=''
-          for attempt in $(seq 1 480); do
-            MATCH="$(gh run list               --repo "$GITHUB_REPOSITORY"               --workflow build-sfl-addons-compat-bundle.yml               --limit 80               --json databaseId,headSha,status,conclusion               | jq --arg sha "$TARGET_SHA" '[.[] | select(.headSha == $sha)] | sort_by(.databaseId) | reverse | .[0] // {}')"
-            MATCH_ID="$(jq -r '.databaseId // empty' <<<"$MATCH")"
-            MATCH_STATUS="$(jq -r '.status // empty' <<<"$MATCH")"
-            MATCH_CONCLUSION="$(jq -r '.conclusion // empty' <<<"$MATCH")"
-
-            if [[ -n "$MATCH_ID" && "$MATCH_STATUS" == "completed" && "$MATCH_CONCLUSION" == "success" ]]; then
-              RUN_ID="$MATCH_ID"
-              break
-            fi
-            if [[ -n "$MATCH_ID" && "$MATCH_STATUS" == "completed" && "$MATCH_CONCLUSION" != "success" ]]; then
-              echo "Exact-head addon bundle run $MATCH_ID completed with $MATCH_CONCLUSION." >&2
+          case "$GITHUB_EVENT_NAME" in
+            pull_request)
+              python3 scripts/download_candidate_bundle.py \
+                --repository "$GITHUB_REPOSITORY" --event pull_request --head "$PR_HEAD_SHA" \
+                --source "$GITHUB_SHA" --output build/bundle --timeout 4800
+              ;;
+            push|workflow_dispatch)
+              # A manual audit reuses only a successful push build of this same
+              # checkout. PR merge artifacts and release archives are ineligible.
+              python3 scripts/download_candidate_bundle.py \
+                --repository "$GITHUB_REPOSITORY" --event push --head "$GITHUB_SHA" \
+                --source "$GITHUB_SHA" --output build/bundle --timeout 4800
+              ;;
+            *)
+              echo "Unsupported Folia admission audit event: $GITHUB_EVENT_NAME" >&2
               exit 1
-            fi
-            if [[ "$attempt" -eq 480 ]]; then
-              echo "No successful exact-head canonical addon bundle became available for $TARGET_SHA." >&2
-              exit 1
-            fi
-            echo "Waiting for exact-head addon bundle (attempt $attempt/480; run=${MATCH_ID:-not-started}; status=${MATCH_STATUS:-unknown})"
-            sleep 10
-          done
-
-          mkdir -p build/bundle
-          gh run download "$RUN_ID"             --repo "$GITHUB_REPOSITORY"             --name SF_Addons_1.21.11-26.3             --dir build/bundle
-          test -s build/bundle/SF_Addons_1.21.11-26.3.zip
-          echo "BUNDLE_RUN_ID=$RUN_ID" >> "$GITHUB_ENV"
+              ;;
+          esac
 
       - name: Audit descriptor-level Folia admission
         shell: bash
         run: |
           set -euo pipefail
-          python3 scripts/audit_folia_addon_admission.py             build/bundle/SF_Addons_1.21.11-26.3.zip             --expect-addons 45             --output build/folia-26.3-addon-admission.json
+          python3 scripts/audit_folia_addon_admission.py \
+            build/bundle/SF_Addons_1.21.11-26.3.zip \
+            --expect-addons 45 --expect-source "$GITHUB_SHA" \
+            --output build/folia-26.3-addon-admission.json
 
       - name: Publish admission summary
         shell: bash
@@ -112,5 +121,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: folia-26.3-addon-admission
-          path: build/folia-26.3-addon-admission.json
+          path: |
+            build/folia-26.3-addon-admission.json
+            build/bundle/bundle-source.txt
           if-no-files-found: error

@@ -36,6 +36,18 @@ The exact-head CI audit is authoritative for future changes and publishes a JSON
 artifact containing repository, commit, JAR, descriptor, digest and admission state
 for every manifest-listed addon.
 
+The audit parses YAML and requires an explicit top-level Boolean `true` or `false`.
+Nested keys and description text do not opt a plugin in. Invalid declarations,
+ambiguous duplicate top-level keys, YAML merge keys, duplicate ZIP members and
+manifest/JAR digest mismatches fail the audit. A Paper descriptor takes precedence
+when a JAR also contains a Bukkit fallback descriptor.
+
+CI verifies the workflow event, PR head, actual tested checkout, exact maintained
+source pins and every JAR hash through the shared candidate downloader. The source
+receipt is retained alongside the admission report. Manual audits require a successful
+push bundle for the same checkout; they cannot substitute a PR merge or release ZIP.
+The existing 80-minute bundle wait is retained without relaxing identity checks.
+
 ## What should happen next
 
 Admission should proceed in evidence-backed groups rather than bulk-adding the

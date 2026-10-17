@@ -1,14 +1,16 @@
 #!/usr/bin/env python3
 """Pure fixture tests for candidate selection and byte/source identity enforcement."""
 import hashlib
+import io
 import json
 import subprocess
 import tempfile
 import unittest
 import zipfile
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
-from download_candidate_bundle import WORKFLOW, query_runs, select_run, verify_bundle
+from download_candidate_bundle import BUNDLE, WORKFLOW, main, query_runs, select_run, verify_bundle
 
 
 class CandidateQueryTest(unittest.TestCase):
@@ -175,6 +177,46 @@ class CandidateBundleTest(unittest.TestCase):
         for event in ('', 'schedule', 'workflow_dispatch', 'pull_request_target', None):
             with self.subTest(event=event), self.assertRaises(ValueError):
                 select_run({'workflow_runs': []}, self.head, event)
+
+    def test_eighty_minute_wait_still_requires_exact_event_source_and_hashes(self):
+        self.write()
+        matrix_path = Path(self.temp.name) / 'matrix.json'
+        matrix_path.write_text(json.dumps(self.matrix))
+        output = Path(self.temp.name) / 'download'
+        args = ['download_candidate_bundle.py', '--repository', 'example/core', '--head', self.head,
+                '--source', self.source, '--event', 'pull_request', '--matrix', str(matrix_path),
+                '--output', str(output), '--timeout', '4800']
+        run = dict(id=7, path=WORKFLOW, head_sha=self.head, event='pull_request',
+                   status='completed', conclusion='success')
+
+        def download(command, **kwargs):
+            self.assertEqual(command[:4], ['gh', 'run', 'download', '7'])
+            (output / BUNDLE).write_bytes(self.path.read_bytes())
+            return subprocess.CompletedProcess(command, 0)
+
+        with patch('sys.argv', args), patch('download_candidate_bundle.query_runs',
+                                           return_value={'workflow_runs': [run]}) as query, \
+                patch('download_candidate_bundle.time.monotonic', return_value=100), \
+                patch('download_candidate_bundle.subprocess.run', side_effect=download), \
+                redirect_stdout(io.StringIO()):
+            self.assertEqual(main(), 0)
+        query.assert_called_once_with('example/core', self.head, 'pull_request', 4900)
+        self.assertEqual((output / BUNDLE).read_bytes(), self.path.read_bytes())
+        receipt = (output / 'bundle-source.txt').read_text()
+        self.assertIn('head_sha=' + self.head, receipt)
+        self.assertIn('core_source_commit=' + self.source, receipt)
+        self.assertIn('sha256=' + hashlib.sha256(self.path.read_bytes()).hexdigest(), receipt)
+
+    def test_timeout_above_eighty_minutes_or_nonpositive_is_rejected(self):
+        for timeout in ('4801', '0', '-1'):
+            with self.subTest(timeout=timeout), \
+                    patch('sys.argv', ['download_candidate_bundle.py', '--repository', 'example/core',
+                                       '--head', self.head, '--source', self.source,
+                                       '--output', str(Path(self.temp.name) / 'unused'), '--timeout', timeout]), \
+                    redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
+                main()
+            self.assertEqual(error.exception.code, 2)
+        self.assertFalse((Path(self.temp.name) / 'unused').exists())
 
     def test_master_push_requires_same_source_bundle(self):
         workflow = (Path(__file__).resolve().parents[1] / '.github/workflows/paper-26.3-full-stack.yml').read_text()
