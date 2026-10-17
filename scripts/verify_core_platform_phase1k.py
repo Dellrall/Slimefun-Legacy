@@ -201,7 +201,8 @@ def main() -> int:
         req(cross_policy.get("gugu_runtime_core_target") is False, "Gugu must not become a Legacy runtime-core target", failures)
         req(cross_policy.get("third_party_plugin_emulation") is False, "Cross-fork policy must not emulate third-party plugins", failures)
         cores = {str(core.get("id")): core for core in cross_fork.get("cores", [])}
-        for core_id in ("original", "gugu", "united"):
+        req(set(cores) == {"gugu"}, "Only GuGu may be an active advisory upstream probe", failures)
+        for core_id in ("gugu",):
             req(core_id in cores, f"Cross-fork advisory probe missing: {core_id}", failures)
             if core_id in cores:
                 req(cores[core_id].get("advisory") is True, f"Cross-fork probe must remain advisory: {core_id}", failures)
@@ -279,7 +280,7 @@ def main() -> int:
         "- dependency problems and reverse consumers are exposed through Doctor\n"
         "- Paper provider aliases are identified without claiming class/API compatibility\n"
         "- Slimefun does not install, enable, disable, replace, or emulate third-party dependencies\n"
-        "- Gugu/Original/United probes remain advisory while Legacy remains the runtime/release target\n"
+        "- GuGu is the sole advisory upstream probe while Legacy remains the runtime/release target\n"
         "- /sf versions surfaces addon hard-dependency, provider-alias, and guarded callback evidence\n"
         "- disabled-addon startup causes are not guessed when declared hard dependencies are healthy\n"
         "- arbitrary third-party plugin startup/onEnable failures are not intercepted or log-parsed\n"

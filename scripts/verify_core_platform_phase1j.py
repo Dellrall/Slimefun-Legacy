@@ -136,7 +136,9 @@ def main() -> int:
         req(policy.get("external_fork_drift_is_advisory") is True, "External fork drift must remain advisory", failures)
         req(policy.get("automatic_upstream_merges") is False, "Cross-fork verification must not auto-merge upstream", failures)
         cores = {str(core.get("id")): core for core in cross_fork.get("cores", [])}
-        for core_id in ("original", "gugu", "united"):
+        req(set(cores) == {"gugu"}, "Only GuGu may be an active source-probe target", failures)
+        req(policy.get("active_upstream_core_variants") == ["gugu"], "Active upstream policy must select GuGu only", failures)
+        for core_id in ("gugu",):
             req(core_id in cores, f"Cross-fork API target missing: {core_id}", failures)
             if core_id in cores:
                 req(cores[core_id].get("advisory") is True, f"External {core_id} probe must be advisory", failures)
@@ -176,7 +178,8 @@ def main() -> int:
         support_policy = support.get("compatibility_policy", {})
         for key in (
             "addon_api_compatibility_facade",
-            "cross_fork_original_gugu_united_targets",
+            "gugu_only_upstream_maintenance",
+            "historical_fork_api_and_data_compatibility_retained",
             "addon_registration_compatibility_service",
             "post_registration_callbacks_guarded",
             "late_runtime_registration_remains_supported",
@@ -186,6 +189,8 @@ def main() -> int:
         ):
             req(support_policy.get(key) is True, f"Phase 1J support policy missing: {key}", failures)
         req(support_policy.get("cross_fork_automatic_merges") is False, "Phase 1J must not auto-merge other forks", failures)
+        req(support_policy.get("cross_fork_original_gugu_united_targets") is False, "Retired forks must not remain active targets", failures)
+        req(support_policy.get("reviewed_multi_fork_intake") is False, "Multi-fork future intake has been retired", failures)
         req(
             support_policy.get("phase1j_changes_normal_cargo_energy_machine_semantics") is False,
             "Phase 1J must not change normal Cargo/Energy/machine semantics",
@@ -237,7 +242,7 @@ def main() -> int:
         return 1
     report.write_text(
         "Core Platform Phase 1J verification: PASS\n"
-        "- Part 1 additive cross-fork addon API facade validated for Original/Gugu/United/Legacy targets\n"
+        "- historical addon API facade identifiers retained; active upstream probes limited to GuGu\n"
         "- Part 2 post-registration callback compatibility is queued/guarded without freezing runtime registration\n"
         "- Part 3 local representative API contract and advisory external source-drift probes validated\n"
         "- protected Legacy API and addon source/binary compatibility remain release-blocking gates\n"

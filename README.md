@@ -22,7 +22,7 @@ Slimefun Legacy turns a normal Minecraft server into a modpack-like experience w
 [Report a Bug](https://github.com/wickidcow/Slimefun-Legacy/issues) ·
 [Release History](EVERYTHING_THAT_CHANGED.md)
 
-**Current core line:** **Slimefun Legacy 4.1.76 — Guide Startup Reliability.** The coordinated **45-addon r142 source selection** updates **JustEnoughGuide to 2.1.73**, packaging its existing Pinyin search libraries so guide startup does not depend on downloading them. The other 44 addon source pins remain those released in r141, including **Networks 1.0.59**, **MagicExpansion 1.1.16**, **InfinityExpansion2 2.0.14**, and **FinalTECH 3.0.16**. The core retains the atomic backpack save fix for [#390](https://github.com/wickidcow/Slimefun-Legacy/issues/390) released in 4.1.75. See the [4.1.76 release notes](docs/releases/4.1.76.md). Official downloads are published through [GitHub Releases](https://github.com/wickidcow/Slimefun-Legacy/releases); Actions artifacts provide candidate-validation evidence. ·
+**Unreleased candidate:** **Slimefun Legacy 4.1.76 — 26.3 Compatibility and Guide Reliability.** Publication of the core and the **45-addon r142 bundle** is held until the maintainer explicitly authorizes it after the Networks Expansion repair work is ready. The current source selection includes **JustEnoughGuide 2.1.73** and retains the published r141 pins for Networks, InfinityExpansion2 and the other addons until their respective fixes are reviewed and validated. The candidate preserves the atomic backpack save fix for [#390](https://github.com/wickidcow/Slimefun-Legacy/issues/390). See the [candidate notes](docs/releases/4.1.76.md). Published downloads remain on [GitHub Releases](https://github.com/wickidcow/Slimefun-Legacy/releases); Actions artifacts are development evidence. ·
 [Contributing](CONTRIBUTING.md)
 
 </div>
@@ -158,7 +158,7 @@ Phase 1K adds read-only plugin dependency diagnostics so operators can distingui
 
 The report shows declared hard and soft dependencies, missing or disabled required plugins, reverse consumers, and Paper provider aliases. Provider aliases are reported only as descriptor-level resolution: they do **not** prove that the provider contains every Java class or runtime API expected by dependent plugins.
 
-Slimefun Legacy does not install, enable, replace, or emulate third-party plugin dependencies. If an addon requires an external library plugin such as GuizhanLibPlugin, use the real dependency required by that addon. Cross-fork Gugu API probes remain advisory compatibility evidence; Gugu is not a Slimefun Legacy runtime-core target.
+Slimefun Legacy does not install, enable, replace, or emulate third-party plugin dependencies. If an addon requires an external library plugin such as GuizhanLibPlugin, use the real dependency required by that addon. GuGu is the sole active upstream for future source intake and API drift checks, as defined in [ADR 0003](docs/adr/0003-gugu-only-upstream-maintenance.md). Gugu API probes remain advisory compatibility evidence; Gugu is not a Slimefun Legacy runtime-core target.
 
 Phase 1K Part 2 carries the same boundary evidence into `/sf versions`. The addon list remains compact, but addons that need attention can show `Deps!`, `Alias`, `Runtime!`/`Linkage!`, or `Startup?` markers with detailed hover text. The summary also reports how many installed Slimefun addons have healthy declared hard dependencies, dependency problems, provider-alias resolution, or failures observed inside Slimefun-guarded callbacks.
 
@@ -181,6 +181,8 @@ These diagnostics are intentionally conservative. Slimefun can report dependency
 Core diagnostics correlate unknown IDs with explicitly registered replacements and keep the generic plan read-only. Actual persistence migration remains addon-owned through `LegacyItemMigrationProvider`. A clean provider scan creates a short-lived execution fingerprint; execute requires that matching fingerprint and fails closed when mappings are unsafe, targets are missing, the provider scan reports failures, or the plan has expired. Make an offline backup before executing a provider-owned migration.
 
 ### Release lifecycle
+
+**Publication hold:** 4.1.76 and the next addon ZIP require explicit maintainer approval after the Networks Expansion repair work is ready. Successful builds or merged changes do not authorize publication.
 
 Slimefun Legacy **4.1.76** uses **published 4.1.75** source `7f702e3565a381aeeefd99555f2c8fe818858e9c` as the release-blocking compatibility baseline. Required-addon regressions against that exact release block publication. The atomic backpack save fix from #391 remains included. The historical 4.1.15 floor stays advisory, and old saved-item formats remain supported.
 
@@ -223,7 +225,7 @@ Always review the dry-run results before confirming a repair. Unknown IDs, malfo
 Slimefun Legacy currently includes:
 - Compatibility Foundation gates for public API removals, Java bytecode drift, dependency boundaries, deprecations, and future Paper API compilation
 - Capability-based Paper, Purpur, Folia, Minecraft-version, scheduler, Adventure, chunk-loading, and data-component diagnostics
-- A reviewed multi-fork candidate radar for Original Slimefun, Gugu, Slimefun5, Slimefun United, and Slimefun4Core
+- A reviewed GuGu-only upstream radar and advisory API probe; historical addon declarations and data readers remain compatible
 - Duplicate and re-entrant backpack-open protection
 - Clean-shutdown tracking and pending database-write visibility
 - Per-machine ticker circuit breakers with cooldown and retry support
@@ -322,8 +324,8 @@ Slimefun Legacy gratefully acknowledges and preserves the work of:
 
 - **[TheBusyBiscuit](https://github.com/TheBusyBiscuit)** — original creator of Slimefun
 - **[Slimefun/Slimefun4](https://github.com/Slimefun/Slimefun4)** — the original Slimefun 4 project and its contributors
-- **[SlimefunGuguProject/Slimefun4](https://github.com/SlimefunGuguProject/Slimefun4)** — downstream maintenance and compatibility work used as an upstream reference
-- **[Slimefun United](https://github.com/Slimefun-United/Slimefun-United)** — community continuation and compatibility work used as an upstream reference
+- **[SlimefunGuguProject/Slimefun4](https://github.com/SlimefunGuguProject/Slimefun4)** — the sole active upstream for future maintenance and compatibility review
+- **[Slimefun United](https://github.com/Slimefun-United/Slimefun-United)** — historical source contributions and compatibility research; no ongoing maintenance target
 - The many Slimefun addon authors and maintainers whose projects made the ecosystem what it is
 
 This fork is intended to **preserve, maintain, and extend** that work for modern servers—not to replace the original developers or claim their work as its own. Upstream authorship, commit history, copyright notices, and license obligations remain respected. Where code or ideas originate from another project, that project and its contributors should continue to receive appropriate credit.

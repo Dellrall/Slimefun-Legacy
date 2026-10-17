@@ -1,6 +1,6 @@
 # ADR 0002: Reviewed multi-fork upstream intake
 
-- Status: Accepted
+- Status: Superseded for future intake by [ADR 0003](0003-gugu-only-upstream-maintenance.md) on 2026-10-17; retained as historical rationale
 - Date: 2026-08-05
 
 ## Context

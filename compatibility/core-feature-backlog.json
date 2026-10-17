@@ -5,7 +5,11 @@
     "no_feature_is_enabled_by_manifest_alone": true,
     "all_ports_require_tests": true,
     "all_data_changes_require_migration_and_rollback": true,
-    "addon_api_changes_must_be_additive": true
+    "addon_api_changes_must_be_additive": true,
+    "active_upstream_sources": [
+      "slimefun-gugu"
+    ],
+    "implemented_feature_sources_are_historical_provenance": true
   },
   "features": [
     {
@@ -23,18 +27,14 @@
     },
     {
       "id": "upstream-candidate-radar",
-      "title": "Multi-fork upstream candidate radar",
+      "title": "GuGu upstream candidate radar",
       "sources": [
-        "slimefun-original",
-        "slimefun-gugu",
-        "slimefun5",
-        "slimefun-united",
-        "slimefun4core"
+        "slimefun-gugu"
       ],
       "status": "implemented-phase-1a",
       "priority": "critical",
       "compatibility_risk": "low",
-      "notes": "Reports new source revisions without automatically merging or replacing Legacy files."
+      "notes": "Reports revisions only from the maintained GuGu upstream without automatically merging or replacing Legacy files. The original multi-fork policy is superseded by ADR 0003."
     },
     {
       "id": "api-deprecation-lifecycle",
@@ -112,10 +112,10 @@
       "sources": [
         "slimefun-united"
       ],
-      "status": "candidate-phase-2",
+      "status": "retired-upstream-scope",
       "priority": "medium",
       "compatibility_risk": "medium",
-      "notes": "Allow controlled feature toggles without changing item IDs or silently disabling data-bearing systems."
+      "notes": "Allow controlled feature toggles without changing item IDs or silently disabling data-bearing systems. Removed from the active roadmap on 2026-10-17 when GuGu became the sole maintained upstream; this entry preserves historical provenance only."
     },
     {
       "id": "unified-localization-keys",
@@ -123,10 +123,10 @@
       "sources": [
         "slimefun-united"
       ],
-      "status": "candidate-phase-2",
+      "status": "retired-upstream-scope",
       "priority": "medium",
       "compatibility_risk": "medium",
-      "notes": "Preserve the English-first experience while giving addons stable message and item keys."
+      "notes": "Preserve the English-first experience while giving addons stable message and item keys. Removed from the active roadmap on 2026-10-17 when GuGu became the sole maintained upstream; this entry preserves historical provenance only."
     },
     {
       "id": "storage-integrity-audit",
@@ -146,10 +146,10 @@
       "sources": [
         "slimefun-united"
       ],
-      "status": "gameplay-candidate",
+      "status": "retired-upstream-scope",
       "priority": "low",
       "compatibility_risk": "medium",
-      "notes": "Evaluate only after core compatibility phases; preserve existing staff IDs and behavior by default."
+      "notes": "Evaluate only after core compatibility phases; preserve existing staff IDs and behavior by default. Removed from the active roadmap on 2026-10-17 when GuGu became the sole maintained upstream; this entry preserves historical provenance only."
     },
     {
       "id": "release-baseline-lifecycle",

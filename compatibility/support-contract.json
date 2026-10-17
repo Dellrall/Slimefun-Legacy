@@ -62,6 +62,13 @@
       "runtime_java": 25,
       "status": "experimental",
       "validation": "Actual experimental Purpur 26.3 build 2646 double-boot with the complete 45-addon canonical bundle; site-specific plugins and old-world upgrades are not certified"
+    },
+    {
+      "software": "Folia",
+      "basis": "Paper 26.3",
+      "runtime_java": 25,
+      "status": "experimental",
+      "validation": "Official Folia 26.3 build 3 (ALPHA) two-boot core readiness and separately reported scheduler lifecycle checks; addon region safety and cross-region gameplay require independent evidence"
     }
   ],
   "unsupported_platforms": [
@@ -96,7 +103,7 @@
     "gameplay_behavior_changed": false,
     "addon_doctor_api": true,
     "capability_based_platform_api": true,
-    "reviewed_multi_fork_intake": true,
+    "reviewed_multi_fork_intake": false,
     "automatic_upstream_merges": false,
     "declarative_addon_platform_requirements": true,
     "documented_api_deprecation_lifecycle": true,
@@ -166,7 +173,7 @@
     "chunk_diagnostics_do_not_mutate_world_state": true,
     "phase1i_changes_normal_cargo_energy_machine_semantics": false,
     "addon_api_compatibility_facade": true,
-    "cross_fork_original_gugu_united_targets": true,
+    "cross_fork_original_gugu_united_targets": false,
     "addon_registration_compatibility_service": true,
     "post_registration_callbacks_guarded": true,
     "late_runtime_registration_remains_supported": true,
@@ -248,7 +255,12 @@
     "shutdown_backup_directory_self_initializing": true,
     "shutdown_backup_retention_enforced": true,
     "paper_26_3_primary_compile": true,
-    "paper_26_3_full_stack_smoke": true
+    "paper_26_3_full_stack_smoke": true,
+    "gugu_only_upstream_maintenance": true,
+    "active_upstream_core_variants": [
+      "gugu"
+    ],
+    "historical_fork_api_and_data_compatibility_retained": true
   },
   "phase": "Core Platform Phase 1L"
 }

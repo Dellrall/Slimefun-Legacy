@@ -77,6 +77,7 @@ def main() -> int:
         "verify_guide_runtime_phase1b.py",
         "verify_release_4_1_18.py",
         "verify_core_platform_phase1a.py",
+        "test_upstream_maintenance_policy.py",
         "verify_core_platform_phase1b.py",
         "verify_core_platform_phase1c.py",
         "verify_core_platform_phase1d.py",

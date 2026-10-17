@@ -210,7 +210,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
   prepare-cross-fork-api-matrix:
-    name: Prepare cross-fork API probes
+    name: Prepare GuGu upstream API probe
     if: ${{ github.event_name != 'pull_request' }}
     runs-on: ubuntu-latest
     outputs:
@@ -218,24 +218,24 @@ jobs:
       enabled_count: ${{ steps.matrix.outputs.enabled_count }}
     steps:
       - uses: actions/checkout@v6
-      - name: Validate cross-fork API matrix
+      - name: Validate GuGu-only upstream API matrix
         id: matrix
         run: |
           python3 scripts/generate_cross_fork_api_matrix.py \
             compatibility/cross-fork-api-matrix.json \
             --github-output "$GITHUB_OUTPUT"
-      - name: Publish cross-fork probe summary
+      - name: Publish GuGu upstream probe summary
         run: |
           {
-            echo "## Cross-fork API source probes"
+            echo "## GuGu upstream API source probe"
             echo
             echo "External core targets: **${{ steps.matrix.outputs.enabled_count }}**"
             echo
-            echo 'These probes are advisory drift signals. Protected Legacy API and addon binary/source regression gates remain release blocking.'
+            echo 'GuGu is the sole active upstream. Historical fork identifiers remain readable without scheduling probes for those forks. Protected Legacy API and addon binary/source regression gates remain release blocking.'
           } >> "$GITHUB_STEP_SUMMARY"
 
   cross-fork-api-probes:
-    name: Cross-fork API - ${{ matrix.display_name }}
+    name: GuGu upstream API - ${{ matrix.display_name }}
     needs: prepare-cross-fork-api-matrix
     continue-on-error: ${{ matrix.advisory }}
     runs-on: ubuntu-latest

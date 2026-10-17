@@ -8,7 +8,7 @@ Modernization must preserve existing item and research IDs, persistent keys, mac
 
 Keep data-sensitive compatibility bridges until their replacements have behavioral and persistence evidence. An isolated, documented deprecated API call is preferable to silently changing a storage format. Do not introduce blanket warning suppressions or delete compatibility signatures to make compiler reports green.
 
-Slimefun United / GuguMinecraft interchange is a validation goal, not an unconditional guarantee. Pin the exact fork commit, Minecraft version and addons before claiming compatibility. Test switching Slimefun implementations on the same Minecraft version separately from changing Minecraft versions. Do not infer Minecraft downgrade safety from successful plugin rollback.
+GuGu is the sole active upstream maintenance and future interchange target. Historical data readers, addon contracts and prior fork-validation evidence remain intact; United is no longer an ongoing validation goal. Pin the exact GuGu and Legacy commits, Minecraft version and addons before claiming interoperability. Test switching Slimefun implementations on the same Minecraft version separately from changing Minecraft versions. Do not infer Minecraft downgrade safety from successful plugin rollback. See [ADR 0003](adr/0003-gugu-only-upstream-maintenance.md).
 
 ## Baseline inspected
 

@@ -214,7 +214,14 @@ def main() -> int:
         ids = {entry.get("id") for entry in core_registry.get("core_variants", [])}
         require(
             {"original", "gugu", "united", "slimefun5", "slimefun-core", "legacy"} <= ids,
-            "Core API registry is incomplete",
+            "Historical core declaration identifiers must remain readable",
+            failures,
+        )
+        require(
+            core_registry.get("active_upstream_core_variants") == ["gugu"]
+            and {entry.get("id") for entry in core_registry.get("core_variants", [])
+                 if entry.get("active_upstream_maintenance")} == {"gugu"},
+            "Only GuGu may be registered for active upstream maintenance",
             failures,
         )
 

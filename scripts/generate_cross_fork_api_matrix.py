@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and emit the Phase 1J external cross-fork source-probe matrix."""
+"""Validate and emit the GuGu source-probe matrix; retain the historical command name."""
 from __future__ import annotations
 
 import argparse
@@ -19,6 +19,8 @@ def main() -> int:
     cores = data.get("cores")
     if not isinstance(cores, list) or not cores:
         raise SystemExit("Cross-fork matrix has no core targets")
+    if data.get("policy", {}).get("active_upstream_core_variants") != ["gugu"]:
+        raise SystemExit("The active source-probe policy must select GuGu only")
 
     output = []
     ids: set[str] = set()
@@ -48,6 +50,9 @@ def main() -> int:
                 "advisory": bool(core.get("advisory", True)),
             }
         )
+
+    if ids != {"gugu"} or output[0]["repository"] != "SlimefunGuguProject/Slimefun4":
+        raise SystemExit("Only GuGu is an active upstream source-probe target")
 
     compact = json.dumps({"include": output}, separators=(",", ":"))
     print(compact)

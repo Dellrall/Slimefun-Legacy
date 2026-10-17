@@ -42,6 +42,9 @@ public interface SlimefunScheduler {
      * <p>The default implementation preserves compatibility for third-party scheduler implementations. Implementations
      * with native entity-retirement support should override this method.
      *
+     * <p>The native implementation also invokes cleanup immediately on the submitting thread when the entity is
+     * already retired. Cleanup must be thread-safe and must not access entity or world state.
+     *
      * @param entity the entity that owns the task
      * @param task the work to execute
      * @param retired cleanup to execute when the entity retires before the task can run
@@ -60,6 +63,9 @@ public interface SlimefunScheduler {
      *
      * <p>The default implementation preserves compatibility for third-party scheduler implementations. Implementations
      * with native entity-retirement support should override this method.
+     *
+     * <p>The native implementation also invokes cleanup immediately on the submitting thread when the entity is
+     * already retired. Cleanup must be thread-safe and must not access entity or world state.
      *
      * @param entity the entity that owns the task
      * @param task the work to execute
