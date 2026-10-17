@@ -7,11 +7,15 @@ import io.github.thebusybiscuit.slimefun4.core.commands.SlimefunCommand;
 import io.github.thebusybiscuit.slimefun4.core.commands.SubCommand;
 import io.github.thebusybiscuit.slimefun4.core.multiblocks.MultiBlockMachine;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
+import io.github.thebusybiscuit.slimefun4.implementation.items.weapons.CowHearder;
 import java.util.Locale;
 import java.util.Map;
 import javax.annotation.ParametersAreNonnullByDefault;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 
@@ -28,6 +32,11 @@ class GiveCommand extends SubCommand {
 
     @Override
     public void onExecute(CommandSender sender, String[] args) {
+        if (args.length == 2 && CowHearder.ID.equalsIgnoreCase(args[1])) {
+            giveCowHearderToSelf(sender);
+            return;
+        }
+
         if (sender.hasPermission("slimefun.cheat.items") || !(sender instanceof Player)) {
             if (args.length > 2) {
                 Player p = Bukkit.getPlayerExact(args[1]);
@@ -36,6 +45,19 @@ class GiveCommand extends SubCommand {
                     SlimefunItem sfItem = SlimefunItem.getById(args[2].toUpperCase(Locale.ROOT));
 
                     if (sfItem != null) {
+                        if (CowHearder.ID.equals(sfItem.getId())) {
+                            boolean senderIsAdmin = sender instanceof ConsoleCommandSender
+                                    || (sender instanceof Player player && player.isOp());
+                            int amount = args.length == 4 ? parseAmount(args) : 1;
+                            if (args.length > 4 || !CowHearder.mayGive(senderIsAdmin, p.isOp(), amount)) {
+                                sender.sendMessage(Component.text(
+                                        "The Cow Hearder may only be given by an operator or console to an OP player"
+                                                + " (one at a time).",
+                                        NamedTextColor.RED));
+                                return;
+                            }
+                        }
+
                         giveItem(sender, p, sfItem, args);
                     } else {
                         Slimefun.getLocalization()
@@ -63,6 +85,25 @@ class GiveCommand extends SubCommand {
             }
         } else {
             Slimefun.getLocalization().sendMessage(sender, "messages.no-permission", true);
+        }
+    }
+
+    private void giveCowHearderToSelf(CommandSender sender) {
+        if (!(sender instanceof Player player) || !player.isOp()) {
+            Slimefun.getLocalization().sendMessage(sender, "messages.no-permission", true);
+            return;
+        }
+
+        SlimefunItem sword = SlimefunItem.getById(CowHearder.ID);
+        if (sword == null) {
+            player.sendMessage(Component.text("The Cow Hearder is not registered.", NamedTextColor.RED));
+            return;
+        }
+
+        if (player.getInventory().addItem(new CustomItemStack(sword.getItem(), 1)).isEmpty()) {
+            player.sendMessage(Component.text("The Cow Hearder has been added to your inventory.", NamedTextColor.GREEN));
+        } else {
+            player.sendMessage(Component.text("Your inventory is full.", NamedTextColor.RED));
         }
     }
 
@@ -112,7 +153,11 @@ class GiveCommand extends SubCommand {
 
         if (args.length == 4) {
             if (CommonPatterns.NUMERIC.matcher(args[3]).matches()) {
-                amount = Integer.parseInt(args[3]);
+                try {
+                    amount = Integer.parseInt(args[3]);
+                } catch (NumberFormatException ignored) {
+                    return 0;
+                }
             } else {
                 return 0;
             }
