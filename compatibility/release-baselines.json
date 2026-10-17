@@ -2,16 +2,16 @@
   "schema": 1,
   "project": "Slimefun Legacy",
   "candidate": {
-    "version": "4.1.75"
+    "version": "4.1.76"
   },
   "previous_stable": {
-    "version": "4.1.74",
+    "version": "4.1.75",
     "source": {
       "mode": "git-ref",
-      "ref": "4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a"
+      "ref": "7f702e3565a381aeeefd99555f2c8fe818858e9c"
     },
     "release_blocking": true,
-    "purpose": "Primary regression baseline: exact published Slimefun Legacy 4.1.74 source, not newer master. Required addon regressions against that release block candidate 4.1.75. The known within-backpack atomic-save defect in 4.1.74 is intentionally corrected by #391; 4.1.74 is a compatibility baseline, not a claim of crash safety. The 4.1.15 historical floor remains advisory; older saved item formats remain supported."
+    "purpose": "Primary regression baseline: exact published Slimefun Legacy 4.1.75 source. Required addon regressions against that release block candidate 4.1.76. This retains the atomic backpack saves released in 4.1.75 while coordinating JustEnoughGuide startup dependency resilience. The 4.1.15 historical floor remains advisory; older saved item formats remain supported."
   },
   "legacy_floor": {
     "version": "4.1.15",
