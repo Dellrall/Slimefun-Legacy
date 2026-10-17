@@ -1,0 +1,47 @@
+{
+  "release_tag": "v4.1.74",
+  "core_source_commit": "4f8aa1e9c288751aeefb9a9f72dbac17a6322b5a",
+  "expected_addons": 45,
+  "input_bundle_revision": 137,
+  "bundle_revision": 140,
+  "published_old_bundle_sha256": "534768b57854fdc21280bda483266217a61bc140a48df3f246c71842c82b173d",
+  "output_name": "SF_Addons_r140_1.21.11-26.3.zip",
+  "replacements": [
+    {
+      "repository": "wickidcow/SF_MagicExpansion",
+      "old_commit": "13924991a1960daa40fe221cab5a4eef95d46ecb",
+      "new_jar": "SF_MagicExpansion1.1.15.jar",
+      "new_version": "1.1.15",
+      "new_commit": "9443393b3ef5f0982194d9084eaed91d7d820dca",
+      "new_sha256": "46c01290c54d918c39e8bb0f58d3ce135e2143c86b0f45858245f78fcafeeaad",
+      "compatibility_note": "Bundle refresh r140 carries forward r138 MagicExpansion 1.1.15: the SF Timings Machine requests shared detailed Slimefun profiler samples automatically, missing/stale samples are explicit, and labels distinguish Slimefun total from this chunk. Black Market records, fishing behavior, item IDs, recipes and stored machine data are unchanged.",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.61",
+      "new_paper_26_3_api": "26.3-rc-3.build.1-alpha"
+    },
+    {
+      "repository": "wickidcow/SF_NetworksExp",
+      "old_commit": "bcdef34d362dc74aa1aab23c8961a629daa79950",
+      "new_jar": "SF_Networks1.0.58.jar",
+      "new_version": "1.0.58",
+      "new_commit": "4ebecea309e89cc60fc4f6d932505312b5468ed1",
+      "new_sha256": "39608f4ad4e49d81e69d48d0c3f9d4a57162d7803938dcba933a81643307da63",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.75",
+      "new_paper_26_3_api": "26.3.build.176-stable",
+      "compatibility_note": "r140: Networks 1.0.58 carries the 1.0.57 controller/crafter traversal work and adds Vanilla Pusher/Grabber transaction-integrity hardening: copy-on-write destination handling, actual-slot source reconciliation, changed-source preservation, and rollback/recovery for partial source removal. Existing item IDs, recipes, storage serialization, routing priority, transfer rates, default 8/12 budgets and Quantum policy are unchanged."
+    },
+    {
+      "repository": "wickidcow/SF_InfinityExpansion2",
+      "old_commit": "c9ad8394ee65e5577c3e031e24b562a8a7b2d0f5",
+      "new_jar": "SF_InfinityExpansion2.0.14.jar",
+      "new_version": "2.0.14",
+      "new_commit": "8ce79a3fac44424b3fca3d7b3fe7c48c2767fe12",
+      "new_sha256": "4c3d5a19b751d13f769937d6e5faf18f67ddb40465db3d9759a1d8800c0cbdb9",
+      "new_distributable_api": "1.21.11-R0.1-SNAPSHOT",
+      "new_build_core_version": "4.1.74",
+      "new_paper_26_3_api": "26.3-rc-3.build.1-alpha",
+      "compatibility_note": "r140: InfinityExpansion2 2.0.14 synchronizes the HopperMachine converter family, eliminating the verified Dust Extractor/Networks producer race without moving heavier Quarry/Growing-style machines onto the synchronized ticker. Recipes, rates, IDs, storage formats and migration behavior are unchanged."
+    }
+  ]
+}
