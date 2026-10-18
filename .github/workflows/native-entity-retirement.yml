@@ -197,8 +197,7 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/download_jeg.sh
-          chmod +x gradlew
-          ./gradlew clean verifyPairedCoreDependency build --no-daemon \
+          bash ./gradlew clean verifyPairedCoreDependency build --no-daemon \
             --init-script "$PAIRED_INPUTS_DIR/verify-core-classpath.gradle" \
             -Dsfl.paired.core.sha256="$PAIRED_CORE_SHA256" \
             -Dsfl.paired.classpath.receipt="$PAIRED_INPUTS_DIR/networks-core-classpath.json" \
@@ -210,8 +209,7 @@ jobs:
         working-directory: .ci/paired-ie2
         run: |
           set -euo pipefail
-          chmod +x gradlew
-          ./gradlew clean verifyPairedCoreDependency build --no-daemon \
+          bash ./gradlew clean verifyPairedCoreDependency build --no-daemon \
             --init-script "$PAIRED_INPUTS_DIR/verify-core-classpath.gradle" \
             -Dmaven.repo.local="$PAIRED_MAVEN_REPO" \
             -Dsfl.paired.core.sha256="$PAIRED_CORE_SHA256" \
