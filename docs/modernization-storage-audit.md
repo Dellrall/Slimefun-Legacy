@@ -68,6 +68,73 @@ Focused CI reproduction command:
 
 Also require the existing full build and invariant gates; the focused command is not a substitute.
 
+## Batch 2: concurrent pending-removal cancellation
+
+### Defect and addon relevance
+
+At core `6feeddf224e2a987b306a8b69a6ec13d6e071293`, `setData` and `removeData`
+could observe pending removal before the capture helper observed its cancellation.
+The mutation then changed the cache without either retaining the change for replay
+or submitting it for persistence. Cancellation could also replay an older captured
+value or deletion over a newer active mutation.
+
+This lifecycle occurs in `BlockListener`: it marks block data pending before an
+item's break handler and cancels removal if that handler cancels the break. The
+addon-facing data API is also used for stored amounts. For example,
+[`NetworkQuantumStorage.syncBlock` at Networks PR #104's inspected source](https://github.com/wickidcow/SF_NetworksExp/blob/01ad4384de3d53234c04a49f148e400886d249f3/src/main/java/io/github/sefiraat/networks/slimefun/network/NetworkQuantumStorage.java)
+submits the quantum-storage amount through `SlimefunBlockData.setData`. The same
+class reads that field when reconstructing its cache. This establishes a relevant storage
+boundary; it does not attribute a reported live duplication incident to this race.
+
+### Change and compatibility boundary
+
+A monitor for each container orders cache mutations, the pending-state decision,
+captured changes and cancellation replay. Synchronizing on the container itself
+also shares the reentrant monitor used by a synchronized addon override; a second
+private monitor would introduce an avoidable lock-order inversion during virtual
+replay. Captured changes still
+coalesce by key, and a retained deletion still clears data supplied by a load
+before submitting that deletion. Permanently removed containers do not replay.
+
+Reads and the lower-level cache primitives remain lock-free. The controller can
+read cached values while holding its delayed-write queue lock, so taking the
+mutation monitor from those reads would introduce a lock-order inversion.
+The weak capture registry is used only for short lookup/removal operations; it is
+not held while persistence submissions run.
+
+The public and protected method descriptors, keys, opaque string values, empty
+strings, identities and persisted formats remain unchanged. The ordering contract
+is for mutations on the same container instance. The existing copy constructor
+shares a cache with another container; this change does not establish an atomic
+move across those instances or a transaction across several data keys.
+
+### Regression scope
+
+Controlled worker interleavings exercise a write and a deletion at the capture
+boundary, and older replay values/deletions racing newer active mutations. The
+tests use the real production container with a thread-safe recording persistence
+callback, bounded latches and worker-failure propagation. They compare the final
+cache with the submitted values and separately check that an unrelated container
+can make progress and a synchronized addon override remains usable.
+
+The unmodified production class ran the first 19 JUnit cases: the 14 existing
+cases passed and all five new race cases failed with the expected value/deletion
+divergences. After the fix and three additional compatibility checks, all 22
+`PendingRemovalReplayTest` cases and all 15 `BlockDataConfigWrapperTest` cases
+passed locally, with no failures, errors or skips. The focused command is:
+
+```sh
+./gradlew test \
+  --tests 'com.xzavier0722.mc.plugin.slimefun4.storage.controller.PendingRemovalReplayTest' \
+  --tests 'com.xzavier0722.mc.plugin.slimefun4.storage.controller.BlockDataConfigWrapperTest' \
+  --no-daemon
+```
+
+These are persistence-submission and lifecycle regressions. Database durability,
+abnormal termination, complete addon item conservation and Folia region ownership
+remain separate runtime evidence. The unreleased 4.1.76 candidate and the final
+Networks/IE2 pair remain subject to the publication hold and exact-source gates.
+
 ## Remaining execution order
 
 1. Stabilize the core API and compatibility layer, beginning with the scoped bridge fix above.
