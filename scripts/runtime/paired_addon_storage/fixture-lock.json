@@ -1,0 +1,58 @@
+{
+  "schema": 1,
+  "purpose": "integration-test-fixture",
+  "distribution_selection": false,
+  "addons": {
+    "networks": {
+      "repository": "wickidcow/SF_NetworksExp",
+      "source": "4e954b87a03ac84fc5357c49c315d155e8435e78",
+      "tree": "6c04aba17d48fd8397d5c071f60f80807069565c",
+      "plugin": "Networks",
+      "version": "1.0.59",
+      "jar": "build/libs/SF_Networks1.0.59.jar"
+    },
+    "ie2": {
+      "repository": "wickidcow/SF_InfinityExpansion2",
+      "source": "1ee9e3a5566886d14f2cc1a9a0ea0ce55b400a27",
+      "tree": "e96502ae27f99f585c2cdb134d377a1cb51ab291",
+      "plugin": "InfinityExpansion2",
+      "version": "2.0.14",
+      "jar": "build/libs/SF_InfinityExpansion2.0.14.jar"
+    }
+  },
+  "fixture_sources": [
+    {
+      "path": "tests/runtime/PairedIE2StorageProbe.java",
+      "git_blob": "ff59aef0703b08c532fcb038a688103ff925368f",
+      "sha256": "089dc2713a455514812749a26dcbc05000b106bc88492a8493e9600be1c54dd4"
+    },
+    {
+      "path": "tests/runtime/PairedIE2Topology.java",
+      "git_blob": "95ab4c34c0aeb827aa3e558bfe5fe7d540ba7424",
+      "sha256": "7bc088959a5a27d85e87f7dfd2ed632c7f5196ebd4a768aa427e8be478f86cb0"
+    }
+  ],
+  "jeg_compile_dependency": {
+    "version": "2.1.67",
+    "jar": ".ci/jeg/SF_JustEnoughGuide2.1.67.jar",
+    "sha256": "8456be1a05715f38536f217ad2136aff18e38b6e9591a41c9814e89d0576253a"
+  },
+  "platforms": {
+    "purpur-1.21.11-2568": {
+      "software": "Purpur",
+      "minecraft": "1.21.11",
+      "build": "2568",
+      "url": "https://api.purpurmc.org/v2/purpur/1.21.11/2568/download",
+      "launcher_sha256": "ee199511bf0a970ee8459fe3a351703fec37293f00bc2de1c5cb746c7e4acc34",
+      "mojang_sha256": "f83b8e093865806f931c7e34aae41b177d4c076335263dd124c75d6d65dd1726"
+    },
+    "purpur-26.3-2652": {
+      "software": "Purpur",
+      "minecraft": "26.3",
+      "build": "2652",
+      "url": "https://api.purpurmc.org/v2/purpur/26.3/2652/download",
+      "launcher_sha256": "893bf450c86117b1e872e992f874fca5e7f1f51b8dcc910eb2e646076c58e42a",
+      "mojang_sha256": "d052f14d7a173734fba553711e5b570162e2f2a313267ee31a21b975a679be64"
+    }
+  }
+}
