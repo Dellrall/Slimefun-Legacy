@@ -1,0 +1,405 @@
+"""Offline controls for exact release/native source and byte binding."""
+from __future__ import annotations
+
+from copy import deepcopy
+import hashlib
+import io
+import json
+from pathlib import Path
+import shutil
+import tempfile
+import unittest
+import uuid
+import zipfile
+
+from scripts.runtime.paired_addon_storage import run_probe as paired
+from scripts.test_paired_addon_storage_probe import database_receipt
+from scripts.verify_release_runtime_evidence import (
+    ADDONS, FIXED_JOBS, REPOSITORY, WORKFLOW, ReleaseRuntimeEvidenceError, verify_native_evidence,
+)
+
+SOURCE = "66ef9d066eb051d4101b49d67ae3b982d40bda2c"
+# Actual accepted test fixtures and canonical distribution selected at this source.
+TEST_SOURCES = {
+    "networks": "4e954b87a03ac84fc5357c49c315d155e8435e78",
+    "ie2": "1ee9e3a5566886d14f2cc1a9a0ea0ce55b400a27",
+}
+CANONICAL_SOURCES = {
+    "networks": "560d590095206a8159d82c70e7cabe6d16aaa0d8",
+    "ie2": "8ce79a3fac44424b3fca3d7b3fe7c48c2767fe12",
+}
+
+
+def encoded(value):
+    return (json.dumps(value, indent=2) + "\n").encode()
+
+
+def identity(value):
+    return {"bytes": len(value), "sha256": hashlib.sha256(value).hexdigest()}
+
+
+def write_json(path, value):
+    path.write_bytes(encoded(value))
+
+
+def plugin_jar(name, version, marker="test", source=None):
+    data = io.BytesIO()
+    with zipfile.ZipFile(data, "w", compression=zipfile.ZIP_DEFLATED) as jar:
+        jar.writestr("plugin.yml", f"name: {name}\nversion: {version}\n")
+        jar.writestr("test/Marker.class", bytes.fromhex("cafebabe00000041") + marker.encode())
+        if source is not None:
+            jar.writestr("git.properties", f"git.source.commit={source}\ngit.commit.id={source}\ngit.build.version={version}\n")
+    return data.getvalue()
+
+
+class Fixture:
+    def __init__(self, root):
+        self.root = root
+        root.mkdir(parents=True, exist_ok=True)
+        self.evidence = root / "evidence"
+        self.native = self.evidence / "native"
+        self.inputs = self.native / "paired-storage-inputs"
+        self.inputs.mkdir(parents=True)
+        self.core = root / "core.jar"
+        self.bundle = root / "bundle.zip"
+        self.matrix_path = root / "matrix.json"
+        self.lock_path = root / "fixture-lock.json"
+        self.lock = json.loads(paired.LOCK_PATH.read_text())
+        self.jars = {
+            "core": plugin_jar("Slimefun", "4.1.76", source=SOURCE),
+            "networks": plugin_jar("Networks", "1.0.59"),
+            "ie2": plugin_jar("InfinityExpansion2", "2.0.14"),
+        }
+        self.core.write_bytes(self.jars["core"])
+        for key, value in self.jars.items():
+            (self.inputs / (key + ".jar")).write_bytes(value)
+        (self.inputs / "fixture").mkdir()
+        for index, row in enumerate(self.lock["fixture_sources"]):
+            value = ("// synthetic original fixture " + str(index) + "\n").encode()
+            row["sha256"] = identity(value)["sha256"]
+            (self.inputs / "fixture" / Path(row["path"]).name).write_bytes(value)
+        write_json(self.lock_path, self.lock)
+        (self.inputs / "fixture-lock.json").write_bytes(self.lock_path.read_bytes())
+        metadata = {"schema": 1, "source_commit": SOURCE, "core_version": "4.1.76",
+                    "core_sha256": identity(self.jars["core"])["sha256"]}
+        write_json(self.inputs / "core-metadata.json", metadata)
+        self.manifest = {
+            "schema": 1, "purpose": "integration-test-fixture", "source": SOURCE,
+            "core_version": "4.1.76", "lock_sha256": identity(self.lock_path.read_bytes())["sha256"],
+            "receipt_source_sha256": paired.digest(paired.RECEIPT_SOURCE),
+            "inputs": {}, "addon_checkouts": {}, "classpath_receipts": {},
+        }
+        for key, name, version in (("core", "Slimefun", "4.1.76"), ("networks", "Networks", "1.0.59"),
+                                    ("ie2", "InfinityExpansion2", "2.0.14")):
+            self.manifest["inputs"][key] = {"file": key + ".jar", **identity(self.jars[key]),
+                                            "plugin": name, "version": version, "classes": 1}
+        for key, pin in self.lock["addons"].items():
+            self.manifest["addon_checkouts"][key] = {field: pin[field] for field in ("repository", "source", "tree")}
+            proof = {"schema": 1, "expected_core_sha256": metadata["core_sha256"],
+                     "classpaths": {"compileClasspath": identity(self.jars["core"]),
+                                    "testRuntimeClasspath": identity(self.jars["core"])}}
+            path = self.inputs / (key + "-core-classpath.json")
+            write_json(path, proof)
+            self.manifest["classpath_receipts"][key] = identity(path.read_bytes())
+        self.manifest["fixture_sources"] = paired.verify_fixture_sources(self.inputs, self.lock, packaged=True)
+        self.manifest["jeg_compile_dependency"] = {"bytes": 1, "sha256": self.lock["jeg_compile_dependency"]["sha256"]}
+        write_json(self.inputs / "inputs.json", self.manifest)
+        self.input_bytes = (self.inputs / "inputs.json").read_bytes()
+
+        self.matrix = {"addons": [{"repository": repository, "source_commit": TEST_SOURCES[key]}
+                                  for key, (repository, _) in ADDONS.items()]}
+        self.bundle_manifest = {
+            "bundle_revision": "r142", "core_source_commit": SOURCE,
+            "addons": [{"repository": repository, "commit": TEST_SOURCES[key],
+                        "version": self.lock["addons"][key]["version"], "jar": key + ".jar",
+                        "sha256": identity(self.jars[key])["sha256"]}
+                       for key, (repository, _) in ADDONS.items()],
+        }
+        self.write_bundle()
+        self.write_api_metadata()
+        for index, (key, platform) in enumerate(self.lock["platforms"].items()):
+            self.write_lane(key, platform, 1000 + index * 10)
+
+    def write_bundle(self):
+        write_json(self.matrix_path, self.matrix)
+        with zipfile.ZipFile(self.bundle, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+            archive.writestr("SF_ADDON_MANIFEST.json", encoded(self.bundle_manifest))
+            for key in ADDONS:
+                archive.writestr(key + ".jar", self.jars[key])
+
+    def write_api_metadata(self):
+        run = {"id": 12345, "run_attempt": 1, "path": WORKFLOW, "head_sha": SOURCE,
+               "head_branch": "master", "event": "push", "status": "completed", "conclusion": "success",
+               "repository": {"id": 100, "full_name": REPOSITORY},
+               "head_repository": {"id": 100, "full_name": REPOSITORY}}
+        write_json(self.native / "run.json", run)
+        names = sorted(FIXED_JOBS | {"Paired storage and restart on " + key for key in self.lock["platforms"]})
+        jobs = [{"id": 200 + index, "run_id": run["id"], "run_attempt": 1, "head_sha": SOURCE,
+                 "name": name, "status": "completed", "conclusion": "success",
+                 "started_at": "2026-10-18T04:00:00Z", "completed_at": "2026-10-18T04:10:00Z"}
+                for index, name in enumerate(names)]
+        write_json(self.native / "jobs.json", {"total_count": len(jobs), "jobs": jobs})
+        names = ["paired-storage-inputs", *["paired-storage-" + key for key in self.lock["platforms"]]]
+        artifacts = [{"id": 300 + index, "name": name, "size_in_bytes": 100, "digest": "sha256:" + "a" * 64,
+                      "expired": False, "created_at": "2026-10-18T04:05:00Z",
+                      "workflow_run": {"id": run["id"], "head_sha": SOURCE, "repository_id": 100, "head_repository_id": 100}}
+                     for index, name in enumerate(names)]
+        write_json(self.native / "artifacts.json", {"total_count": len(artifacts), "artifacts": artifacts})
+
+    def write_lane(self, key, platform, pid):
+        directory = self.native / ("paired-storage-" + key)
+        directory.mkdir()
+        (directory / "inputs.json").write_bytes(self.input_bytes)
+        bound = {"server.jar": {"bytes": 100, "sha256": platform["launcher_sha256"]},
+                 "plugins/Slimefun.jar": identity(self.jars["core"]),
+                 "plugins/Networks.jar": identity(self.jars["networks"]),
+                 "plugins/InfinityExpansion2.jar": identity(self.jars["ie2"]),
+                 "plugins/PairedIE2StorageProbe.jar": {"bytes": 100, "sha256": "c" * 64},
+                 "plugins/PairedStorageReceipt.jar": {"bytes": 100, "sha256": "d" * 64}}
+        proof = {"schema": 1, "status": "PASS", "source": SOURCE, "platform": platform,
+                 "run_id": str(uuid.uuid4()), "input_manifest_sha256": identity(self.input_bytes)["sha256"],
+                 "bound_files": bound}
+        for index, phase in enumerate(("seed", "verify")):
+            token = str(uuid.uuid4())
+            started = {"schema": 1, "phase": phase, "token": token, "pid": pid + index, "status": "READY",
+                       "software": "Purpur", "minecraft": platform["minecraft"],
+                       "server_version": platform["minecraft"] + "-" + platform["build"] + "-test",
+                       "core_source": SOURCE, "core_commit": SOURCE, "core_version": "4.1.76",
+                       "networks_version": "1.0.59", "ie2_version": "2.0.14", "primary_thread": True}
+            stopped = dict(started, status="STOPPED", server_stopping=True)
+            native = ("PAIRED_STORAGE_RECEIPT READY phase=" + phase + " token=" + token + "\nDone (1.0s)!\n"
+                      + paired.PHASE_RESULTS[phase] + "\nStopping server\nPAIRED_STORAGE_RECEIPT STOPPED phase="
+                      + phase + " token=" + token + "\n").encode()
+            console = b"Bootstrap output\n"
+            snapshot = database_receipt(phase, pid + index)
+            snapshot["inputs_receipt_sha256"] = identity(self.input_bytes)["sha256"]
+            result = {"schema": 1, "phase": phase, "token": token, "pid": pid + index, "exit_code": 0,
+                      "timed_out": False, "status": "PASS", "installed_before": deepcopy(bound),
+                      "installed_after": deepcopy(bound), "startup": started, "shutdown": stopped,
+                      "result": paired.PHASE_RESULTS[phase], "native_log": identity(native),
+                      "console_log": identity(console), "database_snapshot": snapshot}
+            for suffix, data in (("startup.json", started), ("shutdown.json", stopped), ("verification.json", result)):
+                write_json(directory / (phase + "-" + suffix), data)
+            (directory / (phase + "-native.log")).write_bytes(native)
+            (directory / (phase + "-console.log")).write_bytes(console)
+            (directory / (phase + "-result.txt")).write_text(paired.PHASE_RESULTS[phase] + "\n")
+            proof[phase] = result
+        write_json(directory / "verification.json", proof)
+
+    def verify(self):
+        return verify_native_evidence(self.evidence, self.core, self.bundle, self.matrix_path, self.lock_path, SOURCE)
+
+    def alter_json(self, path, change):
+        value = json.loads(path.read_text())
+        change(value)
+        write_json(path, value)
+
+    def alter_phase(self, change, phase="seed"):
+        directory = self.native / "paired-storage-purpur-1.21.11-2568"
+        proof = json.loads((directory / "verification.json").read_text())
+        change(proof[phase])
+        write_json(directory / "verification.json", proof)
+        write_json(directory / (phase + "-verification.json"), proof[phase])
+        return directory, proof
+
+
+class ReleaseNativeEvidenceTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.fixture = Fixture(Path(self.temp.name) / "case")
+
+    def fresh(self, name):
+        return Fixture(Path(self.temp.name) / name)
+
+    def test_complete_matching_candidate_is_accepted(self):
+        result = self.fixture.verify()
+        self.assertEqual(result["status"], "PASS_EXACT_RELEASE_NATIVE_PAIR")
+        self.assertEqual(result["required_jobs"], 6)
+        self.assertEqual(len(result["lanes"]), 2)
+        self.assertEqual(result["core"], identity(self.fixture.core.read_bytes()))
+        self.assertEqual(result["bundle"], identity(self.fixture.bundle.read_bytes()))
+
+    def test_recorded_real_pair_source_mismatch_rejects_equal_versions_and_core(self):
+        f = self.fixture
+        for row in f.matrix["addons"]:
+            key = next(key for key, (repo, _) in ADDONS.items() if repo == row["repository"])
+            row["source_commit"] = CANONICAL_SOURCES[key]
+        for row in f.bundle_manifest["addons"]:
+            key = next(key for key, (repo, _) in ADDONS.items() if repo == row["repository"])
+            row["commit"] = CANONICAL_SOURCES[key]
+        f.write_bundle()
+        self.assertEqual(f.manifest["core_version"], "4.1.76")
+        self.assertEqual([row["version"] for row in f.bundle_manifest["addons"]], ["1.0.59", "2.0.14"])
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "tested addon source differs"):
+            f.verify()
+
+    def test_same_source_version_but_different_whole_jar_is_rejected(self):
+        f = self.fixture
+        f.jars["networks"] = plugin_jar("Networks", "1.0.59", marker="changed artifact bytes")
+        f.bundle_manifest["addons"][0]["sha256"] = identity(f.jars["networks"])["sha256"]
+        f.write_bundle()
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "tested addon bytes differ"):
+            f.verify()
+
+    def test_wrong_release_core_or_embedded_source_is_rejected(self):
+        for marker, source in (("different build", SOURCE), ("test", "0" * 40)):
+            f = self.fresh(source + marker.replace(" ", "-"))
+            f.core.write_bytes(plugin_jar("Slimefun", "4.1.76", marker=marker, source=source))
+            with self.subTest(marker=marker, source=source), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+    def test_all_six_required_jobs_must_succeed(self):
+        for index in range(6):
+            f = self.fresh("job-" + str(index))
+            f.alter_json(f.native / "jobs.json", lambda value: value["jobs"][index].update(conclusion="skipped"))
+            with self.subTest(index=index), self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "did not succeed"):
+                f.verify()
+
+    def test_retained_successful_jobs_from_an_earlier_attempt_are_valid(self):
+        f = self.fixture
+        f.alter_json(f.native / "run.json", lambda value: value.update(run_attempt=2))
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "no job from the current attempt"):
+            f.verify()
+        f.alter_json(f.native / "jobs.json", lambda value: value["jobs"][0].update(run_attempt=2))
+        self.assertEqual(f.verify()["native_run"]["attempt"], 2)
+        f.alter_json(f.native / "jobs.json", lambda value: value["jobs"][0].update(run_attempt=3))
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "source or attempt mismatch"):
+            f.verify()
+
+    def test_stale_foreign_or_incomplete_run_is_rejected(self):
+        for field, value in (("head_sha", "0" * 40), ("head_branch", "repair"), ("event", "pull_request"),
+                             ("conclusion", "failure"), ("status", "in_progress"), ("path", "other.yml")):
+            f = self.fresh("run-" + field)
+            f.alter_json(f.native / "run.json", lambda row: row.update({field: value}))
+            with self.subTest(field=field), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+    def test_artifact_provenance_expiry_and_successful_job_interval_are_required(self):
+        mutations = (
+            lambda row: row.update(expired=True),
+            lambda row: row.update(digest=None),
+            lambda row: row.update(created_at="2026-10-18T03:59:59Z"),
+            lambda row: row["workflow_run"].update(head_sha="0" * 40),
+            lambda row: row["workflow_run"].update(id=999),
+        )
+        for index, change in enumerate(mutations):
+            f = self.fresh("artifact-" + str(index))
+            f.alter_json(f.native / "artifacts.json", lambda data: change(data["artifacts"][0]))
+            with self.subTest(index=index), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+    def test_incomplete_pages_and_duplicate_metadata_are_rejected(self):
+        for file, rows_key in (("jobs.json", "jobs"), ("artifacts.json", "artifacts")):
+            f = self.fresh(file)
+            f.alter_json(f.native / file, lambda value: value[rows_key].pop())
+            with self.subTest(file=file), self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "Incomplete"):
+                f.verify()
+        f = self.fixture
+        f.alter_json(f.native / "artifacts.json", lambda value: value["artifacts"][1].update(name="paired-storage-inputs"))
+        with self.assertRaises(ReleaseRuntimeEvidenceError):
+            f.verify()
+
+    def test_missing_lane_wrong_platform_and_stale_input_manifest_are_rejected(self):
+        for index in range(3):
+            f = self.fresh("lane-" + str(index))
+            directory = f.native / "paired-storage-purpur-26.3-2652"
+            if index == 0:
+                shutil.rmtree(directory)
+            elif index == 1:
+                f.alter_json(directory / "verification.json", lambda row: row["platform"].update(build="2646"))
+            else:
+                (directory / "inputs.json").write_bytes(f.input_bytes + b" ")
+            with self.subTest(index=index), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+    def test_incomplete_timeout_and_changed_installed_phase_bytes_are_rejected(self):
+        changes = (
+            lambda row: row.update(status="FAIL"),
+            lambda row: row.update(timed_out=True),
+            lambda row: row.update(exit_code=1),
+            lambda row: row["installed_after"]["plugins/Networks.jar"].update(sha256="0" * 64),
+            lambda row: row["database_snapshot"].update(inputs_receipt_sha256="0" * 64),
+        )
+        for index, change in enumerate(changes):
+            f = self.fresh("phase-" + str(index))
+            f.alter_phase(change)
+            with self.subTest(index=index), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+    def test_complete_receipts_do_not_hide_errors_in_either_log_stream(self):
+        for stream in ("native", "console"):
+            f = self.fresh("log-" + stream)
+            directory = f.native / "paired-storage-purpur-1.21.11-2568"
+            path = directory / ("seed-" + stream + ".log")
+            path.write_bytes(path.read_bytes() + b"[17:17:17 ERROR]: failed storage operation\n")
+            f.alter_phase(lambda row: row.update({stream + "_log": identity(path.read_bytes())}))
+            with self.subTest(stream=stream), self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "Unexpected native/console"):
+                f.verify()
+
+    def test_separate_phase_summary_cannot_be_substituted(self):
+        f = self.fixture
+        directory = f.native / "paired-storage-purpur-1.21.11-2568"
+        f.alter_json(directory / "seed-verification.json", lambda row: row.update(pid=999999))
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "phase summary differs"):
+            f.verify()
+
+    def test_classpath_proof_must_match_both_current_core_classpaths(self):
+        f = self.fixture
+        path = f.inputs / "networks-core-classpath.json"
+        f.alter_json(path, lambda value: value["classpaths"]["testRuntimeClasspath"].update(sha256="0" * 64))
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "Wrong core resolved"):
+            f.verify()
+
+    def test_matrix_and_bundle_source_membership_cannot_diverge(self):
+        f = self.fixture
+        f.alter_json(f.matrix_path, lambda value: value["addons"][0].update(source_commit="0" * 40))
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "differs from the reviewed matrix"):
+            f.verify()
+
+    def test_duplicate_json_and_missing_fixture_evidence_are_rejected(self):
+        f = self.fixture
+        (f.native / "run.json").write_text('{"id": 1, "id": 2}')
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "Duplicate JSON key"):
+            f.verify()
+        f = self.fresh("missing-fixture")
+        next((f.inputs / "fixture").iterdir()).unlink()
+        with self.assertRaises(ReleaseRuntimeEvidenceError):
+            f.verify()
+
+    def test_malformed_nested_objects_raise_the_public_error_type(self):
+        cases = (
+            ("run.json", lambda value: value.update(repository=[])),
+            ("artifacts.json", lambda value: value["artifacts"][0].update(workflow_run=[])),
+            ("paired-storage-inputs/inputs.json", lambda value: value["inputs"].update(core=[])),
+            ("paired-storage-purpur-1.21.11-2568/verification.json", lambda value: value.update(seed=[])),
+        )
+        for index, (path, change) in enumerate(cases):
+            f = self.fresh("malformed-" + str(index))
+            f.alter_json(f.native / path, change)
+            with self.subTest(path=path), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+    def test_booleans_cannot_substitute_for_numeric_evidence(self):
+        cases = (
+            ("paired-storage-inputs/inputs.json", lambda value: value.update(schema=True)),
+            ("paired-storage-inputs/core-metadata.json", lambda value: value.update(schema=True)),
+            ("paired-storage-inputs/inputs.json", lambda value: value["inputs"]["core"].update(classes=True)),
+            ("paired-storage-inputs/networks-core-classpath.json", lambda value: value.update(schema=True)),
+            ("paired-storage-purpur-1.21.11-2568/verification.json", lambda value: value.update(schema=True)),
+        )
+        for index, (path, change) in enumerate(cases):
+            f = self.fresh("boolean-" + str(index))
+            f.alter_json(f.native / path, change)
+            with self.subTest(path=path), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+        for field, value in (("schema", True), ("exit_code", False)):
+            f = self.fresh("boolean-phase-" + field)
+            f.alter_phase(lambda row: row.update({field: value}))
+            with self.subTest(field=field), self.assertRaises(ReleaseRuntimeEvidenceError):
+                f.verify()
+
+
+if __name__ == "__main__":
+    unittest.main()
+

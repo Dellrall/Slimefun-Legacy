@@ -1,0 +1,312 @@
+"""Offline rejection controls for release evidence collection; no network or server."""
+from __future__ import annotations
+
+import copy
+import hashlib
+import io
+import json
+import stat
+import tempfile
+import unittest
+import warnings
+import zipfile
+from pathlib import Path
+from unittest.mock import patch
+
+from scripts import collect_release_runtime_evidence as collector
+
+
+SOURCE = "a" * 40
+REPOSITORY_ID = 100
+
+
+def run_fixture(run_id=17, *, status="completed", conclusion="success", attempt=1,
+                started="2026-10-18T10:00:00Z"):
+    return {
+        "id": run_id, "path": collector.NATIVE_WORKFLOW, "workflow_id": 31,
+        "event": "push", "head_branch": "master", "head_sha": SOURCE,
+        "status": status, "conclusion": conclusion, "run_attempt": attempt,
+        "created_at": started, "run_started_at": started,
+        "updated_at": "2026-10-18T10:10:00Z", "html_url": f"https://github.com/example/runs/{run_id}",
+        "repository": {"id": REPOSITORY_ID, "full_name": collector.REPOSITORY},
+        "head_repository": {"id": REPOSITORY_ID, "full_name": collector.REPOSITORY},
+    }
+
+
+def job_fixture():
+    return {"id": 41, "run_id": 17, "run_attempt": 1, "head_sha": SOURCE,
+            "name": "Build fixed paired storage test inputs", "status": "completed",
+            "conclusion": "success", "started_at": "2026-10-18T10:01:00Z",
+            "completed_at": "2026-10-18T10:09:00Z"}
+
+
+def artifact_fixture():
+    return {"id": 51, "name": "paired-storage-inputs", "expired": False,
+            "digest": "sha256:" + "b" * 64, "size_in_bytes": 100,
+            "created_at": "2026-10-18T10:08:00Z",
+            "workflow_run": {"id": 17, "head_sha": SOURCE, "repository_id": REPOSITORY_ID,
+                             "head_repository_id": REPOSITORY_ID}}
+
+
+def make_zip(entries):
+    output = io.BytesIO()
+    with warnings.catch_warnings(), zipfile.ZipFile(output, "w") as archive:
+        warnings.simplefilter("ignore", UserWarning)
+        for name, data in entries:
+            archive.writestr(name, data)
+    return output.getvalue()
+
+
+class CollectionControls(unittest.TestCase):
+    def test_complete_collection_paginates_without_losing_rows(self):
+        pages = [{"total_count": 101, "jobs": [{"id": i} for i in range(1, 101)]},
+                 {"total_count": 101, "jobs": [{"id": 101}]}]
+        with patch.object(collector, "github_json", side_effect=pages) as query:
+            result = collector.collection("repos/example/actions/jobs?filter=latest", "jobs")
+        self.assertEqual(101, len(result["jobs"]))
+        self.assertTrue(query.call_args_list[1].args[0].endswith("&per_page=100&page=2"))
+
+    def test_truncated_duplicate_and_changed_collections_are_rejected(self):
+        first = {"total_count": 101, "jobs": [{"id": i} for i in range(1, 101)]}
+        cases = [
+            [{"total_count": 2, "jobs": [{"id": 1}]}],
+            [{"total_count": 2, "jobs": [{"id": 1}, {"id": 1}]}],
+            [first, {"total_count": 102, "jobs": [{"id": 101}, {"id": 102}]}],
+        ]
+        for pages in cases:
+            with self.subTest(pages=len(pages)), patch.object(collector, "github_json", side_effect=pages):
+                with self.assertRaises(ValueError):
+                    collector.collection("repos/example/jobs", "jobs")
+
+    def test_exact_successful_latest_attempt_is_selected(self):
+        current = run_fixture(attempt=2)
+        with patch.object(collector, "collection", return_value={"workflow_runs": [current]}), \
+                patch.object(collector, "github_json", side_effect=[current, current]):
+            selected = collector.latest_run(collector.REPOSITORY, SOURCE,
+                                             collector.NATIVE_WORKFLOW, {"push"})
+        self.assertEqual(2, selected["run_attempt"])
+
+    def test_latest_failure_or_pending_execution_cannot_fall_back_to_green(self):
+        for status, conclusion in [("completed", "failure"), ("completed", "cancelled"),
+                                   ("in_progress", None), ("queued", None)]:
+            latest = run_fixture(18, status=status, conclusion=conclusion,
+                                 started="2026-10-18T11:00:00Z")
+            with self.subTest(status=status, conclusion=conclusion), \
+                    patch.object(collector, "collection", return_value={"workflow_runs": [run_fixture(), latest]}), \
+                    patch.object(collector, "github_json", return_value=latest):
+                with self.assertRaisesRegex(ValueError, "not completed successfully"):
+                    collector.latest_run(collector.REPOSITORY, SOURCE,
+                                         collector.NATIVE_WORKFLOW, {"push"})
+
+    def test_a_later_rerun_of_an_older_run_is_not_hidden_by_a_newer_id(self):
+        rerun = run_fixture(16, conclusion="failure", attempt=2,
+                            started="2026-10-18T11:00:00Z")
+        with patch.object(collector, "collection", return_value={"workflow_runs": [run_fixture(), rerun]}), \
+                patch.object(collector, "github_json", return_value=rerun):
+            with self.assertRaises(ValueError):
+                collector.latest_run(collector.REPOSITORY, SOURCE, collector.NATIVE_WORKFLOW, {"push"})
+
+    def test_attempt_change_during_selection_is_rejected(self):
+        original, changed = run_fixture(), run_fixture(attempt=2)
+        with patch.object(collector, "collection", return_value={"workflow_runs": [original]}), \
+                patch.object(collector, "github_json", side_effect=[original, changed]):
+            with self.assertRaisesRegex(ValueError, "changed"):
+                collector.latest_run(collector.REPOSITORY, SOURCE, collector.NATIVE_WORKFLOW, {"push"})
+
+    def test_successful_retry_preserves_each_endpoints_distinct_timestamps(self):
+        current = run_fixture(attempt=2)
+        attempt = copy.deepcopy(current)
+        attempt["created_at"] = "2026-10-18T10:02:00Z"
+        attempt["updated_at"] = "2026-10-18T10:10:01Z"
+        with patch.object(collector, "collection", return_value={"workflow_runs": [current]}), \
+                patch.object(collector, "github_json", side_effect=[current, attempt]):
+            selected = collector.latest_run(collector.REPOSITORY, SOURCE,
+                                             collector.NATIVE_WORKFLOW, {"push"})
+        self.assertEqual(attempt["created_at"], selected["created_at"])
+        self.assertEqual(current["created_at"], selected["run_endpoint_snapshot"]["created_at"])
+        self.assertEqual(current["updated_at"], selected["run_endpoint_snapshot"]["updated_at"])
+
+    def test_wrong_repository_source_event_and_workflow_are_rejected(self):
+        for field, value in [("head_sha", "b" * 40), ("head_branch", "topic"),
+                             ("event", "pull_request"), ("path", "other.yml"),
+                             ("run_attempt", True)]:
+            run = run_fixture()
+            run[field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                collector.validate_run(run, collector.REPOSITORY, SOURCE, collector.NATIVE_WORKFLOW, {"push"})
+        run = run_fixture()
+        run["head_repository"]["full_name"] = "other/repository"
+        with self.assertRaises(ValueError):
+            collector.validate_run(run, collector.REPOSITORY, SOURCE, collector.NATIVE_WORKFLOW, {"push"})
+
+
+class ArtifactControls(unittest.TestCase):
+    def select(self, artifact=None, job=None, run=None):
+        return collector.artifact_for_job(
+            {"artifacts": [artifact or artifact_fixture()]}, "paired-storage-inputs",
+            {"jobs": [job or job_fixture()]}, "Build fixed paired storage test inputs", run or run_fixture(),
+        )
+
+    def test_artifact_from_retained_successful_earlier_attempt_is_valid(self):
+        self.assertEqual(51, self.select(run=run_fixture(attempt=2))["id"])
+
+    def test_artifact_from_before_the_retained_job_is_rejected(self):
+        artifact = artifact_fixture()
+        artifact["created_at"] = "2026-10-18T09:00:00Z"
+        with self.assertRaisesRegex(ValueError, "retained successful job"):
+            self.select(artifact=artifact)
+
+    def test_failed_skipped_wrong_source_and_future_attempt_jobs_are_rejected(self):
+        for field, value in [("conclusion", "failure"), ("conclusion", "skipped"),
+                             ("head_sha", "b" * 40), ("run_id", 99), ("run_attempt", 2)]:
+            job = job_fixture()
+            job[field] = value
+            with self.subTest(field=field, value=value), self.assertRaises(ValueError):
+                self.select(job=job)
+
+    def test_wrong_expired_or_undigested_artifact_is_rejected(self):
+        for field, value in [("expired", True), ("digest", None), ("id", True)]:
+            artifact = artifact_fixture()
+            artifact[field] = value
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.select(artifact=artifact)
+        artifact = artifact_fixture()
+        artifact["workflow_run"]["head_sha"] = "b" * 40
+        with self.assertRaises(ValueError):
+            self.select(artifact=artifact)
+
+    def extract(self, raw, metadata=None):
+        metadata = metadata or {"id": 51, "name": "paired-storage-inputs", "size_in_bytes": len(raw),
+                                "digest": "sha256:" + hashlib.sha256(raw).hexdigest()}
+        with tempfile.TemporaryDirectory() as temporary:
+            destination = Path(temporary) / "evidence"
+            receipt = collector.extract_artifact(raw, metadata, destination)
+            return receipt, {str(path.relative_to(destination)): path.read_bytes()
+                             for path in destination.rglob("*") if path.is_file()}
+
+    def test_valid_download_is_verified_before_extracting_original_bytes(self):
+        raw = make_zip([("inputs.json", b'{"source":"exact"}\n'), ("nested/receipt.json", b"{}")])
+        receipt, files = self.extract(raw)
+        self.assertEqual(hashlib.sha256(raw).hexdigest(), receipt["sha256"])
+        self.assertEqual(b'{"source":"exact"}\n', files["inputs.json"])
+
+    def test_wrong_archive_hash_size_and_crc_are_rejected(self):
+        raw = make_zip([("inputs.json", b"ORIGINAL")])
+        metadata = {"id": 51, "name": "inputs", "digest": "sha256:" + hashlib.sha256(raw).hexdigest(),
+                    "size_in_bytes": len(raw)}
+        for field, value in [("digest", "sha256:" + "c" * 64), ("size_in_bytes", len(raw) + 1)]:
+            changed = dict(metadata, **{field: value})
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                self.extract(raw, changed)
+        corrupt = raw.replace(b"ORIGINAL", b"CORRUPT!")
+        with self.assertRaises((ValueError, zipfile.BadZipFile)):
+            self.extract(corrupt)
+
+    def test_paths_duplicates_aliases_and_symlinks_are_rejected(self):
+        for name in ["../escape", "/absolute", "a/../escape", "a\\escape", "./alias", "a//alias"]:
+            with self.subTest(name=name), self.assertRaises(ValueError):
+                self.extract(make_zip([(name, b"bad")]))
+        with self.assertRaises(ValueError):
+            self.extract(make_zip([("same", b"one"), ("same", b"two")]))
+        symlink = zipfile.ZipInfo("link")
+        symlink.create_system = 3
+        symlink.external_attr = (stat.S_IFLNK | 0o777) << 16
+        with self.assertRaises(ValueError):
+            self.extract(make_zip([(symlink, b"../escape")]))
+
+    def test_changed_results_are_rejected_before_passing(self):
+        run = run_fixture()
+        jobs = {"jobs": [job_fixture()]}
+        artifacts = {"total_count": 1, "artifacts": [artifact_fixture()]}
+        with patch.object(collector, "latest_run", return_value=run), \
+                patch.object(collector, "jobs_snapshot", return_value={"jobs": []}):
+            with self.assertRaisesRegex(ValueError, "job results changed"):
+                collector.require_unchanged(collector.REPOSITORY, SOURCE, collector.NATIVE_WORKFLOW,
+                                             {"push"}, (run, jobs, artifacts), collector.NATIVE_ARTIFACT_JOBS)
+        changed = copy.deepcopy(artifacts)
+        changed["artifacts"][0]["id"] = 52
+        with patch.object(collector, "latest_run", return_value=run), \
+                patch.object(collector, "jobs_snapshot", return_value=jobs), \
+                patch.object(collector, "collection", return_value=changed):
+            with self.assertRaisesRegex(ValueError, "artifact metadata changed"):
+                collector.require_unchanged(collector.REPOSITORY, SOURCE, collector.NATIVE_WORKFLOW,
+                                             {"push"}, (run, jobs, artifacts),
+                                             {"paired-storage-inputs": "Build fixed paired storage test inputs"})
+
+
+class CollectorCommandControls(unittest.TestCase):
+    def execute(self, *, native_error=None, full_stack_error=None, native_status="PASS_EXACT_RELEASE_NATIVE_PAIR",
+                full_stack_status="PASS", change_release_file=False):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            core, bundle = root / "core.jar", root / "bundle.zip"
+            core.write_bytes(b"exact-release-core")
+            bundle.write_bytes(b"exact-release-bundle")
+            output = root / "collected"
+            bundle_run = run_fixture()
+            bundle_run["path"] = collector.BUNDLE_WORKFLOW
+
+            def native_check(*args):
+                if native_error:
+                    raise native_error
+                return {"status": native_status}
+
+            def full_stack_check(*args):
+                if full_stack_error:
+                    raise full_stack_error
+                if change_release_file:
+                    core.write_bytes(b"different-release-core")
+                return {"status": full_stack_status}
+
+            arguments = ["collector", "--repository", collector.REPOSITORY, "--source", SOURCE,
+                         "--bundle-run", "17", "--core", str(core), "--bundle", str(bundle),
+                         "--output", str(output)]
+            with patch("sys.argv", arguments), patch.object(collector, "github_json", return_value=bundle_run), \
+                    patch.object(collector, "collect_workflow", return_value=({}, {}, {})) as collect, \
+                    patch.object(collector, "require_unchanged"), \
+                    patch("scripts.verify_release_runtime_evidence.verify_native_evidence", side_effect=native_check), \
+                    patch("scripts.verify_release_full_stack_evidence.verify_full_stack_evidence",
+                          side_effect=full_stack_check), patch("builtins.print"):
+                error = None
+                try:
+                    code = collector.main()
+                except ValueError as failure:
+                    code, error = None, str(failure)
+            return code, error, json.loads((output / "release-runtime-evidence.json").read_text()), collect.call_count
+
+    def test_command_requires_both_acceptances_and_preserves_the_result(self):
+        code, error, receipt, calls = self.execute()
+        self.assertEqual(0, code)
+        self.assertIsNone(error)
+        self.assertEqual("PASS", receipt["status"])
+        self.assertFalse(receipt["publication_authorization"])
+        self.assertEqual(2, calls)
+
+    def test_native_failure_stops_before_full_stack_and_preserves_failure(self):
+        for arguments in [{"native_error": ValueError("wrong tested pair")}, {"native_status": "FAIL"}]:
+            with self.subTest(arguments=list(arguments)):
+                code, error, receipt, calls = self.execute(**arguments)
+                self.assertIsNone(code)
+                self.assertIsNotNone(error)
+                self.assertEqual("FAIL", receipt["status"])
+                self.assertNotIn("full_stack", receipt)
+                self.assertEqual(1, calls)
+
+    def test_full_stack_failure_cannot_be_hidden_by_native_success(self):
+        for arguments in [{"full_stack_error": ValueError("wrong tested bundle")}, {"full_stack_status": "FAIL"}]:
+            with self.subTest(arguments=list(arguments)):
+                code, error, receipt, calls = self.execute(**arguments)
+                self.assertIsNone(code)
+                self.assertIsNotNone(error)
+                self.assertEqual("FAIL", receipt["status"])
+                self.assertEqual(2, calls)
+
+    def test_release_file_change_during_collection_blocks_acceptance(self):
+        code, error, receipt, calls = self.execute(change_release_file=True)
+        self.assertIsNone(code)
+        self.assertIn("Release files changed", error)
+        self.assertEqual("FAIL", receipt["status"])
+
+
+if __name__ == "__main__":
+    unittest.main()

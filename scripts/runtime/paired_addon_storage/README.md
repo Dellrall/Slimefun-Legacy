@@ -68,6 +68,20 @@ Coverage is limited to this fixed integration and orderly restart on these
 Purpur builds. Client packet behavior, Folia ownership, abnormal termination and
 other addon paths require their own evidence.
 
+## Binding a final release to its runtime evidence
+
+Changes to the canonical addon matrix also trigger this regression workflow.
+Before publication, the release workflow separately requires the exact core and
+packaged Networks/IE2 JAR bytes to match a successful native run, both paired
+storage lane receipts, and the exact bundle used by a successful full-stack run.
+An older test pair with the same version strings cannot satisfy this check.
+
+The test-only source lock remains independent of distribution selection. When
+the external repair owner supplies the final accepted pair, its source and
+fixture contract must be reviewed before updating the lock and bundle pins.
+Until those inputs agree and their runtime jobs pass, the final release guard
+rejects publication. A passing guard does not grant publication authorization.
+
 ## Focused runner controls
 
 These checks start no server and also run with Python optimization enabled:
