@@ -11,6 +11,9 @@ import lombok.Getter;
 /**
  * Base container for Slimefun-specific data, including its item identity and pending-removal state.
  *
+ * <p>Mutation and cancellation share this container's monitor with synchronized addon overrides
+ * and virtual replay calls. Reads stay lock-free because delayed persistence can read under its own lock.
+ *
  * @author NoRainCity
  * @see ADataController
  */
@@ -27,36 +30,40 @@ public abstract class ASlimefunDataContainer extends ADataContainer {
             new WeakHashMap<>();
 
     protected void setWhilePendingRemove(String key, @Nullable String value) {
-        if (pendingRemove) {
-            Map<String, Optional<String>> map;
-            synchronized (capturedPendingRemoveData) {
-                map = capturedPendingRemoveData.computeIfAbsent(this, (k) -> new ConcurrentHashMap<>());
+        synchronized (this) {
+            if (pendingRemove) {
+                Map<String, Optional<String>> map;
+                synchronized (capturedPendingRemoveData) {
+                    map = capturedPendingRemoveData.computeIfAbsent(this, (k) -> new ConcurrentHashMap<>());
+                }
+                map.put(key, Optional.ofNullable(value));
             }
-            map.put(key, Optional.ofNullable(value));
         }
     }
 
     public void setPendingRemove(boolean val) {
-        if (val) {
-            pendingRemove = true;
-        } else {
-            // Replay changes only when removal is cancelled. Permanently removed containers
-            // stay weakly owned and never write their captured changes back to storage.
-            pendingRemove = false;
-            Map<String, Optional<String>> map;
-            synchronized (capturedPendingRemoveData) {
-                map = capturedPendingRemoveData.remove(this);
-            }
-            if (map != null) {
-                for (var entry : map.entrySet()) {
-                    if (entry.getValue().isPresent()) {
-                        setData(entry.getKey(), entry.getValue().get());
-                    } else {
-                        // removeData already removed the cached value. Calling it again could
-                        // skip the database update, so explicitly submit the retained deletion.
-                        // Clear any value supplied by a load that completed while removal waited.
-                        removeCacheInternal(entry.getKey());
-                        scheduleUpdateData(entry.getKey());
+        synchronized (this) {
+            if (val) {
+                pendingRemove = true;
+            } else {
+                // Replay changes only when removal is cancelled. Permanently removed containers
+                // stay weakly owned and never write their captured changes back to storage.
+                pendingRemove = false;
+                Map<String, Optional<String>> map;
+                synchronized (capturedPendingRemoveData) {
+                    map = capturedPendingRemoveData.remove(this);
+                }
+                if (map != null) {
+                    for (var entry : map.entrySet()) {
+                        if (entry.getValue().isPresent()) {
+                            setData(entry.getKey(), entry.getValue().get());
+                        } else {
+                            // removeData already removed the cached value. Calling it again could
+                            // skip the database update, so explicitly submit the retained deletion.
+                            // Clear any value supplied by a load that completed while removal waited.
+                            removeCacheInternal(entry.getKey());
+                            scheduleUpdateData(entry.getKey());
+                        }
                     }
                 }
             }
@@ -65,24 +72,28 @@ public abstract class ASlimefunDataContainer extends ADataContainer {
 
     @ParametersAreNonnullByDefault
     public void setData(String key, String val) {
-        checkData();
-        setCacheInternal(key, val, true);
-        if (isPendingRemove()) {
-            // Do not save removed or virtual block data unless removal is later cancelled.
-            setWhilePendingRemove(key, val);
-            return;
-        } else {
-            scheduleUpdateData(key);
+        synchronized (this) {
+            checkData();
+            setCacheInternal(key, val, true);
+            if (isPendingRemove()) {
+                // Do not save removed or virtual block data unless removal is later cancelled.
+                setWhilePendingRemove(key, val);
+                return;
+            } else {
+                scheduleUpdateData(key);
+            }
         }
     }
 
     @ParametersAreNonnullByDefault
     public void removeData(String key) {
-        if (removeCacheInternal(key) != null || !isDataLoaded()) {
-            if (isPendingRemove()) {
-                setWhilePendingRemove(key, null);
-            } else {
-                scheduleUpdateData(key);
+        synchronized (this) {
+            if (removeCacheInternal(key) != null || !isDataLoaded()) {
+                if (isPendingRemove()) {
+                    setWhilePendingRemove(key, null);
+                } else {
+                    scheduleUpdateData(key);
+                }
             }
         }
     }
