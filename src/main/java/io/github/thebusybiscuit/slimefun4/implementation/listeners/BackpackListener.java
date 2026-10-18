@@ -93,6 +93,7 @@ public class BackpackListener implements Listener {
     public void onQuit(PlayerQuitEvent e) {
         Player player = e.getPlayer();
         UUID playerId = player.getUniqueId();
+        UUID requestToken = openRegistry.getRequestToken(playerId);
 
         // InventoryCloseEvent normally starts this save first, but explicitly
         // start it here as well so a disconnect cannot release the canonical
@@ -102,19 +103,19 @@ public class BackpackListener implements Listener {
         }
 
         if (!pendingSaves.containsKey(playerId)) {
-            finishBackpackSession(playerId, null);
+            finishBackpackSession(playerId, requestToken);
         }
     }
 
-    private void beginBackpackSave(
-            @Nonnull UUID playerId, @Nonnull PlayerBackpack backpack, @Nonnull String context) {
+    private void beginBackpackSave(@Nonnull UUID playerId, @Nonnull PlayerBackpack backpack, @Nonnull String context) {
         /*
          * PlayerBackpack is public API, so addons can open one without going
          * through this listener's reservation path. Persist those inventories,
          * but never let their save lifecycle mutate a different tracked session
          * that the same player may start while the detached save is still running.
          */
-        if (!backpack.getUniqueId().equals(backpacks.get(playerId))) {
+        UUID requestToken = openRegistry.getRequestToken(playerId);
+        if (requestToken == null || !backpack.getUniqueId().equals(backpacks.get(playerId))) {
             saveDetachedBackpack(backpack, context);
             return;
         }
@@ -127,13 +128,14 @@ public class BackpackListener implements Listener {
             }
 
             try {
-                save = Slimefun.getDatabaseManager()
-                        .getProfileDataController()
-                        .saveBackpackInventoryAsync(backpack);
+                save = Slimefun.getDatabaseManager().getProfileDataController().saveBackpackInventoryAsync(backpack);
             } catch (RuntimeException | LinkageError failure) {
                 Slimefun.logger()
-                        .log(Level.SEVERE, "An Exception occurred while starting a backpack save on " + context, failure);
-                finishBackpackSession(playerId, backpack.getUniqueId());
+                        .log(
+                                Level.SEVERE,
+                                "An Exception occurred while starting a backpack save on " + context,
+                                failure);
+                finishBackpackSession(playerId, requestToken);
                 return;
             }
 
@@ -154,7 +156,7 @@ public class BackpackListener implements Listener {
             }
 
             pendingSaves.remove(playerId, save);
-            finishBackpackSession(playerId, backpack.getUniqueId());
+            finishBackpackSession(playerId, requestToken);
         });
     }
 
@@ -162,9 +164,7 @@ public class BackpackListener implements Listener {
         final CompletableFuture<Void> save;
 
         try {
-            save = Slimefun.getDatabaseManager()
-                    .getProfileDataController()
-                    .saveBackpackInventoryAsync(backpack);
+            save = Slimefun.getDatabaseManager().getProfileDataController().saveBackpackInventoryAsync(backpack);
         } catch (RuntimeException | LinkageError failure) {
             Slimefun.logger()
                     .log(
@@ -185,14 +185,15 @@ public class BackpackListener implements Listener {
         });
     }
 
-    private void finishBackpackSession(@Nonnull UUID playerId, @Nullable UUID backpackId) {
-        if (backpackId == null) {
+    private void finishBackpackSession(@Nonnull UUID playerId, @Nullable UUID requestToken) {
+        synchronized (openRegistry) {
+            if (pendingSaves.containsKey(playerId) || !openRegistry.releaseOwned(playerId, requestToken)) {
+                return;
+            }
+
             backpacks.remove(playerId);
-        } else {
-            backpacks.remove(playerId, backpackId);
+            backpackInstances.remove(playerId);
         }
-        backpackInstances.remove(playerId);
-        openRegistry.release(playerId);
     }
 
     @EventHandler
@@ -386,7 +387,9 @@ public class BackpackListener implements Listener {
     }
 
     private boolean isBackpackItem(@Nullable ItemStack item) {
-        return item != null && item.getType() != Material.AIR && SlimefunItem.getByItem(item) instanceof SlimefunBackpack;
+        return item != null
+                && item.getType() != Material.AIR
+                && SlimefunItem.getByItem(item) instanceof SlimefunBackpack;
     }
 
     private boolean isStillHeld(@Nonnull Player player, @Nonnull ItemStack item) {
@@ -415,6 +418,7 @@ public class BackpackListener implements Listener {
         boolean hasStoredIdentity = PlayerBackpack.getBackpackUUID(meta).isPresent()
                 || PlayerBackpack.getBackpackID(meta).isPresent();
         String reservationKey = hasStoredIdentity ? getReservationKey(meta) : "new:" + playerId;
+        UUID requestToken = UUID.randomUUID();
 
         /*
          * Reserve before PlayerProfile.get(...), not inside its callback. A slow
@@ -422,19 +426,22 @@ public class BackpackListener implements Listener {
          * could drop or transfer the backpack while the open request was still
          * waiting and then receive a stale/second view when loading completed.
          */
-        if (backpacks.containsKey(playerId) || !openRegistry.reserve(playerId, reservationKey)) {
+        if (backpacks.containsKey(playerId) || !openRegistry.reserve(playerId, reservationKey, requestToken)) {
             Slimefun.getLocalization().sendMessage(p, "backpack.already-open", true);
             return;
         }
 
         try {
             boolean profileReady = PlayerProfile.get(
-                    p, profile -> openBackpackInternal(p, item, backpack, reservationKey, hasStoredIdentity));
+                    p,
+                    profile -> ThreadUtils.getEntityThreadExecutor(p)
+                            .execute(() -> openBackpackInternal(
+                                    p, item, backpack, reservationKey, hasStoredIdentity, requestToken)));
             if (!profileReady) {
                 Slimefun.getLocalization().sendMessage(p, "messages.opening-backpack");
             }
         } catch (RuntimeException | Error ex) {
-            openRegistry.release(playerId, reservationKey);
+            finishBackpackSession(playerId, requestToken);
             throw ex;
         }
     }
@@ -445,12 +452,13 @@ public class BackpackListener implements Listener {
             ItemStack item,
             SlimefunBackpack backpackItem,
             String reservationKey,
-            boolean hadStoredIdentity) {
+            boolean hadStoredIdentity,
+            UUID requestToken) {
         UUID playerId = p.getUniqueId();
         boolean keepSession = false;
 
         try {
-            if (!p.isOnline()) {
+            if (!openRegistry.ownsRequest(playerId, requestToken) || !p.isOnline()) {
                 return;
             }
             if (item.getAmount() != 1) {
@@ -480,7 +488,7 @@ public class BackpackListener implements Listener {
                 // A fresh backpack only needed the pending reservation while its
                 // profile was loading. Naming/binding already has its own exact-item
                 // validation and does not open a storage inventory yet.
-                openRegistry.release(playerId, reservationKey);
+                finishBackpackSession(playerId, requestToken);
                 Slimefun.getLocalization().sendMessage(p, "backpack.set-name", true);
                 UUID puuid = p.getUniqueId();
                 ItemStack itemCopy = item.clone();
@@ -525,7 +533,7 @@ public class BackpackListener implements Listener {
                             (bp, ex) -> {
                                 boolean keepResolvedSession = false;
                                 try {
-                                    if (!p.isOnline()) {
+                                    if (!openRegistry.ownsRequest(playerId, requestToken) || !p.isOnline()) {
                                         return;
                                     }
                                     if (!isStillHeld(p, item)) {
@@ -559,7 +567,7 @@ public class BackpackListener implements Listener {
                                     }
 
                                     String canonicalKey = "uuid:" + bp.getUniqueId();
-                                    if (!openRegistry.activate(playerId, reservationKey, canonicalKey)) {
+                                    if (!openRegistry.activate(playerId, reservationKey, canonicalKey, requestToken)) {
                                         Slimefun.getLocalization().sendMessage(p, "backpack.already-open", true);
                                         return;
                                     }
@@ -582,7 +590,8 @@ public class BackpackListener implements Listener {
                                     if (p.getOpenInventory().getTopInventory().getHolder(false) != bp) {
                                         Slimefun.logger()
                                                 .warning(() -> "Backpack " + bp.getUniqueId()
-                                                        + " did not become the active inventory for player " + playerId);
+                                                        + " did not become the active inventory for player "
+                                                        + playerId);
                                         return;
                                     }
 
@@ -591,9 +600,7 @@ public class BackpackListener implements Listener {
                                     keepResolvedSession = true;
                                 } finally {
                                     if (!keepResolvedSession) {
-                                        backpacks.remove(playerId);
-                                        backpackInstances.remove(playerId);
-                                        openRegistry.release(playerId);
+                                        finishBackpackSession(playerId, requestToken);
                                     }
                                 }
                             },
@@ -604,7 +611,7 @@ public class BackpackListener implements Listener {
             keepSession = true;
         } finally {
             if (!keepSession) {
-                openRegistry.release(playerId, reservationKey);
+                finishBackpackSession(playerId, requestToken);
             }
         }
     }
@@ -631,6 +638,7 @@ public class BackpackListener implements Listener {
     private String getReservationKey(@Nonnull org.bukkit.inventory.meta.ItemMeta meta) {
         return PlayerBackpack.getBackpackUUID(meta)
                 .map(uuid -> "uuid:" + uuid)
-                .orElseGet(() -> "legacy:" + PlayerBackpack.getLegacyBackpackIdentity(meta).orElse("unknown:-1"));
+                .orElseGet(() -> "legacy:"
+                        + PlayerBackpack.getLegacyBackpackIdentity(meta).orElse("unknown:-1"));
     }
 }

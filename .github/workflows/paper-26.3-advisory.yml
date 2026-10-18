@@ -64,7 +64,7 @@ jobs:
           echo 'available=true' >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           {
-            echo '## Paper 26.3 advisory'
+            echo '## Paper 26.3 primary API'
             echo
             echo "Detected official Paper API: \`$VERSION\`"
             echo 'Paper 26.3 is the primary compile/support target. The distributable remains Java 21 bytecode for 1.21.11+ compatibility.'

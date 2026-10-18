@@ -13,7 +13,7 @@ Declarations can be supplied in three ways, in priority order:
 ```json
 {
   "schema": 1,
-  "tested_core_variants": ["legacy", "gugu", "united"],
+  "tested_core_variants": ["legacy", "gugu"],
   "minimum_minecraft": "1.21.11",
   "minimum_java": 21,
   "required_capabilities": ["PAPER_API", "ASYNC_CHUNK_LOADING"],
@@ -25,6 +25,8 @@ Declarations can be supplied in three ways, in priority order:
 ```
 
 The JSON schema is available at `docs/addon-compatibility-manifest.schema.json`.
+
+GuGu is the sole active upstream maintenance target. Historical identifiers, including `united`, remain accepted in existing declarations for compatibility; accepting an identifier does not schedule upstream checks or promise ongoing support for that fork. Declare only the exact core variants actually tested by the addon.
 
 Missing required capabilities or plugins produce an **Incompatible** diagnostic. An untested core produces a **Warning**. Missing optional plugins and declaration notes are informational and do not downgrade an otherwise compatible addon.
 
@@ -64,7 +66,7 @@ Use `Slimefun.getOptionalDependencyService()` for centralized plugin discovery, 
 
 The comparison harness now performs both:
 
-- a clean source build against the known-good 4.1.15 baseline and the candidate core; and
+- a clean source build against the exact published previous-stable baseline from `compatibility/release-baselines.json` and the candidate core; and
 - binary-linkage analysis of the baseline-compiled addon against the candidate JAR.
 
 The linkage pass detects missing referenced Slimefun classes, methods, and fields, including inherited members across the compatibility-protected namespaces.

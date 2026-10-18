@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 /**
  * Atomically reserves backpack access by player and backing backpack identity.
@@ -20,16 +21,42 @@ public final class BackpackOpenRegistry {
     private final Set<String> backpackKeys = new HashSet<>();
     private final Set<UUID> pendingPlayers = new HashSet<>();
     private final Map<UUID, String> reservations = new HashMap<>();
+    private final Map<UUID, UUID> requestTokens = new HashMap<>();
 
     public synchronized boolean reserve(@Nonnull UUID playerId, @Nonnull String backpackKey) {
+        return reserve(playerId, backpackKey, UUID.randomUUID());
+    }
+
+    /** Reserves a backpack for one in-memory request, independently of its reusable player and backpack identities. */
+    public synchronized boolean reserve(
+            @Nonnull UUID playerId, @Nonnull String backpackKey, @Nonnull UUID requestToken) {
         if (reservations.containsKey(playerId) || backpackKeys.contains(backpackKey)) {
             return false;
         }
 
         reservations.put(playerId, backpackKey);
+        requestTokens.put(playerId, requestToken);
         backpackKeys.add(backpackKey);
         pendingPlayers.add(playerId);
         return true;
+    }
+
+    /** Returns the current in-memory request token, or null when the player has no reservation. */
+    public synchronized @Nullable UUID getRequestToken(@Nonnull UUID playerId) {
+        return requestTokens.get(playerId);
+    }
+
+    public synchronized boolean ownsRequest(@Nonnull UUID playerId, @Nullable UUID requestToken) {
+        return requestToken != null && requestToken.equals(requestTokens.get(playerId));
+    }
+
+    /** Promotes only the request that acquired the reservation, including when a later request reuses its key. */
+    public synchronized boolean activate(
+            @Nonnull UUID playerId,
+            @Nonnull String expectedKey,
+            @Nonnull String canonicalKey,
+            @Nonnull UUID requestToken) {
+        return ownsRequest(playerId, requestToken) && activate(playerId, expectedKey, canonicalKey);
     }
 
     /**
@@ -63,6 +90,7 @@ public final class BackpackOpenRegistry {
         if (reservations.remove(playerId, backpackKey)) {
             backpackKeys.remove(backpackKey);
             pendingPlayers.remove(playerId);
+            requestTokens.remove(playerId);
         }
     }
 
@@ -72,6 +100,17 @@ public final class BackpackOpenRegistry {
             backpackKeys.remove(backpackKey);
         }
         pendingPlayers.remove(playerId);
+        requestTokens.remove(playerId);
+    }
+
+    /** Releases exactly one request; a stale callback cannot release a later session for the same player. */
+    public synchronized boolean releaseOwned(@Nonnull UUID playerId, @Nullable UUID requestToken) {
+        if (!ownsRequest(playerId, requestToken)) {
+            return false;
+        }
+
+        release(playerId);
+        return true;
     }
 
     /** Returns whether the player is still waiting for a backpack load to finish. */

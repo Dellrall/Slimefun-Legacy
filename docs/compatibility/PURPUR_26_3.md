@@ -1,6 +1,6 @@
 # Purpur 26.3 experimental compatibility milestone
 
-**Status: core runtime CI passed; canonical addon-bundle CI in progress. Not production certified.**
+**Status: core and canonical 45-addon two-boot runtime milestones passed. New candidate changes still require their own exact-source validation. Not production certified.**
 
 Purpur publishes Minecraft 26.3 as **experimental**. Slimefun Legacy continues to support Minecraft **1.21.11 and newer**, retaining existing Paper/Purpur 1.21.11 and Paper/Purpur/Folia/Leaf 26.2 checks. This milestone adds a **Purpur-only 26.3** validation lane, without assuming Folia or Leaf 26.3 support.
 
@@ -15,14 +15,14 @@ Purpur publishes Minecraft 26.3 as **experimental**. Slimefun Legacy continues t
 
 The [Purpur 26.3 Experimental Runtime Milestone](../../.github/workflows/purpur-26.3-runtime-smoke.yml) workflow must:
 
-1. Verify the supported version matrix; reject Folia/Leaf 26.3 until real builds and dedicated tests exist.
+1. Verify the supported version matrix. Folia 26.3 uses its own dedicated runtime lane; do not infer Folia or Leaf support from this Purpur result.
 2. Run Slimefun Legacy compatibility invariants and build a production JAR against the real Paper 26.3 API.
 3. Verify its produced JAR targets Java 21 bytecode and passes the release artifact integrity checker.
 4. Download the **pinned official Purpur 26.3 build 2646**, boot a disposable test server twice, and observe Slimefun enabling.
 5. Run `/sf doctor upgrade` during both boots, reject a `BLOCKED` readiness result, verify a clean prior shutdown on the second boot, and reject abnormal enable or shutdown failures.
 6. Publish runtime build metadata, console logs and smoke results as GitHub Actions artifacts.
 
-Green checks indicate an initial **core-only** Purpur 26.3 runtime compatibility milestone, not validation of every Slimefun addon or the complete AlbionMC plugin stack. Canonical addon-bundle runtime verification on Purpur 26.3 is a separate follow-on milestone.
+Green checks indicate an initial **core-only** Purpur 26.3 runtime compatibility milestone, not validation of every Slimefun addon or the complete AlbionMC plugin stack. Canonical addon-bundle runtime verification on Purpur 26.3 has its own completed two-boot milestone and remains a separate required gate for later candidates.
 
 ## Full-stack canonical addon-bundle milestone
 

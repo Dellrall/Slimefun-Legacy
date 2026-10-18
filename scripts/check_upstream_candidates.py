@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate and optionally query the registered Slimefun upstream candidates."""
+"""Validate and optionally query GuGu, the sole maintained Slimefun upstream."""
 
 from __future__ import annotations
 
@@ -52,6 +52,11 @@ def load_manifest(path: Path) -> dict[str, Any]:
             or any(character not in "0123456789abcdef" for character in reviewed_commit.lower())
         ):
             raise ValueError(f"Invalid reviewed_commit for {source_id}")
+
+    if manifest.get("policy", {}).get("active_upstream_ids") != ["slimefun-gugu"]:
+        raise ValueError("The active upstream policy must select GuGu only")
+    if seen != {"slimefun-gugu"} or sources[0]["repository"] != "SlimefunGuguProject/Slimefun4":
+        raise ValueError("Only GuGu may be polled; other forks are historical compatibility references")
 
     return manifest
 
@@ -129,6 +134,7 @@ def write_markdown(path: Path, results: list[SourceResult]) -> None:
         "# Slimefun Legacy upstream candidate report",
         "",
         "This report is advisory. It never merges, downloads, or replaces source files.",
+        "GuGu is the sole active upstream. Historical compatibility references are not queried.",
         "",
         "| Source | Repository / branch | Status | Reviewed | Current |",
         "| --- | --- | --- | --- | --- |",

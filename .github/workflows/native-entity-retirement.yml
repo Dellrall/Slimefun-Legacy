@@ -1,0 +1,135 @@
+name: Native Entity Retirement Regression
+
+on:
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'build.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'scripts/runtime/entity_retirement/**'
+      - 'scripts/test_entity_retirement_probe.py'
+      - '.github/workflows/native-entity-retirement.yml'
+  push:
+    branches: [master]
+    paths:
+      - 'src/**'
+      - 'build.gradle.kts'
+      - 'gradle.properties'
+      - 'gradle/**'
+      - 'scripts/runtime/entity_retirement/**'
+      - 'scripts/test_entity_retirement_probe.py'
+      - '.github/workflows/native-entity-retirement.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-entity-retirement-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build exact-source retirement candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+      - name: Verify native receipt and artifact rejection controls
+        run: python3 -m unittest scripts/test_entity_retirement_probe.py -v
+      - name: Build and identify the universal core
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SOURCE_COMMIT="$(git rev-parse HEAD)"
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          ./gradlew clean shadowJar --no-daemon --no-build-cache --no-configuration-cache
+          JAR="$(find build/libs -maxdepth 1 -type f -name 'Slimefun-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)"
+          test -s "$JAR"
+          python3 scripts/check_bytecode_target.py "$JAR" --expected-java 21
+          python3 scripts/verify_release_artifact.py "$JAR" --root .
+          mkdir -p candidate
+          cp "$JAR" candidate/Slimefun-Legacy-retirement.jar
+          python3 - <<'PY'
+          import hashlib, json, os, zipfile
+          from pathlib import Path
+          core = Path('candidate/Slimefun-Legacy-retirement.jar')
+          with zipfile.ZipFile(core) as jar:
+              props = dict(line.split('=', 1) for line in jar.read('git.properties').decode().splitlines()
+                           if '=' in line and not line.startswith('#'))
+          metadata = {'schema': 1, 'source_commit': os.environ['SOURCE_COMMIT'],
+                      'core_version': props['git.build.version'],
+                      'core_sha256': hashlib.sha256(core.read_bytes()).hexdigest()}
+          Path('candidate/metadata.json').write_text(json.dumps(metadata, indent=2) + '\n')
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: entity-retirement-core
+          path: candidate/
+          if-no-files-found: error
+
+  native:
+    name: Native retirement on ${{ matrix.software }} 26.3 build ${{ matrix.build }}
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - software: Folia
+            build: '3'
+            url: https://fill-data.papermc.io/v1/objects/0c4cc7dd82c40bd1effa8a9c4cacfad55d41b7dc38377900957c961c2952c022/folia-26.3-3.jar
+            sha256: 0c4cc7dd82c40bd1effa8a9c4cacfad55d41b7dc38377900957c961c2952c022
+          - software: Purpur
+            build: '2646'
+            url: https://api.purpurmc.org/v2/purpur/26.3/2646/download
+            sha256: e2ce89ba0b73103fad27ff6df86a8a01d32aea538821bddbdaa9a34048677d40
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: actions/download-artifact@v8
+        with:
+          name: entity-retirement-core
+          path: candidate
+      - name: Download the exact native server
+        env:
+          NATIVE_SERVER_URL: ${{ matrix.url }}
+          NATIVE_SERVER_SHA256: ${{ matrix.sha256 }}
+        run: |
+          set -euo pipefail
+          source scripts/runtime_download.sh
+          runtime_download "$NATIVE_SERVER_URL" candidate/server.jar
+          printf '%s  candidate/server.jar\n' "$NATIVE_SERVER_SHA256" | sha256sum --check --strict
+      - name: Verify rejected, live, retired and cancelled entity work
+        env:
+          NATIVE_SERVER_SHA256: ${{ matrix.sha256 }}
+          NATIVE_SOFTWARE: ${{ matrix.software }}
+          NATIVE_BUILD: ${{ matrix.build }}
+        run: |
+          python3 scripts/runtime/entity_retirement/run_probe.py \
+            --core candidate/Slimefun-Legacy-retirement.jar \
+            --core-metadata candidate/metadata.json \
+            --expected-source "$GITHUB_SHA" \
+            --server-jar candidate/server.jar --server-sha256 "$NATIVE_SERVER_SHA256" \
+            --software "$NATIVE_SOFTWARE" --minecraft 26.3 --build "$NATIVE_BUILD" \
+            --work-dir "$RUNNER_TEMP/entity-retirement" --allow-disposable-writes
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: entity-retirement-${{ matrix.software }}-26.3
+          path: |
+            ${{ runner.temp }}/entity-retirement/verification.json
+            ${{ runner.temp }}/entity-retirement/*.log
+            ${{ runner.temp }}/entity-retirement/logs/latest.log
+            ${{ runner.temp }}/entity-retirement/plugins/RetirementProbe/*.json
+          if-no-files-found: warn

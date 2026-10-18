@@ -193,7 +193,9 @@ public final class PaperScheduler implements SlimefunScheduler {
             return handle;
         }
 
-        handle.attach(entity.getScheduler().run(plugin, ignored -> handle.execute(task), () -> handle.retire(retired)));
+        handle.attach(
+                entity.getScheduler().run(plugin, ignored -> handle.execute(task), () -> handle.retire(retired)),
+                retired);
         return handle;
     }
 
@@ -223,8 +225,10 @@ public final class PaperScheduler implements SlimefunScheduler {
             return handle;
         }
 
-        handle.attach(entity.getScheduler()
-                .runDelayed(plugin, ignored -> handle.execute(task), () -> handle.retire(retired), delayTicks));
+        handle.attach(
+                entity.getScheduler()
+                        .runDelayed(plugin, ignored -> handle.execute(task), () -> handle.retire(retired), delayTicks),
+                retired);
         return handle;
     }
 
@@ -403,8 +407,13 @@ public final class PaperScheduler implements SlimefunScheduler {
         }
 
         private void attach(ScheduledTask scheduledTask) {
+            attach(scheduledTask, null);
+        }
+
+        private void attach(ScheduledTask scheduledTask, Runnable retired) {
             if (scheduledTask == null) {
-                retire();
+                // An already-retired entity rejects scheduling without invoking either native callback.
+                retire(retired);
                 return;
             }
 

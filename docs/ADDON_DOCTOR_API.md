@@ -78,7 +78,7 @@ Prepared provider plans expire after 10 minutes. Missing targets, unsafe or conf
 
 ## Cross-core compatibility
 
-These APIs are optional and unique to Slimefun Legacy. Addons that also target Original Slimefun, Slimefun United or Slimefun Gugu should isolate registration behind a class-presence check or a reflective bridge. The addon must not directly link Legacy-only diagnostics APIs from classes that load on every supported core.
+These APIs are optional and unique to Slimefun Legacy. Addons that also target GuGu should isolate registration behind a class-presence check or a reflective bridge. The addon must not directly link Legacy-only diagnostics APIs from classes that load on every supported core. Historical declarations for other forks remain readable, but GuGu is the sole active upstream maintenance target.
 
 ## Historical item recovery catalog (read-only)
 

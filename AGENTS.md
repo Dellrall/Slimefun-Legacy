@@ -32,6 +32,10 @@ Never commit server data, credentials, or publishing secrets. Maven publishing r
 
 ## Compatibility-First Modernization
 
+GuGu (`SlimefunGuguProject/Slimefun4`) is the sole active upstream for future Slimefun maintenance. Do not restore United, Slimefun5, Slimefun4Core or Original Slimefun as ongoing polling, source-probe or feature-intake targets. Retain historical API/data readers, addon declaration identifiers, source attribution and dated evidence. See [ADR 0003](docs/adr/0003-gugu-only-upstream-maintenance.md).
+
+The unreleased 4.1.76 candidate and its addon bundle are on publication hold. Continue reviewed fixes and validation; do not publish until the maintainer explicitly authorizes it after the Networks Expansion repair work is ready. The separate Networks repair workstream owns direct Networks and related InfinityExpansion2 changes.
+
 Minecraft 1.21.11 is the minimum supported version. Prioritize Paper and Purpur; retain Leaf and Folia support with explicit scheduler/region-safety validation. Do not confuse the minimum server version with the age of world data that must remain readable.
 
 Preserve item/research IDs, persistent keys, machine/backpack identities, inventories, saved-world formats and addon-facing descriptors. Audit `BlockStorage`, legacy `Config`, menus, ticker/energy bridges and serialization before changing them. Deprecated compatibility bridges may remain when their removal would break data or addons; blanket warning suppression is not a modernization strategy.

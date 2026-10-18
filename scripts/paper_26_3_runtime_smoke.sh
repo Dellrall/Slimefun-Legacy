@@ -12,7 +12,7 @@ STARTUP_TIMEOUT_SECONDS="${SERVER_SMOKE_STARTUP_TIMEOUT:-300}"
 SHUTDOWN_TIMEOUT_SECONDS="${SERVER_SMOKE_SHUTDOWN_TIMEOUT:-60}"
 
 if [[ ! "$MC_VERSION" =~ ^26\.3($|-) ]]; then
-    echo "This pre-release runtime harness is intentionally scoped to the Minecraft 26.3 version family; got ${MC_VERSION}." >&2
+    echo "This Paper 26.3 runtime harness is intentionally scoped to the Minecraft 26.3 version family; got ${MC_VERSION}." >&2
     exit 1
 fi
 
@@ -59,7 +59,7 @@ simulation-distance=2
 pause-when-empty-seconds=-1
 enable-query=false
 enable-rcon=false
-motd=Slimefun Legacy Paper 26.3 pre-release smoke
+motd=Slimefun Legacy Paper 26.3 smoke
 PROPERTIES
 
 printf 'Software: Paper\nMinecraft: %s\nBuild: %s\nChannel: %s\nDownload: %s\nJava: %s\n' \
@@ -175,7 +175,7 @@ run_cycle "first" false
 run_cycle "second" true
 
 cat > "$WORK_DIR/smoke-result.txt" <<EOF
-Slimefun Legacy Paper 26.3 pre-release runtime smoke: PASS
+Slimefun Legacy Paper 26.3 runtime smoke: PASS
 Slimefun Legacy: ${EXPECTED_PLUGIN_VERSION}
 Minecraft: ${MC_VERSION}
 Paper build: ${SERVER_BUILD}

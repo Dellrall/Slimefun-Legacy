@@ -9,7 +9,8 @@ import javax.annotation.Nonnull;
  * Stable addon-facing entry point for Legacy's compatibility services.
  *
  * <p>The facade describes API families Legacy intentionally preserves; it does not claim that an arbitrary exact
- * addon JAR has been verified on every listed fork.
+ * addon JAR has been verified on every listed fork. Historical identifiers are retained for existing addons;
+ * GuGu is the sole active upstream maintenance target.
  */
 @SlimefunAPI
 public interface AddonApiCompatibilityFacade {

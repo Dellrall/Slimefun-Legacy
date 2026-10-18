@@ -166,15 +166,9 @@ def main() -> int:
         source_ids = {entry["id"] for entry in upstream["sources"]}
         require(upstream.get("schema_version") == 1, "Unexpected upstream source schema", failures)
         require(
-            source_ids
-            == {
-                "slimefun-original",
-                "slimefun-gugu",
-                "slimefun5",
-                "slimefun-united",
-                "slimefun4core",
-            },
-            "Upstream source registry is incomplete",
+            source_ids == {"slimefun-gugu"}
+            and upstream["policy"].get("active_upstream_ids") == ["slimefun-gugu"],
+            "GuGu must be the sole active upstream source",
             failures,
         )
         require(
@@ -206,6 +200,17 @@ def main() -> int:
             "Feature manifest must not enable code by itself",
             failures,
         )
+        require(
+            backlog["rules"].get("active_upstream_sources") == ["slimefun-gugu"],
+            "Future upstream intake must be limited to GuGu",
+            failures,
+        )
+        for feature_id in ("module-dependency-graph", "unified-localization-keys", "staff-multitool-modes"):
+            require(
+                features.get(feature_id, {}).get("status") == "retired-upstream-scope",
+                f"Former non-GuGu candidate must remain outside the active roadmap: {feature_id}",
+                failures,
+            )
     except (FileNotFoundError, KeyError, TypeError, json.JSONDecodeError) as error:
         failures.append(f"Unable to validate Phase 1A manifests: {error}")
 
