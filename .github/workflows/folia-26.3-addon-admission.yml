@@ -185,7 +185,7 @@ jobs:
         uses: actions/download-artifact@v6
         with:
           name: folia-26.3-declared-addons
-          path: build/folia-runtime
+          path: .ci/folia-runtime
 
       - name: Verify downloaded runtime selection
         shell: bash
@@ -197,7 +197,7 @@ jobs:
           import os
           from pathlib import Path
 
-          root = Path('build/folia-runtime')
+          root = Path('.ci/folia-runtime')
           selection = json.loads((root / 'selection.json').read_text(encoding='utf-8'))
           if selection.get('core_source_commit') != os.environ['GITHUB_SHA']:
               raise SystemExit('Runtime addon selection belongs to a different core checkout')
@@ -245,8 +245,8 @@ jobs:
 
       - name: Boot declared-Folia addons twice
         env:
-          SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR: ${{ github.workspace }}/build/folia-runtime/addons
-          SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE: ${{ github.workspace }}/build/folia-runtime/expected-addons.txt
+          SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR: ${{ github.workspace }}/.ci/folia-runtime/addons
+          SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE: ${{ github.workspace }}/.ci/folia-runtime/expected-addons.txt
         shell: bash
         run: |
           set -euo pipefail
@@ -262,11 +262,11 @@ jobs:
           echo >> "$GITHUB_STEP_SUMMARY"
           echo "Boots only addons that explicitly declare folia-supported: true." >> "$GITHUB_STEP_SUMMARY"
           echo "This verifies load/enable and clean two-boot startup, not gameplay or cross-region correctness." >> "$GITHUB_STEP_SUMMARY"
-          if [[ -f build/folia-runtime/selection.json ]]; then
+          if [[ -f .ci/folia-runtime/selection.json ]]; then
             python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
           import json
           from pathlib import Path
-          report=json.loads(Path('build/folia-runtime/selection.json').read_text())
+          report=json.loads(Path('.ci/folia-runtime/selection.json').read_text())
           print()
           print('Exact selected addons:', report['addon_count'])
           for row in report['addons']:
@@ -284,8 +284,8 @@ jobs:
         with:
           name: folia-26.3-addon-runtime-evidence
           path: |
-            build/folia-runtime/selection.json
-            build/folia-runtime/expected-addons.txt
+            .ci/folia-runtime/selection.json
+            .ci/folia-runtime/expected-addons.txt
             build/folia-26.3-addon-runtime/*.console.log
             build/folia-26.3-addon-runtime/runtime-build.txt
             build/folia-26.3-addon-runtime/smoke-result.txt
