@@ -6,6 +6,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 import subprocess
+import tempfile
 import unittest
 
 
@@ -66,6 +67,45 @@ class TestPurpur263RuntimeContract(unittest.TestCase):
         self.assertIn("any(.builds.all[]?; tostring == $build)", source)
         self.assertIn("SERVER_BUILD=\"$PURPUR_SMOKE_BUILD\"", source)
         self.assertIn("${MC_VERSION} runtime smoke: PASS", source)
+
+    def test_extra_addon_runtime_inputs_fail_closed_before_download(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            fake_core = root / "core.jar"
+            fake_core.write_bytes(b"not-a-real-jar-but-nonempty")
+            expected = root / "expected-addons.txt"
+            expected.write_text("Example.jar\tExampleAddon\n", encoding="utf-8")
+
+            env = os.environ.copy()
+            env["SERVER_SOFTWARE"] = "folia"
+            env["SERVER_MINECRAFT_VERSION"] = "26.3"
+            env["SLIMEFUN_SMOKE_VERSION"] = next(
+                row.split("=", 1)[1]
+                for row in (ROOT / "gradle.properties").read_text(encoding="utf-8").splitlines()
+                if row.startswith("projectVersion=")
+            )
+            env["SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR"] = str(root / "missing-addons")
+            env["SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE"] = str(expected)
+
+            result = subprocess.run(
+                ["bash", str(SCRIPT), str(fake_core), str(root / "work")],
+                env=env,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=10,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("Extra plugin directory does not exist", result.stderr)
+            self.assertFalse((root / "work" / "server.jar").exists())
+
+    def test_extra_addon_runtime_requires_enable_lines_on_each_boot(self) -> None:
+        source = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR", source)
+        self.assertIn("SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE", source)
+        self.assertIn('grep -Fq "Enabling ${plugin} v"', source)
+        self.assertIn("Declared Folia addons enabled per boot", source)
 
 
 if __name__ == "__main__":
