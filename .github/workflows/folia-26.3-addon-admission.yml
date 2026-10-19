@@ -57,6 +57,7 @@ jobs:
 
       - name: Test audit parser offline
         run: |
+          bash -n scripts/paper_family_26_2_runtime_smoke.sh
           PYTHONPATH=scripts python3 -m unittest \
             scripts/test_audit_folia_addon_admission.py \
             scripts/test_prepare_folia_addon_runtime.py \
