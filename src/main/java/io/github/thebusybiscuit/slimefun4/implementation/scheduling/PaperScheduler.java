@@ -11,6 +11,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.logging.Level;
 import javax.annotation.Nonnull;
 import org.apache.commons.lang.Validate;
@@ -48,17 +49,13 @@ public final class PaperScheduler implements SlimefunScheduler {
     public @Nonnull TaskHandle run(@Nonnull Runnable task) {
         Validate.notNull(task, "Task cannot be null");
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        if (usesRegionOwnedExecution()) {
-            handle.attach(Bukkit.getGlobalRegionScheduler().run(plugin, ignored -> handle.execute(task)));
-        } else {
-            handle.attach(Bukkit.getScheduler().runTask(plugin, () -> handle.execute(task)));
-        }
-        return handle;
+        return submit(false, handle -> {
+            if (usesRegionOwnedExecution()) {
+                handle.attach(Bukkit.getGlobalRegionScheduler().run(plugin, ignored -> handle.execute(task)));
+            } else {
+                handle.attach(Bukkit.getScheduler().runTask(plugin, () -> handle.execute(task)));
+            }
+        });
     }
 
     @Override
@@ -70,18 +67,14 @@ public final class PaperScheduler implements SlimefunScheduler {
             return run(task);
         }
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        if (usesRegionOwnedExecution()) {
-            handle.attach(
-                    Bukkit.getGlobalRegionScheduler().runDelayed(plugin, ignored -> handle.execute(task), delayTicks));
-        } else {
-            handle.attach(Bukkit.getScheduler().runTaskLater(plugin, () -> handle.execute(task), delayTicks));
-        }
-        return handle;
+        return submit(false, handle -> {
+            if (usesRegionOwnedExecution()) {
+                handle.attach(Bukkit.getGlobalRegionScheduler()
+                        .runDelayed(plugin, ignored -> handle.execute(task), delayTicks));
+            } else {
+                handle.attach(Bukkit.getScheduler().runTaskLater(plugin, () -> handle.execute(task), delayTicks));
+            }
+        });
     }
 
     @Override
@@ -93,13 +86,9 @@ public final class PaperScheduler implements SlimefunScheduler {
             return run(task);
         }
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        handle.attach(Bukkit.getRegionScheduler().run(plugin, location, ignored -> handle.execute(task)));
-        return handle;
+        return submit(false, handle -> {
+            handle.attach(Bukkit.getRegionScheduler().run(plugin, location, ignored -> handle.execute(task)));
+        });
     }
 
     @Override
@@ -116,14 +105,10 @@ public final class PaperScheduler implements SlimefunScheduler {
             return runAt(location, task);
         }
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        handle.attach(
-                Bukkit.getRegionScheduler().runDelayed(plugin, location, ignored -> handle.execute(task), delayTicks));
-        return handle;
+        return submit(false, handle -> {
+            handle.attach(Bukkit.getRegionScheduler()
+                    .runDelayed(plugin, location, ignored -> handle.execute(task), delayTicks));
+        });
     }
 
     @Override
@@ -131,20 +116,16 @@ public final class PaperScheduler implements SlimefunScheduler {
         Validate.notNull(task, "Task cannot be null");
         validateRepeating(initialDelayTicks, periodTicks);
 
-        TrackedTask handle = track(true);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        if (usesRegionOwnedExecution()) {
-            handle.attach(Bukkit.getGlobalRegionScheduler()
-                    .runAtFixedRate(
-                            plugin, ignored -> handle.execute(task), Math.max(1L, initialDelayTicks), periodTicks));
-        } else {
-            handle.attach(Bukkit.getScheduler()
-                    .runTaskTimer(plugin, () -> handle.execute(task), initialDelayTicks, periodTicks));
-        }
-        return handle;
+        return submit(true, handle -> {
+            if (usesRegionOwnedExecution()) {
+                handle.attach(Bukkit.getGlobalRegionScheduler()
+                        .runAtFixedRate(
+                                plugin, ignored -> handle.execute(task), Math.max(1L, initialDelayTicks), periodTicks));
+            } else {
+                handle.attach(Bukkit.getScheduler()
+                        .runTaskTimer(plugin, () -> handle.execute(task), initialDelayTicks, periodTicks));
+            }
+        });
     }
 
     @Override
@@ -158,19 +139,15 @@ public final class PaperScheduler implements SlimefunScheduler {
             return runAtFixedRate(task, initialDelayTicks, periodTicks);
         }
 
-        TrackedTask handle = track(true);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        handle.attach(Bukkit.getRegionScheduler()
-                .runAtFixedRate(
-                        plugin,
-                        location,
-                        ignored -> handle.execute(task),
-                        Math.max(1L, initialDelayTicks),
-                        periodTicks));
-        return handle;
+        return submit(true, handle -> {
+            handle.attach(Bukkit.getRegionScheduler()
+                    .runAtFixedRate(
+                            plugin,
+                            location,
+                            ignored -> handle.execute(task),
+                            Math.max(1L, initialDelayTicks),
+                            periodTicks));
+        });
     }
 
     @Override
@@ -188,15 +165,11 @@ public final class PaperScheduler implements SlimefunScheduler {
             return run(task);
         }
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        handle.attach(
-                entity.getScheduler().run(plugin, ignored -> handle.execute(task), () -> handle.retire(retired)),
-                retired);
-        return handle;
+        return submit(false, handle -> {
+            handle.attach(
+                    entity.getScheduler().run(plugin, ignored -> handle.execute(task), () -> handle.retire(retired)),
+                    retired);
+        });
     }
 
     @Override
@@ -220,16 +193,13 @@ public final class PaperScheduler implements SlimefunScheduler {
             return runFor(entity, task, retired);
         }
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        handle.attach(
-                entity.getScheduler()
-                        .runDelayed(plugin, ignored -> handle.execute(task), () -> handle.retire(retired), delayTicks),
-                retired);
-        return handle;
+        return submit(false, handle -> {
+            handle.attach(
+                    entity.getScheduler()
+                            .runDelayed(
+                                    plugin, ignored -> handle.execute(task), () -> handle.retire(retired), delayTicks),
+                    retired);
+        });
     }
 
     @Override
@@ -243,36 +213,28 @@ public final class PaperScheduler implements SlimefunScheduler {
             return runAtFixedRate(task, initialDelayTicks, periodTicks);
         }
 
-        TrackedTask handle = track(true);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        handle.attach(entity.getScheduler()
-                .runAtFixedRate(
-                        plugin,
-                        ignored -> handle.execute(task),
-                        handle::retire,
-                        Math.max(1L, initialDelayTicks),
-                        periodTicks));
-        return handle;
+        return submit(true, handle -> {
+            handle.attach(entity.getScheduler()
+                    .runAtFixedRate(
+                            plugin,
+                            ignored -> handle.execute(task),
+                            handle::retire,
+                            Math.max(1L, initialDelayTicks),
+                            periodTicks));
+        });
     }
 
     @Override
     public @Nonnull TaskHandle runAsync(@Nonnull Runnable task) {
         Validate.notNull(task, "Task cannot be null");
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        if (usesRegionOwnedExecution()) {
-            handle.attach(Bukkit.getAsyncScheduler().runNow(plugin, ignored -> handle.execute(task)));
-        } else {
-            handle.attach(Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> handle.execute(task)));
-        }
-        return handle;
+        return submit(false, handle -> {
+            if (usesRegionOwnedExecution()) {
+                handle.attach(Bukkit.getAsyncScheduler().runNow(plugin, ignored -> handle.execute(task)));
+            } else {
+                handle.attach(Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> handle.execute(task)));
+            }
+        });
     }
 
     @Override
@@ -284,23 +246,19 @@ public final class PaperScheduler implements SlimefunScheduler {
             return runAsync(task);
         }
 
-        TrackedTask handle = track(false);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        if (usesRegionOwnedExecution()) {
-            handle.attach(Bukkit.getAsyncScheduler()
-                    .runDelayed(
-                            plugin,
-                            ignored -> handle.execute(task),
-                            SchedulerTime.ticksToMillis(delayTicks),
-                            TimeUnit.MILLISECONDS));
-        } else {
-            handle.attach(
-                    Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> handle.execute(task), delayTicks));
-        }
-        return handle;
+        return submit(false, handle -> {
+            if (usesRegionOwnedExecution()) {
+                handle.attach(Bukkit.getAsyncScheduler()
+                        .runDelayed(
+                                plugin,
+                                ignored -> handle.execute(task),
+                                SchedulerTime.ticksToMillis(delayTicks),
+                                TimeUnit.MILLISECONDS));
+            } else {
+                handle.attach(Bukkit.getScheduler()
+                        .runTaskLaterAsynchronously(plugin, () -> handle.execute(task), delayTicks));
+            }
+        });
     }
 
     @Override
@@ -308,24 +266,21 @@ public final class PaperScheduler implements SlimefunScheduler {
         Validate.notNull(task, "Task cannot be null");
         validateRepeating(initialDelayTicks, periodTicks);
 
-        TrackedTask handle = track(true);
-        if (handle.isCancelled()) {
-            return handle;
-        }
-
-        if (usesRegionOwnedExecution()) {
-            handle.attach(Bukkit.getAsyncScheduler()
-                    .runAtFixedRate(
-                            plugin,
-                            ignored -> handle.execute(task),
-                            Math.max(1L, SchedulerTime.ticksToMillis(initialDelayTicks)),
-                            SchedulerTime.ticksToMillis(periodTicks),
-                            TimeUnit.MILLISECONDS));
-        } else {
-            handle.attach(Bukkit.getScheduler()
-                    .runTaskTimerAsynchronously(plugin, () -> handle.execute(task), initialDelayTicks, periodTicks));
-        }
-        return handle;
+        return submit(true, handle -> {
+            if (usesRegionOwnedExecution()) {
+                handle.attach(Bukkit.getAsyncScheduler()
+                        .runAtFixedRate(
+                                plugin,
+                                ignored -> handle.execute(task),
+                                Math.max(1L, SchedulerTime.ticksToMillis(initialDelayTicks)),
+                                SchedulerTime.ticksToMillis(periodTicks),
+                                TimeUnit.MILLISECONDS));
+            } else {
+                handle.attach(Bukkit.getScheduler()
+                        .runTaskTimerAsynchronously(
+                                plugin, () -> handle.execute(task), initialDelayTicks, periodTicks));
+            }
+        });
     }
 
     @Override
@@ -378,6 +333,23 @@ public final class PaperScheduler implements SlimefunScheduler {
     private void validateRepeating(long initialDelayTicks, long periodTicks) {
         Validate.isTrue(initialDelayTicks >= 0, "Initial delay cannot be negative");
         Validate.isTrue(periodTicks > 0, "Period must be greater than zero");
+    }
+
+    private TaskHandle submit(boolean repeating, Consumer<TrackedTask> submission) {
+        TrackedTask handle = track(repeating);
+        if (handle.isCancelled()) {
+            return handle;
+        }
+
+        try {
+            submission.accept(handle);
+        } catch (RuntimeException | Error failure) {
+            // A native scheduler can reject submission before returning its task handle.
+            // Retire our registration without treating rejection as entity retirement.
+            handle.cancel();
+            throw failure;
+        }
+        return handle;
     }
 
     private TrackedTask track(boolean repeating) {
