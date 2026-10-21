@@ -12,7 +12,10 @@ import subprocess
 import tempfile
 import unittest
 
-import verify_folia_addon_runtime as verification
+if __package__:
+    from . import verify_folia_addon_runtime as verification
+else:
+    import verify_folia_addon_runtime as verification
 
 
 ROOT = Path(__file__).resolve().parents[1]
