@@ -6,6 +6,11 @@ on:
       - 'compatibility/sfl-addon-release-matrix.json'
       - 'scripts/audit_folia_addon_admission.py'
       - 'scripts/test_audit_folia_addon_admission.py'
+      - 'scripts/prepare_folia_addon_runtime.py'
+      - 'scripts/verify_folia_addon_runtime.py'
+      - 'scripts/test_prepare_folia_addon_runtime.py'
+      - 'scripts/paper_family_26_2_runtime_smoke.sh'
+      - 'scripts/test_purpur_26_3_runtime_contract.py'
       - 'scripts/download_candidate_bundle.py'
       - 'scripts/test_download_candidate_bundle.py'
       - '.github/workflows/folia-26.3-addon-admission.yml'
@@ -16,6 +21,11 @@ on:
       - 'compatibility/sfl-addon-release-matrix.json'
       - 'scripts/audit_folia_addon_admission.py'
       - 'scripts/test_audit_folia_addon_admission.py'
+      - 'scripts/prepare_folia_addon_runtime.py'
+      - 'scripts/verify_folia_addon_runtime.py'
+      - 'scripts/test_prepare_folia_addon_runtime.py'
+      - 'scripts/paper_family_26_2_runtime_smoke.sh'
+      - 'scripts/test_purpur_26_3_runtime_contract.py'
       - 'scripts/download_candidate_bundle.py'
       - 'scripts/test_download_candidate_bundle.py'
       - '.github/workflows/folia-26.3-addon-admission.yml'
@@ -49,9 +59,12 @@ jobs:
 
       - name: Test audit parser offline
         run: |
+          bash -n scripts/paper_family_26_2_runtime_smoke.sh
           PYTHONPATH=scripts python3 -m unittest \
             scripts/test_audit_folia_addon_admission.py \
-            scripts/test_download_candidate_bundle.py -v
+            scripts/test_prepare_folia_addon_runtime.py \
+            scripts/test_download_candidate_bundle.py \
+            scripts/test_purpur_26_3_runtime_contract.py -v
 
       - name: Wait for exact-source canonical addon bundle
         env:
@@ -87,6 +100,18 @@ jobs:
             build/bundle/SF_Addons_1.21.11-26.3.zip \
             --expect-addons 45 --expect-source "$GITHUB_SHA" \
             --output build/folia-26.3-addon-admission.json
+
+      - name: Prepare exact declared-Folia runtime subset
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/prepare_folia_addon_runtime.py \
+            build/bundle/SF_Addons_1.21.11-26.3.zip \
+            build/folia-26.3-addon-admission.json \
+            --output-dir build/folia-runtime/addons \
+            --expected-file build/folia-runtime/expected-addons.txt \
+            --selection-output build/folia-runtime/selection.json \
+            --expect-source "$GITHUB_SHA"
 
       - name: Publish admission summary
         shell: bash
@@ -125,3 +150,133 @@ jobs:
             build/folia-26.3-addon-admission.json
             build/bundle/bundle-source.txt
           if-no-files-found: error
+
+
+      - name: Upload exact declared-Folia runtime subset
+        uses: actions/upload-artifact@v7
+        with:
+          name: folia-26.3-declared-addons
+          path: |
+            build/folia-runtime/addons/*.jar
+            build/folia-runtime/expected-addons.txt
+            build/folia-runtime/selection.json
+          if-no-files-found: error
+
+  runtime:
+    name: Boot declared-Folia addons twice on Folia 26.3
+    needs: audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      SERVER_SOFTWARE: folia
+      SERVER_MINECRAFT_VERSION: '26.3'
+      SERVER_DOWNLOAD_USER_AGENT: Slimefun-Legacy-Folia-26.3-Addon-Admission/1.0
+
+    steps:
+      - name: Check out exact source
+        uses: actions/checkout@v6
+
+      - name: Set up Java 25
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: gradle
+
+      - name: Download exact declared-Folia addon subset
+        uses: actions/download-artifact@v6
+        with:
+          name: folia-26.3-declared-addons
+          path: .ci/folia-runtime
+
+      - name: Verify downloaded runtime selection
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 scripts/verify_folia_addon_runtime.py selection \
+            --selection .ci/folia-runtime/selection.json \
+            --expected-file .ci/folia-runtime/expected-addons.txt \
+            --plugin-dir .ci/folia-runtime/addons \
+            --expect-source "$GITHUB_SHA"
+
+      - name: Resolve official Paper 26.3 compile API
+        id: paper
+        shell: bash
+        run: |
+          set -euo pipefail
+          METADATA='https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml'
+          VERSION="$(curl --fail --silent --show-error --location --retry 3 "$METADATA" | python3 scripts/paper_candidate_versions.py --target 26.3)"
+          test -n "$VERSION"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Build exact Slimefun core for Folia addon admission
+        env:
+          PAPER_API_VERSION: ${{ steps.paper.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          chmod +x gradlew scripts/paper_family_26_2_runtime_smoke.sh
+          export SOURCE_COMMIT="$(git rev-parse HEAD)"
+          test "$SOURCE_COMMIT" = "$GITHUB_SHA"
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          ./gradlew clean shadowJar -PpaperApiVersion="$PAPER_API_VERSION" --no-daemon --no-build-cache --no-configuration-cache
+          JAR="$(find build/libs -maxdepth 1 -type f -name 'Slimefun-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)"
+          test -s "$JAR"
+          python3 scripts/check_bytecode_target.py "$JAR" --expected-java 21
+          python3 scripts/verify_release_artifact.py "$JAR" --root .
+          mkdir -p build/folia-addon-core
+          cp "$JAR" build/folia-addon-core/Slimefun-Legacy-candidate.jar
+
+      - name: Boot declared-Folia addons twice
+        env:
+          SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR: ${{ github.workspace }}/.ci/folia-runtime/addons
+          SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE: ${{ github.workspace }}/.ci/folia-runtime/expected-addons.txt
+          SLIMEFUN_SMOKE_SELECTION_FILE: ${{ github.workspace }}/.ci/folia-runtime/selection.json
+          SLIMEFUN_SMOKE_SOURCE_COMMIT: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash scripts/paper_family_26_2_runtime_smoke.sh \
+            build/folia-addon-core/Slimefun-Legacy-candidate.jar \
+            build/folia-26.3-addon-runtime
+
+      - name: Publish runtime admission summary
+        if: always()
+        shell: bash
+        run: |
+          echo "## Folia 26.3 declared-addon startup admission" >> "$GITHUB_STEP_SUMMARY"
+          echo >> "$GITHUB_STEP_SUMMARY"
+          echo "Boots only addons that explicitly declare folia-supported: true." >> "$GITHUB_STEP_SUMMARY"
+          echo "This verifies load/enable and clean two-boot startup, not gameplay or cross-region correctness." >> "$GITHUB_STEP_SUMMARY"
+          if [[ -f .ci/folia-runtime/selection.json ]]; then
+            python3 - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+          import json
+          from pathlib import Path
+          report=json.loads(Path('.ci/folia-runtime/selection.json').read_text())
+          print()
+          print('Exact selected addons:', report['addon_count'])
+          for row in report['addons']:
+              print('-', row['plugin'], '--', row['jar'])
+          PY
+          fi
+          if [[ -f build/folia-26.3-addon-runtime/smoke-result.txt ]]; then
+            echo >> "$GITHUB_STEP_SUMMARY"
+            cat build/folia-26.3-addon-runtime/smoke-result.txt >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload Folia addon runtime evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: folia-26.3-addon-runtime-evidence
+          # The two explicit selection inputs are under .ci; no other hidden
+          # files are included by this allowlisted evidence path list.
+          include-hidden-files: true
+          path: |
+            .ci/folia-runtime/selection.json
+            .ci/folia-runtime/expected-addons.txt
+            build/folia-26.3-addon-runtime/*.console.log
+            build/folia-26.3-addon-runtime/runtime-build.txt
+            build/folia-26.3-addon-runtime/installed-plugins.json
+            build/folia-26.3-addon-runtime/smoke-result.txt
+          if-no-files-found: warn

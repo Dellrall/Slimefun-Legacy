@@ -68,7 +68,7 @@ class NativeStorageProbeContracts(unittest.TestCase):
             ("SF_Networks1.0.59.jar", "560d590095206a8159d82c70e7cabe6d16aaa0d8")
             if revision in (141, 142) else
             ("SF_Networks1.0.60.jar", "d41d362c8b71073dca41abc24f6ef6a5a8688fff")
-            if revision in (143, 144) else
+            if revision in (143, 144, 145) else
             ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950")
         )
         rows = []
@@ -127,14 +127,14 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.assertEqual(networks["commit"], "4ebecea309e89cc60fc4f6d932505312b5468ed1")
 
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
-        self.manifest["bundle_revision"] = 145
-        self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143 or r144")
+        self.manifest["bundle_revision"] = 146
+        self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144 or r145")
 
     def test_non_integer_revisions_are_rejected(self):
-        for value in (141.0, "141", 142.0, "142", 143.0, "143", 144.0, "144", True, None):
+        for value in (141.0, "141", 142.0, "142", 143.0, "143", 144.0, "144", 145.0, "145", True, None):
             with self.subTest(value=value):
                 self.manifest["bundle_revision"] = value
-                self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143 or r144")
+                self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144 or r145")
 
     def test_r141_requires_networks_1_0_59_and_its_exact_source(self):
         self.populate(141)
@@ -183,6 +183,9 @@ class NativeStorageProbeContracts(unittest.TestCase):
 
     def test_r144_requires_unchanged_networks_1_0_60_and_exact_release_source(self):
         self.assert_final_networks_source_for_revision(144)
+
+    def test_r145_requires_unchanged_networks_1_0_60_and_exact_release_source(self):
+        self.assert_final_networks_source_for_revision(145)
 
     def test_wrong_fluffy_pin_is_rejected(self):
         self.manifest["addons"][0]["commit"] = "0" * 40

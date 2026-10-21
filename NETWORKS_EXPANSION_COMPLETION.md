@@ -1,12 +1,30 @@
 # Networks Expansion — core release integration checkpoint
 
-Updated: 2026-10-21. This file tracks the coordinated **Slimefun Legacy 4.1.76 / r143** integration. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult this file and current Git state before resuming; do not repeat accepted production repairs.
+Updated: 2026-10-21. This file tracks the coordinated **Slimefun Legacy 4.1.76 / r145** candidate integration. The original r143 evidence is preserved below under historical headings. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult the current handoff and Git state before resuming; do not repeat accepted production repairs.
 
 ## Publication boundary
 
 Core **4.1.76 remains unreleased and held for explicit maintainer approval** after the concrete candidate is verified. Continue integration, testing, review and merge without restarting the addon repairs. Do not publish a core tag/release or replace existing v4.1.75 assets during validation. `reproducible-release.yml` now defaults manual dispatch to `publish=false` and requires explicit `publish=true` plus successful runtime evidence for either publishing or normalizing assets.
 
-## Accepted starting points
+## Current handoff — r145 candidate
+
+- PR [#414](https://github.com/wickidcow/Slimefun-Legacy/pull/414) merged as `e7ba40469eae1aa54b4347af19e58341f492edcb`, integrating the published Networks 1.0.60 / InfinityExpansion2 2.0.15 pair into held r143.
+- PR [#415](https://github.com/wickidcow/Slimefun-Legacy/pull/415) merged as `513d316f65f7701a75f4289aa92e886eae363a06`, advancing only CrystamaeHistoria to 1.0.2 and MobCapturer to 1.0.7 in r144. All 43 other source selections retained r143.
+- The r144 [canonical bundle](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39634483945) and [full-stack acceptance](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39634484086) passed on PR head `3ad4b207b7173978a794e0a9c361f2d2c2023235`. These results belong to that tested source; they do not establish final r145 acceptance.
+- PR [#413](https://github.com/wickidcow/Slimefun-Legacy/pull/413) is resumed against the merged core work. Its declared-addon Folia startup lane exposed GeneticChickenEngineering 1.0.3's inherited startup tick counter calling the Bukkit scheduler before enable completes. The r145 candidate advances only GeneticChickenEngineering to 1.0.4 for native Folia startup scheduling; all 44 other r144 addon entries remain unchanged. Relative to published r141, seven addon source selections advance and 38 remain unchanged.
+- This work covers startup and load evidence for the audited declared-addon subset. It does not add Folia declarations, establish chicken gameplay or cross-region safety, or certify the complete 45-addon bundle. Direct Networks and InfinityExpansion2 changes remain with their separate repair workstream.
+- GeneticChickenEngineering [PR #4](https://github.com/wickidcow/SF_GeneticChickEngineering/pull/4) merged as `a46359e675fe21b509642698fd77d75580436155`, now selected by r145. Its [hosted compatibility run](https://github.com/wickidcow/SF_GeneticChickEngineering/actions/runs/39661722799) passed all three API lanes and packaged ABI/ownership checks; publication was skipped. The r145 native and full-stack acceptance and final reproducible release validation remain **pending**. Core stays at **4.1.76**; addon and core publication remain held. No new release, tag or public asset replacement is authorized by these changes.
+
+### Current next actions
+
+1. The bounded GeneticChickenEngineering startup repair is accepted and pinned. Preserve its exact source, all 44 other complete addon entries and the publication hold during integration.
+2. Complete PR #413's exact-source declared-addon startup and receipt checks. Record actual results and retained limitations; compile or descriptor admission alone is insufficient.
+3. On the final accepted core source, require the canonical 45-addon bundle, native gates and automatic full-stack follower to pass. Earlier r143/r144 evidence cannot replace these results.
+4. Run Reproducible Release with **publish=false** on that exact source. Preserve all source, JAR, ZIP and resource-pack equality checks, then append concrete run and artifact evidence here before requesting publication approval.
+
+The r143 chronology below retains its original sources, failures, test results and instructions as historical evidence. Its then-pending actions and PR status do not supersede this current handoff.
+
+## Historical r143 starting points
 
 - Core master: `1cb32d6e95b305998065b8ef6b936a56f679187d`; project version already **4.1.76**. Preserve merged backpack ownership, pending-removal ordering and scheduler cleanup fixes from PRs #408–412.
 - Published core baseline: [v4.1.75](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.75), source `7f702e3565a381aeeefd99555f2c8fe818858e9c`, canonical bundle **r141**. Its ZIP SHA-256 is `322c7b4b7dd06a46f15f35235c8b5cfaf6092f0381300aeff02ce6be375b5813`.
@@ -16,7 +34,7 @@ Core **4.1.76 remains unreleased and held for explicit maintainer approval** aft
 
 The previous separately assembled **r140** repair ZIP used an outdated r139 baseline. It must not replace the current canonical bundle: that would regress newer MagicExpansion and FinalTECH selections. Build r143 from the complete r142 matrix, then supersede the old handoff artifact.
 
-## Implemented in this integration
+## Historical r143 implementation
 
 - Advance canonical bundle **r142 → r143** with only the two released addon source pins changed. Preserve all 43 other complete addon entries and existing compatibility/naming metadata; 41 source pins remain unchanged relative to published r141.
 - Align the paired fixture sources/versions and r135 native probe's r143 acceptance with the released pair. Admit r143 in the Black Market probe with the unchanged MagicExpansion source. Retain older accepted revision cases and changed-source rejection controls.
@@ -25,7 +43,7 @@ The previous separately assembled **r140** repair ZIP used an outdated r139 base
 - Add validation-only release dispatch with explicit publishing gates. Keep both independent core builds, exact canonical bundle/native/full-stack collection and pinned resource-pack checks required.
 - Update README, candidate notes and bundle metadata while keeping core version **4.1.76**.
 
-## Verification and failures
+## Historical r143 verification and failures
 
 - Independently compared r143 to committed r142: exactly 45 addons, only Networks and IE2 source pins changed, all other 43 complete entries identical.
 - Downloaded the published r141 ZIP: archive CRC, all 45 inner JAR hashes, source matrix and overall SHA-256 verified.
@@ -38,7 +56,7 @@ The previous separately assembled **r140** repair ZIP used an outdated r139 base
 - Full local Java build: **PASS** in an isolated `/tmp` snapshot: 162 JUnit XMLs, **941 reported / 940 passed / zero failures or errors / one existing external-database assumption skip** (`DatabasePatchV3RealDatabaseTest.setUp:33`). `spotlessApply`, `clean`, full `build`, Spotless and deprecation/removal gate all passed; zero deprecation warnings. The 286 temporary formatting changes stayed outside the repository. This is working-snapshot validation, not final release artifact identity. Initial environment failures were missing JDK tools, blocked localhost sockets and the downloaded JDK not using the system CA trust store. A shared-checkout formatting failure and concurrent invariant read were retained as failed diagnostics; isolated formatting and Spotless now pass. No gate was disabled and no production Java edits are included.
 - Final merged-master native, canonical-bundle, exact full-stack and reproducible release gates: **pending**. Earlier r142 runs and addon release tests do not substitute for the exact new candidate.
 
-### PR #414 hosted acceptance and current blocker
+### Historical PR #414 hosted acceptance and blocker
 
 Evidence below belongs to PR head `f84ca26a9495241816e79955df5fcee2caa0d5ee`, tested merge source `5cd321ad94c89f837f0703908d68e790592da58a`; it is not final merged-master release evidence.
 
@@ -53,13 +71,13 @@ Evidence below belongs to PR head `f84ca26a9495241816e79955df5fcee2caa0d5ee`, te
 - Final repair: a 12-line ephemeral compile-probe filter excludes exactly `me.clip:placeholderapi`, `de.tr7zw:item-nbt-api-plugin` and `de.tr7zw:item-nbt-parent` at the exact parsed `repo.minebench.de` host. All source pins, dependency versions, unrelated modules, other hosts, repository order and release evidence gates remain unchanged. Normal and optimized Python/real-Gradle regression runs both **PASS**, no skips, with seven exact JAR coordinates retained and parent POMs requested from the declared provider. Independent review is **CLEAR**. The repository invariant suite also passed with JDK 25 during this repair.
 - Actual pinned RSC source `e62b10423a64d1940ee4bc87947e2ff42b0ee3df`: **PASS**, Gradle 9.6.1 `clean assemble --no-daemon --no-build-cache` against Paper `26.3.build.211-stable` and the exact PR core hash above; exit zero, build successful in 23 seconds. No addon source/build/dependency content changed. The first local attempt stopped during core installation because Maven lacked task-local proxy settings; that failed diagnostic and the later parent-POM failure are retained separately. No merge or release has occurred; the next gate is hosted CI on this repaired PR head.
 
-## Changed files and branch
+## Historical r143 changed files and branch
 
 Working branch: `release/4.1.76-network-pair-r143`, based on `1cb32d6e95b305998065b8ef6b936a56f679187d`. Implementation commit: `660e0aa53a676b507095a24883d12f327ffa824a`. Integration PR: [#414](https://github.com/wickidcow/Slimefun-Legacy/pull/414), open and ready for review; final GitHub gates are pending. Local verification and bounded independent reviews passed.
 
 Files: canonical matrix, `gradle.properties`, README, `docs/releases/4.1.76.md`, this checkpoint; canonical bundle/native/reproducible workflows; published-pair staging helper and rejection tests; paired fixture lock/runner and contract tests; r135 and Black Market fixtures and native contract tests; release evidence synthetic fixtures and dispatch controls; root documentation allowlist for the required checkpoint; `scripts/compile_addon_paper_26_3.py` and its real Gradle routing regression. Production Java remains unchanged.
 
-## Exact next actions
+## Historical r143 next actions
 
 1. **Local verification complete:** full build, invariants and 548 normal/optimized Python controls passed; production Java is unchanged.
 2. The narrow RykenSlimeCustomizer dependency-routing repair and actual pinned compile are verified. Follow PR #414 CI on its latest head, including the repair and this checkpoint. Require successful relevant CI, including canonical bundle and native pair, before merging to master. Do not merge unrelated failing draft PR #413.
