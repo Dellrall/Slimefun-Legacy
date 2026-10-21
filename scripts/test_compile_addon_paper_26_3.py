@@ -4,10 +4,19 @@
 from __future__ import annotations
 
 import importlib.util
+import io
+import json
+import os
 import sys
 import stat
+import subprocess
 import tempfile
+import threading
+import unittest
+import urllib.parse
 import xml.etree.ElementTree as ET
+import zipfile
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 SCRIPT = Path(__file__).with_name("compile_addon_paper_26_3.py")
@@ -190,6 +199,144 @@ def test_gradle_init_script_guards_both_stacks() -> None:
         assert probe.PAPER_REPOSITORY in text
 
 
+class GradleMinebenchRoutingTest(unittest.TestCase):
+    def test_real_gradle_preserves_modules_and_other_repository_hosts(self) -> None:
+        """Resolve through a local HTTP proxy using the actual generated init script."""
+        requests = []
+        target_modules = {("me.clip", "placeholderapi"), ("de.tr7zw", "item-nbt-api-plugin"),
+                          ("de.tr7zw", "item-nbt-parent")}
+
+        class MavenProxy(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def do_HEAD(self):
+                self.do_GET()
+
+            def do_GET(self):
+                request = urllib.parse.urlsplit(self.path)
+                host = request.hostname
+                parts = request.path.removeprefix("/second/").strip("/").split("/")
+                if len(parts) < 4:
+                    self.send_error(404)
+                    return
+                group, artifact, version = ".".join(parts[:-3]), parts[-3], parts[-2]
+                requests.append((host, group, artifact, version, parts[-1]))
+                if host == "repo.minebench.de" and (group, artifact) in target_modules:
+                    self.send_error(503, "Controlled unavailable mirror")
+                    return
+                if parts[-1].endswith(".pom"):
+                    if (group, artifact) == ("de.tr7zw", "item-nbt-api-plugin"):
+                        # The real published plugin POM inherits this parent.
+                        # Inherit group/version too, requiring Gradle to parse it.
+                        content = ("<project><modelVersion>4.0.0</modelVersion><parent>"
+                                   "<groupId>de.tr7zw</groupId><artifactId>item-nbt-parent</artifactId>"
+                                   "<version>" + version + "</version></parent>"
+                                   "<artifactId>item-nbt-api-plugin</artifactId></project>").encode()
+                    else:
+                        packaging = "<packaging>pom</packaging>" if artifact == "item-nbt-parent" else ""
+                        content = ("<project><modelVersion>4.0.0</modelVersion><groupId>" + group
+                                   + "</groupId><artifactId>" + artifact + "</artifactId><version>"
+                                   + version + "</version>" + packaging + "</project>").encode()
+                elif parts[-1].endswith(".jar"):
+                    stream = io.BytesIO()
+                    with zipfile.ZipFile(stream, "w") as archive:
+                        archive.writestr("origin.txt", host + ":" + group + ":" + artifact + ":" + version)
+                    content = stream.getvalue()
+                else:
+                    self.send_error(404)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(content)))
+                self.end_headers()
+                if self.command != "HEAD":
+                    self.wfile.write(content)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), MavenProxy)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory(prefix="sfl-gradle-routing-") as raw:
+                root = Path(raw)
+                (root / "settings.gradle").write_text("rootProject.name = 'routing-regression'\n")
+                (root / "build.gradle").write_text(r'''
+repositories.clear()
+def repositoryUrls = [
+    'http://repo.minebench.de/', 'http://repo.minebench.de/second/',
+    'http://declared-provider.invalid/', 'http://repo.minebench.de.unrelated.invalid/'
+]
+repositoryUrls.each { address ->
+    repositories.maven { url = uri(address); allowInsecureProtocol = true }
+}
+configurations { routed; lookalike; unrelated }
+def requested = [
+    'me.clip:placeholderapi:2.11.6', 'de.tr7zw:item-nbt-api-plugin:2.15.1',
+    'me.clip:other-module:7', 'de.tr7zw:other-module:8', 'other.group:placeholderapi:9'
+]
+dependencies {
+    requested.each { routed it }
+    lookalike 'me.clip:placeholderapi:2.11.7'
+    unrelated 'de.tr7zw:item-nbt-api-plugin:2.15.2'
+}
+repositories.each { repository ->
+    repository.content {
+        if (repository.url.host == 'repo.minebench.de.unrelated.invalid') {
+            includeVersion('me.clip', 'placeholderapi', '2.11.7')
+        } else if (repository.url.host == 'declared-provider.invalid') {
+            excludeVersion('me.clip', 'placeholderapi', '2.11.7')
+        } else {
+            excludeVersion('me.clip', 'placeholderapi', '2.11.7')
+            excludeVersion('de.tr7zw', 'item-nbt-api-plugin', '2.15.2')
+        }
+    }
+}
+tasks.register('verifyRouting') {
+    doLast {
+        def resolved = [configurations.routed, configurations.lookalike, configurations.unrelated]
+            .collectMany { it.resolvedConfiguration.resolvedArtifacts as List }
+            .collect { artifact ->
+                assert artifact.file.isFile()
+                artifact.moduleVersion.id.toString()
+            }.sort()
+        assert resolved == (requested + ['me.clip:placeholderapi:2.11.7', 'de.tr7zw:item-nbt-api-plugin:2.15.2']).sort()
+        println('MINEBENCH_ROUTING_PASS exact dependency coordinates retained')
+    }
+}
+''', encoding="utf-8")
+                script = probe.write_gradle_init_script(root)
+                command = ["bash", str(SCRIPT.parent.parent / "gradlew"), "-p", str(root),
+                           "verifyRouting", "--no-daemon", "--no-configuration-cache", "--no-build-cache",
+                           "--refresh-dependencies", "-I", str(script),
+                           "-Dhttp.proxyHost=127.0.0.1", "-Dhttp.proxyPort=" + str(server.server_port),
+                           "-Dhttp.nonProxyHosts=", "--console=plain"]
+                environment = dict(os.environ, PAPER_API_VERSION="26.3.routing-fixture")
+                result = subprocess.run(command, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                        env=environment, timeout=180)
+                self.assertEqual(0, result.returncode, result.stdout + "\nRequests: " + json.dumps(requests))
+                self.assertIn("MINEBENCH_ROUTING_PASS", result.stdout)
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=5)
+        jar_requests = {(host, group, artifact, version) for host, group, artifact, version, name in requests
+                        if name.endswith(".jar")}
+        self.assertFalse(any(host == "repo.minebench.de" and (group, artifact) in target_modules
+                             for host, group, artifact, _, _ in requests), requests)
+        pom_requests = {(host, group, artifact, version) for host, group, artifact, version, name in requests
+                        if name.endswith(".pom")}
+        self.assertTrue({("declared-provider.invalid", "de.tr7zw", "item-nbt-parent", "2.15.1"),
+                         ("declared-provider.invalid", "de.tr7zw", "item-nbt-parent", "2.15.2")}
+                        .issubset(pom_requests), pom_requests)
+        self.assertTrue({("declared-provider.invalid", "me.clip", "placeholderapi", "2.11.6"),
+                         ("declared-provider.invalid", "de.tr7zw", "item-nbt-api-plugin", "2.15.1"),
+                         ("repo.minebench.de", "me.clip", "other-module", "7"),
+                         ("repo.minebench.de", "de.tr7zw", "other-module", "8"),
+                         ("repo.minebench.de", "other.group", "placeholderapi", "9"),
+                         ("repo.minebench.de.unrelated.invalid", "me.clip", "placeholderapi", "2.11.7"),
+                         ("declared-provider.invalid", "de.tr7zw", "item-nbt-api-plugin", "2.15.2")}
+                        .issubset(jar_requests), jar_requests)
+
+
 def main() -> int:
     test_coordinate_classification()
     test_transient_repository_classification()
@@ -198,6 +345,10 @@ def main() -> int:
     test_maven_injects_missing_direct_dependencies()
     test_shell_wrapper_normalization()
     test_gradle_init_script_guards_both_stacks()
+    result = unittest.TextTestRunner(verbosity=2).run(
+        unittest.defaultTestLoader.loadTestsFromTestCase(GradleMinebenchRoutingTest))
+    if not result.wasSuccessful():
+        return 1
     print("Paper 26.3 addon compile probe self-tests passed.")
     return 0
 

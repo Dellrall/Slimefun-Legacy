@@ -10,6 +10,8 @@ ALLOWED_ROOT_MARKDOWN = {
     "AGENTS.md",
     "CONTRIBUTING.md",
     "EVERYTHING_THAT_CHANGED.md",
+    # Maintainer-required active execution checkpoint, not a separate release history.
+    "NETWORKS_EXPANSION_COMPLETION.md",
     "README.md",
 }
 

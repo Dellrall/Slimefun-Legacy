@@ -5,6 +5,7 @@ import copy
 import hashlib
 import io
 import json
+import re
 import stat
 import tempfile
 import unittest
@@ -306,6 +307,116 @@ class CollectorCommandControls(unittest.TestCase):
         self.assertIsNone(code)
         self.assertIn("Release files changed", error)
         self.assertEqual("FAIL", receipt["status"])
+
+
+class ReleaseDispatchControls(unittest.TestCase):
+    """Exercise the actual workflow's publication guards without GitHub writes."""
+
+    def setUp(self):
+        workflow = Path(__file__).resolve().parents[1] / ".github/workflows/reproducible-release.yml"
+        self.workflow = workflow.read_text(encoding="utf-8")
+        rows = list(re.finditer(
+            r"^      - name: (?P<name>[^\n]+)\n(?P<body>.*?)(?=^      - |\Z)",
+            self.workflow, re.MULTILINE | re.DOTALL,
+        ))
+        self.steps = {row["name"]: row["body"] for row in rows}
+        self.assertEqual(len(rows), len(self.steps), "Release steps must have unique names")
+
+    def condition(self, name):
+        match = re.search(r"^        if: (.+)$", self.steps[name], re.MULTILINE)
+        return match[1] if match else ""
+
+    @staticmethod
+    def allows(condition, *, event="workflow_dispatch", publish="", outcome="success"):
+        # These guards use only comparisons joined by &&/||. Reject unfamiliar
+        # expressions instead of assuming that a future gate is safe.
+        if not condition:
+            return True
+        context = {"github.event_name": event, "inputs.publish": publish,
+                   "steps.runtime_evidence.outcome": outcome}
+
+        def comparison(term):
+            match = re.fullmatch(
+                r"\s*(github\.event_name|inputs\.publish|steps\.runtime_evidence\.outcome)"
+                r"\s*(==|!=)\s*('([^']*)'|true|false)\s*", term,
+            )
+            if match is None:
+                raise AssertionError("Unsupported release guard expression: " + term)
+            value = match[4] if match[3].startswith("'") else match[3] == "true"
+            equal = context[match[1]] == value
+            return equal if match[2] == "==" else not equal
+
+        return any(all(comparison(term) for term in group.split("&&"))
+                   for group in condition.split("||"))
+
+    def test_manual_dispatch_declares_boolean_publish_default_false(self):
+        dispatch = re.search(
+            r"^  workflow_dispatch:\n(?P<body>.*?)(?=^  [a-z_]+:|\Z)",
+            self.workflow, re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(dispatch)
+        publish = re.search(
+            r"^      publish:\n(?P<body>.*?)(?=^      [a-z_]+:|\Z)",
+            dispatch["body"], re.MULTILINE | re.DOTALL,
+        )
+        self.assertIsNotNone(publish, "Manual release validation needs an explicit publish input")
+        self.assertRegex(publish["body"], r"(?m)^        type: boolean$")
+        self.assertRegex(publish["body"], r"(?m)^        default: false$")
+        self.assertRegex(publish["body"], r"(?m)^        description: .+false.+validat")
+
+    def test_all_release_mutations_require_explicit_publish_and_successful_evidence(self):
+        mutations = {name for name, body in self.steps.items()
+                     if re.search(r"\bgh\s+release\s+(create|upload|edit|delete|delete-asset)\b", body)}
+        self.assertEqual({"Publish reproducible release assets", "Normalize and verify release assets"},
+                         mutations, "A release mutation moved outside the reviewed guarded steps")
+        for name in mutations:
+            for event in ("workflow_dispatch", "push", "pull_request", "schedule"):
+                for publish in ("", False, True, "false", "true"):
+                    for outcome in ("", None, "success", "failure", "cancelled", "skipped"):
+                        with self.subTest(step=name, event=event, publish=publish, outcome=outcome):
+                            expected = event == "workflow_dispatch" and publish is True and outcome == "success"
+                            self.assertEqual(expected, self.allows(self.condition(name), event=event,
+                                                                  publish=publish, outcome=outcome))
+
+    def test_validation_dispatch_keeps_every_release_check(self):
+        checks = [
+            "Verify Slimefun Legacy invariants", "First clean release build", "Second clean release build",
+            "Require byte-for-byte reproducibility", "Require exact-source validated canonical addon bundle",
+            "Require runtime evidence for the exact release files", "Require pinned official resource pack",
+        ]
+        for publish in ("", False, True):
+            for name in checks:
+                with self.subTest(step=name, publish=publish):
+                    self.assertTrue(self.allows(self.condition(name), publish=publish))
+                    self.assertNotRegex(self.steps[name], r"(?m)^        continue-on-error: true$")
+        runtime = self.steps["Require runtime evidence for the exact release files"]
+        for argument in ("scripts/collect_release_runtime_evidence.py", '--source "$GITHUB_SHA"',
+                         '--bundle-run "$RELEASE_BUNDLE_RUN_ID"', '--core "dist/${OUTPUT_NAME}"',
+                         '--bundle "dist/${CANONICAL_ADDON_BUNDLE}"'):
+            self.assertIn(argument, runtime)
+        positions = [self.workflow.index("      - name: " + name) for name in checks]
+        self.assertEqual(sorted(positions), positions)
+        self.assertLess(positions[-1], self.workflow.index("      - name: Publish reproducible release assets"))
+
+    def test_runtime_evidence_failure_is_retained_for_every_dispatch(self):
+        name = "Preserve release runtime evidence"
+        self.assertEqual("always() && github.event_name == 'workflow_dispatch'", self.condition(name))
+        self.assertIn("uses: actions/upload-artifact@", self.steps[name])
+        self.assertIn("path: build/release-runtime-evidence/", self.steps[name])
+
+    def test_readonly_completion_covers_omitted_and_false_publish(self):
+        condition = self.condition("Mark candidate validation complete")
+        for event in ("workflow_dispatch", "push"):
+            for publish in ("", False, True):
+                with self.subTest(event=event, publish=publish):
+                    self.assertEqual(event != "workflow_dispatch" or publish is not True,
+                                     self.allows(condition, event=event, publish=publish))
+
+    def test_workflow_runs_its_dispatch_contract_before_building(self):
+        step = "Verify release dispatch and evidence controls"
+        self.assertIn("python3 -m unittest scripts.test_collect_release_runtime_evidence -v", self.steps[step])
+        self.assertLess(self.workflow.index("      - name: " + step),
+                        self.workflow.index("      - name: First clean release build"))
 
 
 if __name__ == "__main__":

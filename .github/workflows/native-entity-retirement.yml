@@ -12,6 +12,8 @@ on:
       - 'scripts/test_entity_retirement_probe.py'
       - 'scripts/runtime/paired_addon_storage/**'
       - 'scripts/test_paired_addon_storage_probe.py'
+      - 'scripts/stage_published_pair.py'
+      - 'scripts/test_stage_published_pair.py'
       - '.github/workflows/native-entity-retirement.yml'
   push:
     branches: [master]
@@ -25,6 +27,8 @@ on:
       - 'scripts/test_entity_retirement_probe.py'
       - 'scripts/runtime/paired_addon_storage/**'
       - 'scripts/test_paired_addon_storage_probe.py'
+      - 'scripts/stage_published_pair.py'
+      - 'scripts/test_stage_published_pair.py'
       - '.github/workflows/native-entity-retirement.yml'
   workflow_dispatch:
 
@@ -50,7 +54,7 @@ jobs:
       - name: Verify native receipt and artifact rejection controls
         run: |
           python3 -m unittest scripts/test_entity_retirement_probe.py -v
-          python3 -m unittest scripts/test_paired_addon_storage_probe.py -v
+          python3 -m unittest scripts/test_paired_addon_storage_probe.py scripts/test_stage_published_pair.py -v
           python3 -O -m unittest scripts/test_paired_addon_storage_probe.py -v
       - name: Build and identify the universal core
         shell: bash
@@ -218,6 +222,17 @@ jobs:
             -Dsfl.paired.classpath.receipt="$PAIRED_INPUTS_DIR/ie2-core-classpath.json" \
             -PpaperApiVersion=1.21.11-R0.1-SNAPSHOT -PtargetJvm=21 \
             -PslimefunApiCoordinate="$PAIRED_CORE_COORDINATE"
+      - name: Stage the exact published runtime pair
+        run: |
+          set -euo pipefail
+          python3 scripts/stage_published_pair.py --addon networks \
+            --source "$NETWORKS_FIXTURE_HEAD" --repository "$NETWORKS_FIXTURE_REPOSITORY" \
+            --output "$PAIRED_INPUTS_DIR/published/networks.jar" \
+            --report "$PAIRED_INPUTS_DIR/networks-published.json"
+          python3 scripts/stage_published_pair.py --addon ie2 \
+            --source "$IE2_FIXTURE_HEAD" --repository "$IE2_FIXTURE_REPOSITORY" \
+            --output "$PAIRED_INPUTS_DIR/published/ie2.jar" \
+            --report "$PAIRED_INPUTS_DIR/ie2-published.json"
       - name: Freeze exact test artifact and fixture identities
         run: |
           python3 scripts/runtime/paired_addon_storage/run_probe.py package \
