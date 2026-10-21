@@ -7,6 +7,7 @@ on:
       - 'scripts/audit_folia_addon_admission.py'
       - 'scripts/test_audit_folia_addon_admission.py'
       - 'scripts/prepare_folia_addon_runtime.py'
+      - 'scripts/verify_folia_addon_runtime.py'
       - 'scripts/test_prepare_folia_addon_runtime.py'
       - 'scripts/paper_family_26_2_runtime_smoke.sh'
       - 'scripts/test_purpur_26_3_runtime_contract.py'
@@ -21,6 +22,7 @@ on:
       - 'scripts/audit_folia_addon_admission.py'
       - 'scripts/test_audit_folia_addon_admission.py'
       - 'scripts/prepare_folia_addon_runtime.py'
+      - 'scripts/verify_folia_addon_runtime.py'
       - 'scripts/test_prepare_folia_addon_runtime.py'
       - 'scripts/paper_family_26_2_runtime_smoke.sh'
       - 'scripts/test_purpur_26_3_runtime_contract.py'
@@ -191,29 +193,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import hashlib
-          import json
-          import os
-          from pathlib import Path
-
-          root = Path('.ci/folia-runtime')
-          selection = json.loads((root / 'selection.json').read_text(encoding='utf-8'))
-          if selection.get('core_source_commit') != os.environ['GITHUB_SHA']:
-              raise SystemExit('Runtime addon selection belongs to a different core checkout')
-          rows = selection.get('addons')
-          if not isinstance(rows, list) or not rows:
-              raise SystemExit('Runtime addon selection is empty')
-          expected = (root / 'expected-addons.txt').read_text(encoding='utf-8').splitlines()
-          if len(expected) != len(rows):
-              raise SystemExit('Runtime expected-addon list count differs from selection')
-          for row in rows:
-              path = root / 'addons' / row['jar']
-              digest = hashlib.sha256(path.read_bytes()).hexdigest()
-              if digest != row['jar_sha256']:
-                  raise SystemExit('Runtime addon digest mismatch: ' + row['jar'])
-          print('Verified', len(rows), 'exact declared-Folia addon JARs.')
-          PY
+          python3 scripts/verify_folia_addon_runtime.py selection \
+            --selection .ci/folia-runtime/selection.json \
+            --expected-file .ci/folia-runtime/expected-addons.txt \
+            --plugin-dir .ci/folia-runtime/addons \
+            --expect-source "$GITHUB_SHA"
 
       - name: Resolve official Paper 26.3 compile API
         id: paper
@@ -247,6 +231,8 @@ jobs:
         env:
           SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR: ${{ github.workspace }}/.ci/folia-runtime/addons
           SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE: ${{ github.workspace }}/.ci/folia-runtime/expected-addons.txt
+          SLIMEFUN_SMOKE_SELECTION_FILE: ${{ github.workspace }}/.ci/folia-runtime/selection.json
+          SLIMEFUN_SMOKE_SOURCE_COMMIT: ${{ github.sha }}
         shell: bash
         run: |
           set -euo pipefail
@@ -283,10 +269,14 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: folia-26.3-addon-runtime-evidence
+          # The two explicit selection inputs are under .ci; no other hidden
+          # files are included by this allowlisted evidence path list.
+          include-hidden-files: true
           path: |
             .ci/folia-runtime/selection.json
             .ci/folia-runtime/expected-addons.txt
             build/folia-26.3-addon-runtime/*.console.log
             build/folia-26.3-addon-runtime/runtime-build.txt
+            build/folia-26.3-addon-runtime/installed-plugins.json
             build/folia-26.3-addon-runtime/smoke-result.txt
           if-no-files-found: warn

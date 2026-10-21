@@ -2,6 +2,12 @@ name: Reproducible Release
 
 on:
   workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish release assets after explicit maintainer authorization; false validates all release gates without changing releases or tags."
+        type: boolean
+        required: false
+        default: false
   push:
     branches:
       - master
@@ -55,6 +61,9 @@ jobs:
 
       - name: Verify Slimefun Legacy invariants
         run: python3 scripts/verify_legacy.py .
+
+      - name: Verify release dispatch and evidence controls
+        run: python3 -m unittest scripts.test_collect_release_runtime_evidence -v
 
       - name: First clean release build
         shell: bash
@@ -262,16 +271,17 @@ jobs:
           if-no-files-found: error
 
       - name: Mark candidate validation complete
-        if: github.event_name != 'workflow_dispatch'
+        if: github.event_name != 'workflow_dispatch' || inputs.publish != true
         run: |
           {
             echo
             echo "Candidate validation completed without publishing a GitHub Release."
-            echo "Use workflow_dispatch on this exact commit after release notes and all release gates are complete."
+            echo "Manual dispatch defaults to publish=false and validates all exact-source release gates."
+            echo "Set publish=true only when publication of this exact commit is explicitly authorized."
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publish reproducible release assets
-        if: github.event_name == 'workflow_dispatch' && steps.runtime_evidence.outcome == 'success'
+        if: github.event_name == 'workflow_dispatch' && inputs.publish == true && steps.runtime_evidence.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -317,7 +327,7 @@ jobs:
           fi
 
       - name: Normalize and verify release assets
-        if: github.event_name == 'workflow_dispatch' && steps.runtime_evidence.outcome == 'success'
+        if: github.event_name == 'workflow_dispatch' && inputs.publish == true && steps.runtime_evidence.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash

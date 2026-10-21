@@ -58,6 +58,8 @@ jobs:
       paper_api: ${{ steps.paper.outputs.paper_api }}
     steps:
       - uses: actions/checkout@v6
+      - name: Verify published pair staging rejection controls
+        run: python3 -m unittest scripts/test_stage_published_pair.py -v
       - name: Validate manifest and create matrix
         id: matrix
         shell: bash
@@ -227,6 +229,46 @@ jobs:
       - name: Install BuildingStaff optional compile-only provider API
         if: matrix.slug == 'buildingstaff'
         run: bash addon/scripts/install_rebar_api.sh
+      - name: Check out verified English MobCapturer source
+        if: matrix.slug == 'mobcapturer'
+        uses: actions/checkout@v6
+        with:
+          repository: Slimefun-Addon-Community/MobCapturer
+          # Same source used by the successful MobCapturer 1.0.7 validation run.
+          ref: b418c2dedd5c582a38821f961616fca7fc6de665
+          path: mobcapturer-english
+          persist-credentials: false
+      - name: Restore MobCapturer release inputs
+        if: matrix.slug == 'mobcapturer'
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp mobcapturer-english/src/main/java/io/github/thebusybiscuit/mobcapturer/setup/RecipeTypes.java \
+             addon/src/main/java/io/github/thebusybiscuit/mobcapturer/setup/RecipeTypes.java
+          find mobcapturer-english/src/main/java/io/github/thebusybiscuit/mobcapturer/adapters/mobs \
+            -maxdepth 1 -type f -name '*.java' \
+            ! -name 'SlimeAdapter.java' ! -name 'AnimalsAdapter.java' ! -name 'FrogAdapter.java' \
+            -exec cp {} addon/src/main/java/io/github/thebusybiscuit/mobcapturer/adapters/mobs/ \;
+          # Activate the addon's exact-core test dependency as in its own release build.
+          mkdir -p addon/libs
+          cp candidate-core/Slimefun-Legacy-candidate.jar addon/libs/Slimefun-Legacy.jar
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          bad = []
+          for root in (Path('addon/src/main/java'), Path('addon/src/main/resources')):
+              for path in root.rglob('*'):
+                  if not path.is_file():
+                      continue
+                  try:
+                      source = path.read_text(encoding='utf-8')
+                  except UnicodeDecodeError:
+                      continue
+                  if re.search(r'[\u3400-\u4dbf\u4e00-\u9fff]', source):
+                      bad.append(str(path))
+          if bad:
+              raise SystemExit('CJK text remains in MobCapturer release source: ' + ', '.join(bad))
+          PY
       - name: Compile against Paper 26.3 candidate
         if: matrix.slug != 'dracfunreborn'
         env:
@@ -240,6 +282,32 @@ jobs:
             "$PWD/candidate-core/Slimefun-Legacy-candidate.jar" \
             "$PAPER_API_VERSION" \
             --report-dir "$PWD/report"
+      - name: Test and rebuild CrystamaeHistoria and MobCapturer against the supported API floor
+        if: matrix.slug == 'crystamaehistoria' || matrix.slug == 'mobcapturer'
+        env:
+          ADDON_SLUG: ${{ matrix.slug }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export SLIMEFUN_COMPATIBILITY_JAR="$PWD/candidate-core/Slimefun-Legacy-candidate.jar"
+          export SLIMEFUN_CORE_JAR="$SLIMEFUN_COMPATIBILITY_JAR"
+          export SLIMEFUN_LEGACY_JAR="$SLIMEFUN_COMPATIBILITY_JAR"
+          # Retain the 26.3 probe, but distribute a tested 1.21.11 / Java 21 rebuild.
+          python3 tools/scripts/compile_addon_paper_26_3.py \
+            addon "$SLIMEFUN_COMPATIBILITY_JAR" \
+            1.21.11-R0.1-SNAPSHOT --report-dir "$PWD/report-native-floor"
+          if [[ "$ADDON_SLUG" == 'crystamaehistoria' ]]; then
+            (cd addon && mvn --batch-mode --no-transfer-progress clean verify) \
+              2>&1 | tee report-native-floor/tests.log
+            cp -r addon/target/surefire-reports report-native-floor/test-results
+          else
+            (cd addon && PAPER_API_VERSION=1.21.11-R0.1-SNAPSHOT ./gradlew clean test shadowJar \
+              -Pplatform=paper -PplatformVersion=1.21.11-R0.1-SNAPSHOT -PreleaseJvm=21 \
+              --no-daemon --no-build-cache --no-configuration-cache \
+              -I .slimefun-paper-26.3.init.gradle) \
+              2>&1 | tee report-native-floor/tests.log
+            cp -r addon/build/test-results/test report-native-floor/test-results
+          fi
       - name: Rebuild native SlimeEasy against the supported floor
         if: matrix.slug == 'slimeeasy'
         shell: bash
@@ -342,14 +410,34 @@ jobs:
               break
             fi
           done
+          if [[ "$ADDON_SLUG" == 'mobcapturer' ]]; then
+            # Its plain Gradle JAR sorts first; distribute the shaded release JAR.
+            mapfile -t MOB_CAPTURER_JARS < <(find addon/build/libs -maxdepth 1 -type f \
+              -name 'SF_MobCapturer*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' | sort)
+            test "${#MOB_CAPTURER_JARS[@]}" -eq 1
+            SELECTED="${MOB_CAPTURER_JARS[0]}"
+            jar tf "$SELECTED" | grep -Eq '(^|/)(plugin.yml|paper-plugin.yml|paper-plugin.yaml)$'
+          fi
           if [[ -z "$SELECTED" ]]; then
             echo "No distributable Bukkit/Paper plugin JAR found for ${ADDON_REPOSITORY}" >&2
             printf '%s\n' "${CANDIDATES[@]}" >&2
             exit 1
           fi
+          if [[ "$ADDON_SLUG" == 'networksexp' || "$ADDON_SLUG" == 'infinityexpansion2' ]]; then
+            PAIR_KEY=networks
+            if [[ "$ADDON_SLUG" == 'infinityexpansion2' ]]; then PAIR_KEY=ie2; fi
+            # Keep the 26.3 compile evidence, but distribute the released universal bytes.
+            python3 tools/scripts/stage_published_pair.py --addon "$PAIR_KEY" \
+              --source "$(git -C addon rev-parse HEAD)" --repository "$ADDON_REPOSITORY" \
+              --output "published/$PAIR_KEY.jar" --report "staged/evidence/$ADDON_SLUG-published.json"
+            SELECTED="published/$PAIR_KEY.jar"
+          fi
           export SELECTED
           export ADDON_REPOSITORY ADDON_SLUG ARTIFACT_BASE PAPER_API_VERSION
           export ADDON_COMMIT="$(git -C addon rev-parse HEAD)"
+          if [[ "$ADDON_SLUG" == 'mobcapturer' ]]; then
+            export MOB_CAPTURER_ENGLISH_SOURCE="$(git -C mobcapturer-english rev-parse HEAD)"
+          fi
           python3 - <<'PY'
           import hashlib, json, os, re, shutil, zipfile
           from pathlib import Path
@@ -393,13 +481,20 @@ jobs:
               'artifact_base': base,
               'sha256': sha256,
               'paper_26_3_api': os.environ['PAPER_API_VERSION'],
-              'distributable_api': '1.21.11-R0.1-SNAPSHOT' if slug in ('slimeeasy', 'dracfunreborn', 'justenoughguide') else os.environ['PAPER_API_VERSION'],
+              'distributable_api': '1.21.11-R0.1-SNAPSHOT' if slug in ('slimeeasy', 'dracfunreborn', 'justenoughguide') or slug in ('crystamaehistoria', 'mobcapturer') or slug in ('networksexp', 'infinityexpansion2') else os.environ['PAPER_API_VERSION'],
               'primary_api_target': '26.3',
               'backwards_compatible_through': '1.21.11',
               'minimum_supported': '1.21.11',
               'primary_platforms': ['Paper', 'Purpur'],
-              'secondary_platforms': ['Folia', 'Leaf'],
+              'secondary_platforms': [] if slug in ('networksexp', 'infinityexpansion2') else ['Folia', 'Leaf'],
           }
+          if slug in ('networksexp', 'infinityexpansion2'):
+              record['published_artifact'] = json.loads(Path(f'staged/evidence/{slug}-published.json').read_text())
+          if slug == 'mobcapturer':
+              record['english_adapter_source'] = {
+                  'repository': 'Slimefun-Addon-Community/MobCapturer',
+                  'commit': os.environ['MOB_CAPTURER_ENGLISH_SOURCE'],
+              }
           Path(f'staged/metadata/{slug}.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
           print(f'Collected {source.name} as canonical {canonical}')
           PY
@@ -562,12 +657,15 @@ jobs:
 
           Server platforms:
           - PRIMARY: Paper, Purpur
-          - SECONDARY: Folia, Leaf
+          - SECONDARY: Folia, Leaf only for addons with separately verified runtime support
+          - Networks and InfinityExpansion2 do not support Folia runtime operation
 
           Every addon source in this archive was verified against the Paper ${PAPER_API_VERSION}
           / Slimefun Legacy candidate stack. Distributable JARs keep their intended baseline
           bytecode; DracFun Reborn is separately validated on Java 25 / Paper 26.3, then rebuilt
           as Java-21 bytecode against the 1.21.11 baseline for universal deployment.
+          Networks and InfinityExpansion2 use their checksum-pinned published universal JARs;
+          their newer-API compile probe outputs are not distributed.
           EOF
           (cd bundle && sha256sum *.jar | sort > SHA256SUMS.txt)
           (cd bundle && zip -9 -q "../${BUNDLE_NAME}" ./*)

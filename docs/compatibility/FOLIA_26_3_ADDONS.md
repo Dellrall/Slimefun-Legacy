@@ -54,12 +54,16 @@ selected addon JARs twice on official Folia 26.3. Both boots must:
 
 - reach normal server startup;
 - enable Slimefun and every selected addon by its descriptor plugin name;
+- keep every selected addon enabled until normal server shutdown starts;
 - contain no plugin enable/linkage failure markers;
 - run the normal Slimefun upgrade-readiness check without a BLOCKED result;
 - shut down normally, with the second boot observing the prior clean Slimefun shutdown.
 
-The selected JAR list, source commits, per-JAR hashes, console logs, tested Folia build
-and two-boot result are retained as CI artifacts. This is stronger than descriptor-only
+The expected plugin/JAR pairs must match the selection exactly. The installed core
+and addon bytes are checked before each boot and after the final shutdown, rejecting
+missing, substituted or extra JARs. The installed-plugin receipt, selected JAR list,
+source commits, per-JAR hashes, console logs, tested Folia build and two-boot result
+are retained as CI artifacts. This is stronger than descriptor-only
 admission, but remains **startup evidence only**. It does not exercise each addon's
 menus, machines, delayed callbacks, teleports, entities, storage paths or cross-region
 operations.

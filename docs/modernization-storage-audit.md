@@ -132,8 +132,11 @@ passed locally, with no failures, errors or skips. The focused command is:
 
 These are persistence-submission and lifecycle regressions. Database durability,
 abnormal termination, complete addon item conservation and Folia region ownership
-remain separate runtime evidence. The unreleased 4.1.76 candidate and the final
-Networks/IE2 pair remain subject to the publication hold and exact-source gates.
+remain separate runtime evidence. The unreleased 4.1.76 core candidate remains subject to the publication hold and
+exact-source gates. Networks 1.0.60 and InfinityExpansion2 2.0.15 are now published;
+their incorporation into canonical r143 and the core-owned runtime gates is tracked
+in [the completion checkpoint](../NETWORKS_EXPANSION_COMPLETION.md). Continue from
+that checkpoint rather than repeating the accepted production repairs.
 
 ## Remaining execution order
 

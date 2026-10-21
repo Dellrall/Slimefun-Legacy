@@ -13,6 +13,8 @@ STARTUP_TIMEOUT_SECONDS="${SERVER_SMOKE_STARTUP_TIMEOUT:-240}"
 SHUTDOWN_TIMEOUT_SECONDS="${SERVER_SMOKE_SHUTDOWN_TIMEOUT:-60}"
 EXTRA_PLUGIN_DIR="${SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR:-}"
 EXTRA_PLUGIN_LIST="${SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE:-}"
+EXTRA_PLUGIN_SELECTION="${SLIMEFUN_SMOKE_SELECTION_FILE:-}"
+EXPECTED_SOURCE="${SLIMEFUN_SMOKE_SOURCE_COMMIT:-${GITHUB_SHA:-}}"
 EXTRA_PLUGIN_COUNT=0
 TAB="$(printf '\t')"
 
@@ -54,7 +56,7 @@ if [[ ! -s "$PLUGIN_JAR" ]]; then
     exit 1
 fi
 
-if [[ -n "$EXTRA_PLUGIN_DIR" || -n "$EXTRA_PLUGIN_LIST" ]]; then
+if [[ -n "$EXTRA_PLUGIN_DIR" || -n "$EXTRA_PLUGIN_LIST" || -n "$EXTRA_PLUGIN_SELECTION" ]]; then
     if [[ -z "$EXTRA_PLUGIN_DIR" || -z "$EXTRA_PLUGIN_LIST" ]]; then
         echo "Extra addon runtime smoke requires both SLIMEFUN_SMOKE_EXTRA_PLUGIN_DIR and SLIMEFUN_SMOKE_EXPECT_PLUGINS_FILE." >&2
         exit 1
@@ -67,8 +69,19 @@ if [[ -n "$EXTRA_PLUGIN_DIR" || -n "$EXTRA_PLUGIN_LIST" ]]; then
         echo "Expected extra plugin list is missing or empty: $EXTRA_PLUGIN_LIST" >&2
         exit 1
     fi
+    if [[ ! -s "$EXTRA_PLUGIN_SELECTION" ]]; then
+        echo "Exact extra plugin selection is missing or empty: $EXTRA_PLUGIN_SELECTION" >&2
+        exit 1
+    fi
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "Extra addon runtime smoke requires python3 for exact selection validation." >&2
+        exit 1
+    fi
+    python3 "$REPO_ROOT/scripts/verify_folia_addon_runtime.py" selection \
+        --selection "$EXTRA_PLUGIN_SELECTION" --expected-file "$EXTRA_PLUGIN_LIST" \
+        --plugin-dir "$EXTRA_PLUGIN_DIR" --expect-source "$EXPECTED_SOURCE"
 
-    while IFS="$TAB" read -r jar plugin extra; do
+    while IFS="$TAB" read -r jar plugin extra || [[ -n "$jar" ]]; do
         [[ -n "$jar" && -n "$plugin" && -z "$extra" ]] || {
             echo "Invalid expected addon row: $jar $plugin $extra" >&2
             exit 1
@@ -96,7 +109,7 @@ mkdir -p "$WORK_DIR/plugins/bStats"
 printf 'enabled: false\n' > "$WORK_DIR/plugins/bStats/config.yml"
 cp "$PLUGIN_JAR" "$WORK_DIR/plugins/Slimefun-Legacy-smoke.jar"
 if (( EXTRA_PLUGIN_COUNT > 0 )); then
-    while IFS="$TAB" read -r jar plugin extra; do
+    while IFS="$TAB" read -r jar plugin extra || [[ -n "$jar" ]]; do
         cp "$EXTRA_PLUGIN_DIR/$jar" "$WORK_DIR/plugins/$jar"
     done < "$EXTRA_PLUGIN_LIST"
 fi
@@ -185,6 +198,15 @@ printf 'Software: %s\nMinecraft: %s\nBuild: %s\nChannel: %s\nDownload: %s\nJava:
 runtime_download "$SERVER_URL" "$WORK_DIR/server.jar"
 test -s "$WORK_DIR/server.jar"
 
+verify_installed_plugins() {
+    if (( EXTRA_PLUGIN_COUNT > 0 )); then
+        python3 "$REPO_ROOT/scripts/verify_folia_addon_runtime.py" installed \
+            --selection "$EXTRA_PLUGIN_SELECTION" --expected-file "$EXTRA_PLUGIN_LIST" \
+            --plugin-dir "$WORK_DIR/plugins" --expect-source "$EXPECTED_SOURCE" \
+            --core-jar "$PLUGIN_JAR" --receipt "$WORK_DIR/installed-plugins.json"
+    fi
+}
+
 stop_process() {
     local pid="$1"
     local fd="$2"
@@ -211,6 +233,7 @@ run_cycle() {
     local console_log="$WORK_DIR/${label}.console.log"
     local input_fifo="$WORK_DIR/${label}.stdin"
 
+    verify_installed_plugins
     rm -f "$input_fifo"
     mkfifo "$input_fifo"
     exec 3<>"$input_fifo"
@@ -275,13 +298,12 @@ run_cycle() {
             grep -E 'Error occurred while enabling|NoClassDefFoundError|NoSuchMethodError|AbstractMethodError|IncompatibleClassChangeError' "$console_log" >&2 || true
             return 1
         fi
-        while IFS="$TAB" read -r jar plugin extra; do
-            if ! grep -Fq "Enabling ${plugin} v" "$console_log"; then
-                echo "${SOFTWARE_NAME} runtime smoke ${label}: expected admitted addon did not enable: ${plugin} (${jar})." >&2
-                cat "$console_log" >&2 || true
-                return 1
-            fi
-        done < "$EXTRA_PLUGIN_LIST"
+        if ! python3 "$REPO_ROOT/scripts/verify_folia_addon_runtime.py" log \
+            --console-log "$console_log" --expected-file "$EXTRA_PLUGIN_LIST"; then
+            echo "${SOFTWARE_NAME} runtime smoke ${label}: admitted addon startup lifecycle check failed." >&2
+            cat "$console_log" >&2 || true
+            return 1
+        fi
     fi
 
     if ! grep -Fq 'Slimefun Upgrade Readiness' "$console_log"; then
@@ -311,6 +333,7 @@ run_cycle() {
 
 run_cycle "first" false
 run_cycle "second" true
+verify_installed_plugins
 
 cat > "$WORK_DIR/smoke-result.txt" <<EOF
 Slimefun Legacy ${SOFTWARE_NAME} ${MC_VERSION} runtime smoke: PASS

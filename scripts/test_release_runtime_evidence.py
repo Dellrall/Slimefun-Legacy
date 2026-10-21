@@ -8,7 +8,9 @@ import json
 from pathlib import Path
 import shutil
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 import uuid
 import zipfile
 
@@ -19,7 +21,8 @@ from scripts.verify_release_runtime_evidence import (
 )
 
 SOURCE = "66ef9d066eb051d4101b49d67ae3b982d40bda2c"
-# Actual accepted test fixtures and canonical distribution selected at this source.
+# Historical test fixtures and canonical distribution at SOURCE. Keep this mismatch
+# as a regression control even when the current fixture lock advances.
 TEST_SOURCES = {
     "networks": "4e954b87a03ac84fc5357c49c315d155e8435e78",
     "ie2": "1ee9e3a5566886d14f2cc1a9a0ea0ce55b400a27",
@@ -27,6 +30,12 @@ TEST_SOURCES = {
 CANONICAL_SOURCES = {
     "networks": "560d590095206a8159d82c70e7cabe6d16aaa0d8",
     "ie2": "8ce79a3fac44424b3fca3d7b3fe7c48c2767fe12",
+}
+HISTORICAL_PINS = {
+    "networks": {"version": "1.0.59", "tree": "6c04aba17d48fd8397d5c071f60f80807069565c",
+                 "jar": "build/libs/SF_Networks1.0.59.jar"},
+    "ie2": {"version": "2.0.14", "tree": "e96502ae27f99f585c2cdb134d377a1cb51ab291",
+            "jar": "build/libs/SF_InfinityExpansion2.0.14.jar"},
 }
 
 
@@ -53,7 +62,7 @@ def plugin_jar(name, version, marker="test", source=None):
 
 
 class Fixture:
-    def __init__(self, root):
+    def __init__(self, root, *, historical_pair=False):
         self.root = root
         root.mkdir(parents=True, exist_ok=True)
         self.evidence = root / "evidence"
@@ -65,14 +74,24 @@ class Fixture:
         self.matrix_path = root / "matrix.json"
         self.lock_path = root / "fixture-lock.json"
         self.lock = json.loads(paired.LOCK_PATH.read_text())
-        self.jars = {
-            "core": plugin_jar("Slimefun", "4.1.76", source=SOURCE),
-            "networks": plugin_jar("Networks", "1.0.59"),
-            "ie2": plugin_jar("InfinityExpansion2", "2.0.14"),
-        }
+        if historical_pair:
+            for key, pin in self.lock["addons"].items():
+                pin.update(HISTORICAL_PINS[key], source=TEST_SOURCES[key])
+                pin["published_artifact"]["url"] = ("https://github.com/" + pin["repository"]
+                    + "/releases/download/v" + pin["version"] + "/" + Path(pin["jar"]).name)
+        self.jars = {"core": plugin_jar("Slimefun", "4.1.76", source=SOURCE), **{
+            key: plugin_jar(pin["plugin"], pin["version"])
+            for key, pin in self.lock["addons"].items()}}
+        self.compiled_jars = {
+            key: plugin_jar(pin["plugin"], pin["version"], marker="compiled against candidate core")
+            for key, pin in self.lock["addons"].items()}
         self.core.write_bytes(self.jars["core"])
         for key, value in self.jars.items():
             (self.inputs / (key + ".jar")).write_bytes(value)
+        (self.inputs / "compiled").mkdir()
+        for key, value in self.compiled_jars.items():
+            (self.inputs / "compiled" / (key + ".jar")).write_bytes(value)
+            self.lock["addons"][key]["published_artifact"].update(identity(self.jars[key]))
         (self.inputs / "fixture").mkdir()
         for index, row in enumerate(self.lock["fixture_sources"]):
             value = ("// synthetic original fixture " + str(index) + "\n").encode()
@@ -87,13 +106,16 @@ class Fixture:
             "schema": 1, "purpose": "integration-test-fixture", "source": SOURCE,
             "core_version": "4.1.76", "lock_sha256": identity(self.lock_path.read_bytes())["sha256"],
             "receipt_source_sha256": paired.digest(paired.RECEIPT_SOURCE),
-            "inputs": {}, "addon_checkouts": {}, "classpath_receipts": {},
+            "inputs": {}, "compiled_inputs": {}, "addon_checkouts": {}, "classpath_receipts": {},
         }
-        for key, name, version in (("core", "Slimefun", "4.1.76"), ("networks", "Networks", "1.0.59"),
-                                    ("ie2", "InfinityExpansion2", "2.0.14")):
+        for key, name, version in [("core", "Slimefun", "4.1.76")] + [
+                (key, pin["plugin"], pin["version"]) for key, pin in self.lock["addons"].items()]:
             self.manifest["inputs"][key] = {"file": key + ".jar", **identity(self.jars[key]),
                                             "plugin": name, "version": version, "classes": 1}
         for key, pin in self.lock["addons"].items():
+            self.manifest["compiled_inputs"][key] = {
+                "file": "compiled/" + key + ".jar", **identity(self.compiled_jars[key]),
+                "plugin": pin["plugin"], "version": pin["version"], "classes": 1}
             self.manifest["addon_checkouts"][key] = {field: pin[field] for field in ("repository", "source", "tree")}
             proof = {"schema": 1, "expected_core_sha256": metadata["core_sha256"],
                      "classpaths": {"compileClasspath": identity(self.jars["core"]),
@@ -106,11 +128,11 @@ class Fixture:
         write_json(self.inputs / "inputs.json", self.manifest)
         self.input_bytes = (self.inputs / "inputs.json").read_bytes()
 
-        self.matrix = {"addons": [{"repository": repository, "source_commit": TEST_SOURCES[key]}
+        self.matrix = {"addons": [{"repository": repository, "source_commit": self.lock["addons"][key]["source"]}
                                   for key, (repository, _) in ADDONS.items()]}
         self.bundle_manifest = {
-            "bundle_revision": "r142", "core_source_commit": SOURCE,
-            "addons": [{"repository": repository, "commit": TEST_SOURCES[key],
+            "bundle_revision": "r142" if historical_pair else "r143", "core_source_commit": SOURCE,
+            "addons": [{"repository": repository, "commit": self.lock["addons"][key]["source"],
                         "version": self.lock["addons"][key]["version"], "jar": key + ".jar",
                         "sha256": identity(self.jars[key])["sha256"]}
                        for key, (repository, _) in ADDONS.items()],
@@ -165,7 +187,8 @@ class Fixture:
                        "software": "Purpur", "minecraft": platform["minecraft"],
                        "server_version": platform["minecraft"] + "-" + platform["build"] + "-test",
                        "core_source": SOURCE, "core_commit": SOURCE, "core_version": "4.1.76",
-                       "networks_version": "1.0.59", "ie2_version": "2.0.14", "primary_thread": True}
+                       "networks_version": self.lock["addons"]["networks"]["version"],
+                       "ie2_version": self.lock["addons"]["ie2"]["version"], "primary_thread": True}
             stopped = dict(started, status="STOPPED", server_stopping=True)
             native = ("PAIRED_STORAGE_RECEIPT READY phase=" + phase + " token=" + token + "\nDone (1.0s)!\n"
                       + paired.PHASE_RESULTS[phase] + "\nStopping server\nPAIRED_STORAGE_RECEIPT STOPPED phase="
@@ -219,9 +242,91 @@ class ReleaseNativeEvidenceTests(unittest.TestCase):
         self.assertEqual(len(result["lanes"]), 2)
         self.assertEqual(result["core"], identity(self.fixture.core.read_bytes()))
         self.assertEqual(result["bundle"], identity(self.fixture.bundle.read_bytes()))
+        for key in ADDONS:
+            self.assertNotEqual(self.fixture.manifest["inputs"][key]["sha256"],
+                                self.fixture.manifest["compiled_inputs"][key]["sha256"])
+
+    def test_packaging_keeps_published_runtime_separate_from_candidate_compilation(self):
+        f = self.fixture
+        output = f.root / "packaged"
+        output.mkdir()
+        (output / "published").mkdir()
+        for name in ("core.jar", "core-metadata.json"):
+            shutil.copyfile(f.inputs / name, output / name)
+        lock = deepcopy(f.lock)
+        checkouts = {}
+        for key, pin in lock["addons"].items():
+            checkout = f.root / (key + "-checkout")
+            checkouts[key + "_checkout"] = checkout
+            built = checkout / pin["jar"]
+            built.parent.mkdir(parents=True)
+            built.write_bytes(f.compiled_jars[key])
+            (output / "published" / (key + ".jar")).write_bytes(f.jars[key])
+            shutil.copyfile(f.inputs / (key + "-core-classpath.json"), output / (key + "-core-classpath.json"))
+        for row in lock["fixture_sources"]:
+            target = checkouts["networks_checkout"] / row["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(f.inputs / "fixture" / target.name, target)
+        jeg = checkouts["networks_checkout"] / lock["jeg_compile_dependency"]["jar"]
+        jeg.parent.mkdir(parents=True, exist_ok=True)
+        jeg.write_bytes(b"synthetic pinned compilation dependency")
+        lock["jeg_compile_dependency"]["sha256"] = paired.digest(jeg)
+        lock_path = f.root / "packaging-lock.json"
+        write_json(lock_path, lock)
+        write_json(output / "preparation.json", {
+            "schema": 1, "source": SOURCE, "core_version": "4.1.76",
+            "core_sha256": identity(f.jars["core"])["sha256"], "lock_sha256": paired.digest(lock_path),
+            "local_maven_core_sha256": identity(f.jars["core"])["sha256"],
+            "addon_checkouts": f.manifest["addon_checkouts"],
+        })
+        args = SimpleNamespace(inputs_dir=output, expected_source=SOURCE, **checkouts)
+        def source_identity(checkout, pin):
+            return {field: pin[field] for field in ("repository", "source", "tree")}
+        with patch.object(paired, "LOCK_PATH", lock_path), \
+                patch.object(paired, "checkout_identity", side_effect=source_identity):
+            paired.package_inputs(args, lock)
+            manifest = paired.validate_inputs(output, SOURCE, lock)
+        for key in ADDONS:
+            self.assertEqual((output / (key + ".jar")).read_bytes(), f.jars[key])
+            self.assertEqual((output / "compiled" / (key + ".jar")).read_bytes(), f.compiled_jars[key])
+            self.assertNotEqual(manifest["inputs"][key]["sha256"], manifest["compiled_inputs"][key]["sha256"])
+            self.assertEqual(manifest["classpath_receipts"][key], f.manifest["classpath_receipts"][key])
+
+    def test_self_consistent_runtime_manifest_cannot_replace_pinned_publication(self):
+        f = self.fixture
+        pin = f.lock["addons"]["networks"]
+        changed = plugin_jar(pin["plugin"], pin["version"], marker="different publication bytes")
+        f.jars["networks"] = changed
+        (f.inputs / "networks.jar").write_bytes(changed)
+        f.alter_json(f.inputs / "inputs.json", lambda row: row["inputs"]["networks"].update(identity(changed)))
+        f.input_bytes = (f.inputs / "inputs.json").read_bytes()
+        f.bundle_manifest["addons"][0]["sha256"] = identity(changed)["sha256"]
+        f.write_bundle()
+        for index, (key, platform) in enumerate(f.lock["platforms"].items()):
+            shutil.rmtree(f.native / ("paired-storage-" + key))
+            f.write_lane(key, platform, 1000 + index * 10)
+        with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "Published addon bytes differ"):
+            f.verify()
+
+    def test_missing_or_changed_compiled_artifacts_are_rejected(self):
+        for key in ADDONS:
+            for mode in ("missing-receipt", "missing-file", "changed-bytes", "wrong-path"):
+                f = self.fresh(key + "-" + mode)
+                path = f.inputs / "compiled" / (key + ".jar")
+                if mode == "missing-receipt":
+                    f.alter_json(f.inputs / "inputs.json", lambda row: row["compiled_inputs"].pop(key))
+                elif mode == "missing-file":
+                    path.unlink()
+                elif mode == "changed-bytes":
+                    pin = f.lock["addons"][key]
+                    path.write_bytes(plugin_jar(pin["plugin"], pin["version"], marker="changed compiled output"))
+                else:
+                    f.alter_json(f.inputs / "inputs.json", lambda row: row["compiled_inputs"][key].update(file=key + ".jar"))
+                with self.subTest(addon=key, mode=mode), self.assertRaises(ReleaseRuntimeEvidenceError):
+                    f.verify()
 
     def test_recorded_real_pair_source_mismatch_rejects_equal_versions_and_core(self):
-        f = self.fixture
+        f = Fixture(Path(self.temp.name) / "historical-pair", historical_pair=True)
         for row in f.matrix["addons"]:
             key = next(key for key, (repo, _) in ADDONS.items() if repo == row["repository"])
             row["source_commit"] = CANONICAL_SOURCES[key]
@@ -236,7 +341,8 @@ class ReleaseNativeEvidenceTests(unittest.TestCase):
 
     def test_same_source_version_but_different_whole_jar_is_rejected(self):
         f = self.fixture
-        f.jars["networks"] = plugin_jar("Networks", "1.0.59", marker="changed artifact bytes")
+        f.jars["networks"] = plugin_jar("Networks", f.lock["addons"]["networks"]["version"],
+                                       marker="changed artifact bytes")
         f.bundle_manifest["addons"][0]["sha256"] = identity(f.jars["networks"])["sha256"]
         f.write_bundle()
         with self.assertRaisesRegex(ReleaseRuntimeEvidenceError, "tested addon bytes differ"):
@@ -385,6 +491,8 @@ class ReleaseNativeEvidenceTests(unittest.TestCase):
             ("paired-storage-inputs/inputs.json", lambda value: value.update(schema=True)),
             ("paired-storage-inputs/core-metadata.json", lambda value: value.update(schema=True)),
             ("paired-storage-inputs/inputs.json", lambda value: value["inputs"]["core"].update(classes=True)),
+            ("paired-storage-inputs/inputs.json", lambda value: value["compiled_inputs"]["networks"].update(classes=True)),
+            ("paired-storage-inputs/inputs.json", lambda value: value["compiled_inputs"]["ie2"].update(bytes=True)),
             ("paired-storage-inputs/networks-core-classpath.json", lambda value: value.update(schema=True)),
             ("paired-storage-purpur-1.21.11-2568/verification.json", lambda value: value.update(schema=True)),
         )
