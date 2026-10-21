@@ -5,19 +5,29 @@
   "addons": {
     "networks": {
       "repository": "wickidcow/SF_NetworksExp",
-      "source": "4e954b87a03ac84fc5357c49c315d155e8435e78",
-      "tree": "6c04aba17d48fd8397d5c071f60f80807069565c",
+      "source": "d41d362c8b71073dca41abc24f6ef6a5a8688fff",
+      "tree": "3a3348663755c0536ff838ebf977cc4c7d00955a",
       "plugin": "Networks",
-      "version": "1.0.59",
-      "jar": "build/libs/SF_Networks1.0.59.jar"
+      "version": "1.0.60",
+      "jar": "build/libs/SF_Networks1.0.60.jar",
+      "published_artifact": {
+        "url": "https://github.com/wickidcow/SF_NetworksExp/releases/download/v1.0.60/SF_Networks1.0.60.jar",
+        "bytes": 1681029,
+        "sha256": "e355ce958bd1e3d3c8ddd65d7f56dbd2b8d4c605ca6b0f1025a34e65c6a808b2"
+      }
     },
     "ie2": {
       "repository": "wickidcow/SF_InfinityExpansion2",
-      "source": "1ee9e3a5566886d14f2cc1a9a0ea0ce55b400a27",
-      "tree": "e96502ae27f99f585c2cdb134d377a1cb51ab291",
+      "source": "168815bb99e5701d3680095a9eb9170d83a19740",
+      "tree": "7b75e0628e98e0594b79bc4af06950e8ed5af955",
       "plugin": "InfinityExpansion2",
-      "version": "2.0.14",
-      "jar": "build/libs/SF_InfinityExpansion2.0.14.jar"
+      "version": "2.0.15",
+      "jar": "build/libs/SF_InfinityExpansion2.0.15.jar",
+      "published_artifact": {
+        "url": "https://github.com/wickidcow/SF_InfinityExpansion2/releases/download/v2.0.15/SF_InfinityExpansion2.0.15.jar",
+        "bytes": 1707539,
+        "sha256": "897bd4de70c9219217ecfb0f8cf68f0147b6c38758a239085db39718dd686eef"
+      }
     }
   },
   "fixture_sources": [

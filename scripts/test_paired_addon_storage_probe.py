@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+import zipfile
 
 from scripts.runtime.paired_addon_storage import run_probe as probe
 
@@ -17,7 +18,7 @@ TOKEN = "e912965e-cde8-40d8-90ad-b7699cdbad52"
 PID = 12345
 MANIFEST = {
     "source": SOURCE, "core_version": "4.1.76",
-    "inputs": {"networks": {"version": "1.0.59"}, "ie2": {"version": "2.0.14"}},
+    "inputs": {"networks": {"version": "1.0.60"}, "ie2": {"version": "2.0.15"}},
 }
 PLATFORM = {"software": "Purpur", "minecraft": "26.3", "build": "2652"}
 
@@ -27,7 +28,7 @@ def phase_receipts(phase="seed", token=TOKEN, pid=PID):
         "schema": 1, "phase": phase, "token": token, "pid": pid, "status": "READY",
         "software": "Purpur", "minecraft": "26.3", "server_version": "26.3-2652-candidate",
         "core_source": SOURCE, "core_commit": SOURCE, "core_version": "4.1.76",
-        "networks_version": "1.0.59", "ie2_version": "2.0.14", "primary_thread": True,
+        "networks_version": "1.0.60", "ie2_version": "2.0.15", "primary_thread": True,
     }
     stopped = dict(started, status="STOPPED", server_stopping=True)
     native = "\n".join((
@@ -117,7 +118,7 @@ class PairedReceiptTests(unittest.TestCase):
         mutations = {
             "schema": 2, "phase": "other", "token": "previous-boot", "pid": PID + 1, "status": "PASS",
             "core_source": "0" * 40, "core_commit": "0" * 40, "core_version": "4.1.75",
-            "networks_version": "1.0.58", "ie2_version": "2.0.13", "software": "Paper",
+            "networks_version": "1.0.59", "ie2_version": "2.0.14", "software": "Paper",
             "minecraft": "1.21.11", "server_version": "26.3-2646-wrong", "primary_thread": False,
         }
         for field, value in mutations.items():
@@ -268,6 +269,47 @@ class InputGuardTests(unittest.TestCase):
         self.assertFalse(lock["distribution_selection"])
         self.assertEqual(set(lock["addons"]), {"networks", "ie2"})
         self.assertEqual(len(lock["fixture_sources"]), 2)
+
+    def test_published_lock_requires_exact_release_url_size_and_digest(self):
+        mutations = (
+            lambda pin: pin.pop("published_artifact"),
+            lambda pin: pin["published_artifact"].update(url="https://example.com/other.jar"),
+            lambda pin: pin["published_artifact"].update(bytes=0),
+            lambda pin: pin["published_artifact"].update(bytes=True),
+            lambda pin: pin["published_artifact"].update(sha256="missing"),
+            lambda pin: pin["published_artifact"].update(extra="unreviewed"),
+        )
+        original = probe.load_lock()
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "fixture-lock.json"
+            for change in mutations:
+                for key in original["addons"]:
+                    lock = deepcopy(original)
+                    change(lock["addons"][key])
+                    probe.write_json(path, lock)
+                    with self.subTest(addon=key, change=change), patch.object(probe, "LOCK_PATH", path), \
+                            self.assertRaises(RuntimeError):
+                        probe.load_lock()
+
+    def test_published_jar_rejects_equal_version_with_different_size_or_bytes(self):
+        pin = deepcopy(probe.load_lock()["addons"]["networks"])
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "networks.jar"
+            def write_jar(marker):
+                with zipfile.ZipFile(path, "w") as archive:
+                    archive.writestr("plugin.yml", "name: " + pin["plugin"] + "\nversion: " + pin["version"] + "\n")
+                    archive.writestr("test/Marker.class", bytes.fromhex("cafebabe00000041") + marker)
+            write_jar(b"test")
+            pin["published_artifact"].update(probe.file_identity(path))
+            self.assertEqual(probe.validate_published_jar(path, pin)["sha256"], pin["published_artifact"]["sha256"])
+            wrong_size = deepcopy(pin)
+            wrong_size["published_artifact"]["bytes"] += 1
+            with self.assertRaisesRegex(RuntimeError, "Published addon bytes differ"):
+                probe.validate_published_jar(path, wrong_size)
+            write_jar(b"evil")
+            self.assertEqual(path.stat().st_size, pin["published_artifact"]["bytes"])
+            with self.assertRaisesRegex(RuntimeError, "Published addon bytes differ"):
+                probe.validate_published_jar(path, pin)
 
 
 class FinishedProcessBoundaryTests(unittest.TestCase):

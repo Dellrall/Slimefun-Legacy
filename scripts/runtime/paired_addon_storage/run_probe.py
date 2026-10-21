@@ -123,6 +123,16 @@ def load_lock() -> dict:
                 and re.fullmatch(r"[0-9a-f]{40}", addon["source"]) is not None
                 and re.fullmatch(r"[0-9a-f]{40}", addon["tree"]) is not None
                 and re.fullmatch(r"[\w.+-]+", addon["version"]) is not None, "Invalid addon test pin")
+        published = addon.get("published_artifact")
+        require(isinstance(published, dict) and set(published) == {"url", "bytes", "sha256"},
+                "Published addon artifact identity is required")
+        require(published["url"] == "https://github.com/" + addon["repository"]
+                + "/releases/download/v" + addon["version"] + "/" + PurePosixPath(addon["jar"]).name,
+                "Unexpected published addon URL")
+        require(type(published["bytes"]) is int and published["bytes"] > 0
+                and isinstance(published["sha256"], str)
+                and re.fullmatch(r"[0-9a-f]{64}", published["sha256"]) is not None,
+                "Invalid published addon size or digest")
     platforms = lock.get("platforms", {})
     require(set(platforms) == {"purpur-1.21.11-2568", "purpur-26.3-2652"}, "Unreviewed native platform")
     for platform in platforms.values():
@@ -191,6 +201,14 @@ def validate_jar(path: Path, name: str, version: str) -> dict:
     return {**file_identity(path), "plugin": name, "version": version, "classes": classes}
 
 
+def validate_published_jar(path: Path, pin: dict) -> dict:
+    details = validate_jar(path, pin["plugin"], pin["version"])
+    published = pin["published_artifact"]
+    require(all(details[field] == published[field] for field in ("bytes", "sha256")),
+            "Published addon bytes differ from the reviewed artifact")
+    return details
+
+
 def verify_fixture_sources(directory: Path, lock: dict, packaged: bool = False) -> list[dict]:
     result = []
     for pin in lock["fixture_sources"]:
@@ -257,18 +275,25 @@ def package_inputs(args: argparse.Namespace, lock: dict) -> None:
     manifest = {"schema": 1, "purpose": "integration-test-fixture", "source": args.expected_source,
                 "core_version": version, "lock_sha256": digest(LOCK_PATH),
                 "receipt_source_sha256": digest(RECEIPT_SOURCE), "inputs": {},
-                "addon_checkouts": {}, "classpath_receipts": {}}
+                "compiled_inputs": {}, "addon_checkouts": {}, "classpath_receipts": {}}
     manifest["inputs"]["core"] = {"file": "core.jar", **validate_jar(output / "core.jar", "Slimefun", version)}
+    (output / "compiled").mkdir()
     for key, pin in lock["addons"].items():
         checkout = getattr(args, key + "_checkout")
         identity = checkout_identity(checkout, pin)
         require(identity == prepared["addon_checkouts"][key], "Addon source changed during its build")
         source = relative_file(checkout, pin["jar"])
         details = validate_jar(source, pin["plugin"], pin["version"])
+        compiled = output / "compiled" / (key + ".jar")
+        shutil.copyfile(source, compiled)
+        require(file_identity(compiled) == file_identity(source), "Copied addon differs from the build")
+        manifest["compiled_inputs"][key] = {"file": "compiled/" + compiled.name, **details}
+        published = relative_file(output, "published/" + key + ".jar")
+        details = validate_published_jar(published, pin)
         target = output / (key + ".jar")
-        require(not target.exists(), "Refusing an existing packaged addon")
-        shutil.copyfile(source, target)
-        require(file_identity(target) == file_identity(source), "Copied addon differs from the build")
+        require(not target.exists() and not target.is_symlink(), "Refusing an existing packaged addon")
+        shutil.copyfile(published, target)
+        require(file_identity(target) == file_identity(published), "Copied addon differs from the publication")
         manifest["inputs"][key] = {"file": target.name, **details}
         manifest["addon_checkouts"][key] = identity
         manifest["classpath_receipts"][key] = validate_classpath_receipt(
@@ -286,6 +311,21 @@ def package_inputs(args: argparse.Namespace, lock: dict) -> None:
     write_json(output / "inputs.json", manifest)
 
 
+def validate_compiled_inputs(directory: Path, manifest: dict, lock: dict) -> None:
+    require(set(manifest.get("compiled_inputs", {})) == {"networks", "ie2"},
+            "Both compiled addon artifacts are required")
+    for key, pin in lock["addons"].items():
+        compiled = manifest["compiled_inputs"][key]
+        compiled_name = "compiled/" + key + ".jar"
+        require(isinstance(compiled, dict) and compiled.get("file") == compiled_name,
+                "Unexpected compiled input name")
+        require(all(type(compiled.get(field)) is int and compiled[field] > 0 for field in ("bytes", "classes")),
+                "Invalid compiled input size or class count")
+        require(compiled == {"file": compiled_name, **validate_jar(
+            relative_file(directory, compiled_name), pin["plugin"], pin["version"])},
+            "Compiled addon bytes or descriptor changed")
+
+
 def validate_inputs(directory: Path, expected_source: str, lock: dict) -> dict:
     manifest = read_json(directory / "inputs.json")
     require(manifest.get("schema") == 1 and manifest.get("purpose") == "integration-test-fixture"
@@ -295,11 +335,14 @@ def validate_inputs(directory: Path, expected_source: str, lock: dict) -> dict:
     version = validate_core(directory / "core.jar", read_json(directory / "core-metadata.json"), expected_source)
     require(manifest.get("core_version") == version and set(manifest.get("inputs", {}))
             == {"core", "networks", "ie2"}, "Incomplete paired inputs")
+    validate_compiled_inputs(directory, manifest, lock)
     for key, name, expected_version in [("core", "Slimefun", version)] + [
             (key, pin["plugin"], pin["version"]) for key, pin in lock["addons"].items()]:
         row = manifest["inputs"][key]
         require(row.get("file") == key + ".jar", "Unexpected packaged input name")
-        require(row == {"file": key + ".jar", **validate_jar(directory / row["file"], name, expected_version)},
+        details = (validate_jar(directory / row["file"], name, expected_version) if key == "core"
+                   else validate_published_jar(directory / row["file"], lock["addons"][key]))
+        require(row == {"file": key + ".jar", **details},
                 "Packaged input bytes or descriptor changed")
     for key, pin in lock["addons"].items():
         require(manifest["addon_checkouts"].get(key)

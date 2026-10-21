@@ -58,6 +58,8 @@ jobs:
       paper_api: ${{ steps.paper.outputs.paper_api }}
     steps:
       - uses: actions/checkout@v6
+      - name: Verify published pair staging rejection controls
+        run: python3 -m unittest scripts/test_stage_published_pair.py -v
       - name: Validate manifest and create matrix
         id: matrix
         shell: bash
@@ -347,6 +349,15 @@ jobs:
             printf '%s\n' "${CANDIDATES[@]}" >&2
             exit 1
           fi
+          if [[ "$ADDON_SLUG" == 'networksexp' || "$ADDON_SLUG" == 'infinityexpansion2' ]]; then
+            PAIR_KEY=networks
+            if [[ "$ADDON_SLUG" == 'infinityexpansion2' ]]; then PAIR_KEY=ie2; fi
+            # Keep the 26.3 compile evidence, but distribute the released universal bytes.
+            python3 tools/scripts/stage_published_pair.py --addon "$PAIR_KEY" \
+              --source "$(git -C addon rev-parse HEAD)" --repository "$ADDON_REPOSITORY" \
+              --output "published/$PAIR_KEY.jar" --report "staged/evidence/$ADDON_SLUG-published.json"
+            SELECTED="published/$PAIR_KEY.jar"
+          fi
           export SELECTED
           export ADDON_REPOSITORY ADDON_SLUG ARTIFACT_BASE PAPER_API_VERSION
           export ADDON_COMMIT="$(git -C addon rev-parse HEAD)"
@@ -393,13 +404,15 @@ jobs:
               'artifact_base': base,
               'sha256': sha256,
               'paper_26_3_api': os.environ['PAPER_API_VERSION'],
-              'distributable_api': '1.21.11-R0.1-SNAPSHOT' if slug in ('slimeeasy', 'dracfunreborn', 'justenoughguide') else os.environ['PAPER_API_VERSION'],
+              'distributable_api': '1.21.11-R0.1-SNAPSHOT' if slug in ('slimeeasy', 'dracfunreborn', 'justenoughguide') or slug in ('networksexp', 'infinityexpansion2') else os.environ['PAPER_API_VERSION'],
               'primary_api_target': '26.3',
               'backwards_compatible_through': '1.21.11',
               'minimum_supported': '1.21.11',
               'primary_platforms': ['Paper', 'Purpur'],
-              'secondary_platforms': ['Folia', 'Leaf'],
+              'secondary_platforms': [] if slug in ('networksexp', 'infinityexpansion2') else ['Folia', 'Leaf'],
           }
+          if slug in ('networksexp', 'infinityexpansion2'):
+              record['published_artifact'] = json.loads(Path(f'staged/evidence/{slug}-published.json').read_text())
           Path(f'staged/metadata/{slug}.json').write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
           print(f'Collected {source.name} as canonical {canonical}')
           PY
@@ -562,12 +575,15 @@ jobs:
 
           Server platforms:
           - PRIMARY: Paper, Purpur
-          - SECONDARY: Folia, Leaf
+          - SECONDARY: Folia, Leaf only for addons with separately verified runtime support
+          - Networks and InfinityExpansion2 do not support Folia runtime operation
 
           Every addon source in this archive was verified against the Paper ${PAPER_API_VERSION}
           / Slimefun Legacy candidate stack. Distributable JARs keep their intended baseline
           bytecode; DracFun Reborn is separately validated on Java 25 / Paper 26.3, then rebuilt
           as Java-21 bytecode against the 1.21.11 baseline for universal deployment.
+          Networks and InfinityExpansion2 use their checksum-pinned published universal JARs;
+          their newer-API compile probe outputs are not distributed.
           EOF
           (cd bundle && sha256sum *.jar | sort > SHA256SUMS.txt)
           (cd bundle && zip -9 -q "../${BUNDLE_NAME}" ./*)

@@ -1,21 +1,30 @@
 # Paired addon storage regression
 
-This core-owned gate builds the fixed Networks and InfinityExpansion2 test sources
-against the exact Slimefun core produced by the same workflow run. It then runs the
-original paired storage fixture in two independent JVMs on the minimum supported
-Purpur version and on Purpur 26.3.
+This core-owned gate builds and tests the accepted Networks and InfinityExpansion2
+sources against the exact Slimefun core produced by the same workflow run. It then
+runs their reviewed published JARs with that core and the original paired storage
+fixture in two independent JVMs on the minimum supported Purpur version and on
+Purpur 26.3. The source build outputs and classpath receipts remain separate,
+required evidence alongside the exact runtime artifacts.
 
 The source pins in `fixture-lock.json` are **integration test inputs**. They do not
 select addon versions for the distribution matrix, declare the external repair
 work finished, or authorize a release. Changes to those pins require review of
 the external owner's final source and the corresponding fixture contract.
 
-| Input | Fixed test revision |
-| --- | --- |
-| Networks | `4e954b87a03ac84fc5357c49c315d155e8435e78` |
-| InfinityExpansion2 | `1ee9e3a5566886d14f2cc1a9a0ea0ce55b400a27` |
-| Purpur minimum | 1.21.11 build 2568 |
-| Purpur modern | 26.3 build 2652 |
+| Input | Version | Fixed source or build |
+| --- | --- | --- |
+| Networks | 1.0.60 | `d41d362c8b71073dca41abc24f6ef6a5a8688fff` |
+| InfinityExpansion2 | 2.0.15 | `168815bb99e5701d3680095a9eb9170d83a19740` |
+| Purpur minimum | 1.21.11 | 2568 |
+| Purpur modern | 26.3 | 2652 |
+
+The lock records each published artifact's official versioned URL, byte count
+and SHA-256. Networks is 1,681,029 bytes with digest
+`e355ce958bd1e3d3c8ddd65d7f56dbd2b8d4c605ca6b0f1025a34e65c6a808b2`;
+InfinityExpansion2 is 1,707,539 bytes with digest
+`897bd4de70c9219217ecfb0f8cf68f0147b6c38758a239085db39718dd686eef`.
+Both original Java fixture source hashes are unchanged by this final pair update.
 
 ## What the gate verifies
 
@@ -32,6 +41,15 @@ and test runtime classpaths. Networks uses its existing direct JAR override.
 IE2 uses its existing coordinate override and a disposable local Maven directory
 containing only that exact core. Normal addon build/test and Java 21 artifact
 checks remain required.
+
+The workflow stages the published JARs under `published/` after both source builds
+pass. Packaging verifies their full size and hash against the lock and copies
+them to `networks.jar` and `ie2.jar` for native execution. The independently built
+JARs are preserved under `compiled/` and recorded in `compiled_inputs`, with their
+own full artifact identities and the original compile/test core classpath
+receipts. Every input validation checks both sets. The compiled artifacts can
+differ from the published artifacts; the native runtime artifacts must match the
+reviewed publication and the canonical bundle exactly.
 
 Each native job creates a new world strictly inside `RUNNER_TEMP`. The small
 `PairedStorageReceipt` companion observes loaded plugin metadata, native version,
@@ -76,11 +94,11 @@ packaged Networks/IE2 JAR bytes to match a successful native run, both paired
 storage lane receipts, and the exact bundle used by a successful full-stack run.
 An older test pair with the same version strings cannot satisfy this check.
 
-The test-only source lock remains independent of distribution selection. When
-the external repair owner supplies the final accepted pair, its source and
-fixture contract must be reviewed before updating the lock and bundle pins.
-Until those inputs agree and their runtime jobs pass, the final release guard
-rejects publication. A passing guard does not grant publication authorization.
+The test-only source lock remains independent of distribution selection. This
+update binds it to the external repair owner's accepted final pair and retains
+the original fixture contract. Until the canonical inputs agree and their
+runtime jobs pass, the final release guard rejects publication. A passing guard
+does not grant publication authorization.
 
 ## Focused runner controls
 

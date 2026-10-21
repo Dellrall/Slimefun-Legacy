@@ -247,6 +247,7 @@ def _verify_inputs(directory: Path, core: Path, pair: dict, lock: dict, lock_byt
     _require(set(manifest.get("inputs", {})) == {"core", "networks", "ie2"}
              and set(manifest.get("addon_checkouts", {})) == set(ADDONS)
              and set(manifest.get("classpath_receipts", {})) == set(ADDONS), "Incomplete paired provenance")
+    paired.validate_compiled_inputs(directory, manifest, lock)
     core_bytes = _read(core)
     _require(_read(directory / "core.jar") == core_bytes, "Native paired core is not the exact release JAR")
     for key, plugin, expected_version in [("core", "Slimefun", version)] + [
@@ -262,6 +263,7 @@ def _verify_inputs(directory: Path, core: Path, pair: dict, lock: dict, lock_byt
                  and isinstance(pin.get("source"), str) and HEX40.fullmatch(pin["source"]) is not None
                  and isinstance(pin.get("tree"), str) and HEX40.fullmatch(pin["tree"]) is not None,
                  "Invalid paired fixture source pin")
+        paired.validate_published_jar(directory / (key + ".jar"), pin)
         _require(manifest["addon_checkouts"][key] == {
             field: pin[field] for field in ("repository", "source", "tree")},
             "Native checkout provenance differs from its reviewed fixture")
