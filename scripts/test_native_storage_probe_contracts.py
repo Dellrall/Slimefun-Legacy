@@ -68,7 +68,7 @@ class NativeStorageProbeContracts(unittest.TestCase):
             ("SF_Networks1.0.59.jar", "560d590095206a8159d82c70e7cabe6d16aaa0d8")
             if revision in (141, 142) else
             ("SF_Networks1.0.60.jar", "d41d362c8b71073dca41abc24f6ef6a5a8688fff")
-            if revision == 143 else
+            if revision in (143, 144) else
             ("SF_Networks1.0.55.jar", "bcdef34d362dc74aa1aab23c8961a629daa79950")
         )
         rows = []
@@ -127,14 +127,14 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.assertEqual(networks["commit"], "4ebecea309e89cc60fc4f6d932505312b5468ed1")
 
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
-        self.manifest["bundle_revision"] = 144
-        self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142 or r143")
+        self.manifest["bundle_revision"] = 145
+        self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143 or r144")
 
     def test_non_integer_revisions_are_rejected(self):
-        for value in (141.0, "141", 142.0, "142", 143.0, "143", True, None):
+        for value in (141.0, "141", 142.0, "142", 143.0, "143", 144.0, "144", True, None):
             with self.subTest(value=value):
                 self.manifest["bundle_revision"] = value
-                self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142 or r143")
+                self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143 or r144")
 
     def test_r141_requires_networks_1_0_59_and_its_exact_source(self):
         self.populate(141)
@@ -164,11 +164,11 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.manifest["addons"][1]["commit"] = probe.NETWORK_VERSIONS[140][1]
         self.reject("addon source mismatch")
 
-    def test_r143_requires_final_networks_1_0_60_and_exact_release_source(self):
+    def assert_final_networks_source_for_revision(self, revision):
         (self.root / "gradle.properties").write_text("projectVersion=4.1.76\n", encoding="utf-8")
-        self.populate(143)
+        self.populate(revision)
         evidence = self.prepare()
-        self.assertEqual(evidence["bundle_revision"], 143)
+        self.assertEqual(evidence["bundle_revision"], revision)
         self.assertEqual(evidence["expected_core_version"], "4.1.76")
         networks = evidence["tested_addons"]["wickidcow/SF_NetworksExp"]
         self.assertEqual(networks["jar"], "SF_Networks1.0.60.jar")
@@ -177,6 +177,12 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.compile.reset_mock()
         self.manifest["addons"][1]["commit"] = probe.NETWORK_VERSIONS[142][1]
         self.reject("addon source mismatch")
+
+    def test_r143_requires_final_networks_1_0_60_and_exact_release_source(self):
+        self.assert_final_networks_source_for_revision(143)
+
+    def test_r144_requires_unchanged_networks_1_0_60_and_exact_release_source(self):
+        self.assert_final_networks_source_for_revision(144)
 
     def test_wrong_fluffy_pin_is_rejected(self):
         self.manifest["addons"][0]["commit"] = "0" * 40

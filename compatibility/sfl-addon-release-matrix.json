@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bundle_revision": 143,
+  "bundle_revision": 144,
   "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
@@ -80,7 +80,7 @@
     {
       "repository": "wickidcow/SF_CrystamaeHistoria",
       "slug": "crystamaehistoria",
-      "source_commit": "0ab1916025ffcdca48e36623b5a1752a4757ebf5"
+      "source_commit": "584db74db1dd9d108cf658bdaf2a09c9132b0d47"
     },
     {
       "repository": "wickidcow/SF_DankTech2",
@@ -203,7 +203,7 @@
     {
       "repository": "wickidcow/SF_MobCapturer",
       "slug": "mobcapturer",
-      "source_commit": "f884ac5cb8cd4624b28c427e445ef06d6025c065"
+      "source_commit": "34e7f85233007f7d93036aa92f0fd53ff463f1c4"
     },
     {
       "repository": "wickidcow/SF_MobDrops",
