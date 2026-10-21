@@ -511,6 +511,18 @@ allprojects { p ->
 
 gradle.projectsEvaluated {
     allprojects { p ->
+        // A failing mirror must not intercept these modules and their parent POM before the
+        // addon's declared provider repositories. Keep all other routing intact.
+        p.repositories.withType(org.gradle.api.artifacts.repositories.MavenArtifactRepository).each { repository ->
+            if ('repo.minebench.de'.equalsIgnoreCase(repository.url?.host)) {
+                repository.content {
+                    excludeModule('me.clip', 'placeholderapi')
+                    excludeModule('de.tr7zw', 'item-nbt-api-plugin')
+                    excludeModule('de.tr7zw', 'item-nbt-parent')
+                }
+            }
+        }
+
         // Paper 26.2+ API variants require Java 25. Some maintained addons still
         // intentionally emit Java 21 bytecode. Override only the consumer variant
         // attribute used for dependency selection; do not touch compiler targets.
