@@ -1,12 +1,101 @@
 # Networks Expansion — core release integration checkpoint
 
-Updated: 2026-10-21. This file tracks the coordinated **Slimefun Legacy 4.1.76 / r145** candidate integration. The original r143 evidence is preserved below under historical headings. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult the current handoff and Git state before resuming; do not repeat accepted production repairs.
+Updated: 2026-10-21 (America/New_York). This file tracks the coordinated **Slimefun Legacy 4.1.76 / r145** candidate integration and the maintainer-approved optional Bedrock download. Historical integration evidence is preserved below. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult the current handoff and Git state before resuming; do not repeat accepted production repairs.
 
 ## Publication boundary
 
 Core **4.1.76 remains unreleased and held for explicit maintainer approval** after the concrete candidate is verified. Continue integration, testing, review and merge without restarting the addon repairs. Do not publish a core tag/release or replace existing v4.1.75 assets during validation. `reproducible-release.yml` now defaults manual dispatch to `publish=false` and requires explicit `publish=true` plus successful runtime evidence for either publishing or normalizing assets.
 
-## Current handoff — r145 candidate
+## Current handoff — optional Bedrock pack carryover
+
+The maintainer explicitly requested carrying `GEYSER_SFL_RP_Experimental_v0.0.1.zip`
+into the next release, describing it as optional for Bedrock players and stating
+that Geyser and the supplied drop-in files are required. This authorizes the
+specific asset inclusion and preservation policy; core/addon publication remains
+held. Core stays at **4.1.76**, bundle revision **145**, and all 45 addon source pins
+remain unchanged.
+
+- Starting master: `f472c473b6a2013be29403061785e90d32d1c868`, accepted r145 predecessor.
+  Branch: `release/4.1.76-optional-bedrock-pack`.
+- Approved source: v4.1.75 release `415923695`, asset `664136278`, 226,576 bytes,
+  SHA-256 `ba4fa277fb71a33ca557e0206ea51c40680593952a5d47fbd849b335c9fe09bf`.
+  The unchanged ZIP contains `Geyser-Spigot/packs/SlimefunBedrockRP.mcpack` and
+  20 custom-mapping JSON files. Both outer and inner ZIP CRCs and all mapping JSON
+  parses pass. This verifies archive identity/structure, not every Bedrock texture
+  or client interaction.
+- Release changes: a separate checksum/source pin, read-only archive and metadata
+  verifier, four-asset staging/publishing/normalization, and an exact preservation
+  exception for this ZIP on its origin v4.1.75 and approved successor v4.1.76.
+  Unknown assets, changed bytes and unapproved tags still fail; the older Geyser
+  alpha ZIP is not approved by this request. The existing Java pack pin remains
+  unchanged. No repacking, plugin Java change, live-server edit or public-asset
+  replacement is part of this change.
+- Documentation: README, release notes and
+  [Bedrock installation instructions](docs/bedrock-resource-pack.md) explicitly
+  require a configured Geyser installation plus both `packs/` and
+  `custom_mappings/` contents. The optional download is a fourth separate asset,
+  outside the addon JAR ZIP.
+- Focused tests: **45 preservation tests**, **23 Bedrock asset-verifier tests**,
+  and **7 tests executing the actual workflow shell blocks with local GitHub
+  stubs** pass normally and under optimized Python. The 26 existing release
+  dispatch/evidence controls also pass with the Bedrock acquisition gate required.
+  The complete invariant suite also passes with the new shell suite wired into
+  its normal repository-root entry point. The isolated CI-sequence Java build
+  passes **941 tests / 162 suites, zero failures/errors and one existing
+  real-database skip**; those local JARs are not release artifacts.
+  The actual current v4.1.75 snapshot now preflights with four retained assets and
+  zero deletion candidates. The original failed alpha snapshot remains rejected.
+- Initial validation failures are retained: Gradle/local HTTP fixtures cannot open
+  their sockets in the restricted sandbox; normal execution outside that sandbox
+  runs the checks. An unformatted local Gradle build reaches the pre-existing
+  Spotless violations in the untouched base. Verification uses the repository's
+  existing CI formatter-before-build sequence in a disposable copy, without
+  introducing unrelated formatting changes into this branch. A first cleanup
+  test run preceded creation of the shared pin and failed on that missing file;
+  the completed normal/optimized runs pass after the pin exists.
+  Review also caught the new shell suite treating the invariant runner's root
+  argument as a test name; that invocation was reproduced, corrected, and
+  verified through the complete invariant run plus the optimized root invocation.
+
+### Accepted predecessor and resolved follow-ups
+
+The three-asset f472c473/r145 candidate passed canonical bundle
+[39666239520](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39666239520),
+native storage/retirement
+[39666239574](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39666239574),
+automatic full-stack
+[39668045172](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39668045172),
+and final `publish=false` reproducible validation
+[39669276799](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39669276799).
+Those exact-source receipts belong to f472c473; the new release workflow requires
+acceptance on its own final merge source before publication.
+
+GCE PR #4 is merged at `a46359e675fe21b509642698fd77d75580436155` and selected as
+1.0.4 in r145. Its actual JAR matches both original installed receipts from
+[Folia run 39666239448](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39666239448).
+Both boots enabled GCE, registered 64 chickens and shut down normally. The known
+startup scheduler defect is resolved; full chicken/cross-region gameplay is not
+certified. Networks and IE2 remain excluded from this Folia subset.
+
+The newer IE2 test-fixture compiler failure was repaired by
+[PR #36](https://github.com/wickidcow/SF_InfinityExpansion2/pull/36), merged at
+`b1fd91db9e85189fd108b45e343e32cead9c2dde`. The actual targeted retry
+[119544575926](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39666239493/job/119544575926)
+passes; the overall run is successful on attempt 2. Separate full-build evidence
+records 183 tests, zero failures/errors/skips. This test-only repair leaves the
+published IE2 2.0.15 pin and r145 plugin bytes unchanged.
+
+### Exact next action
+
+Complete review and normal hosted checks for this scoped carryover change, merge
+it, then accept the final merge source through the existing exact-source bundle,
+native and full-stack gates and `publish=false` release validation. Keep tracker
+[#378](https://github.com/wickidcow/Slimefun-Legacy/issues/378) current with actual
+PR/merge/run results. Publish only after explicit maintainer authorization, with
+all four assets checked against their accepted bytes. Do not restart the accepted
+Networks/IE2 repairs or substitute predecessor artifact hashes for a new source.
+
+## Historical r145 integration handoff before f472c473 acceptance
 
 - PR [#414](https://github.com/wickidcow/Slimefun-Legacy/pull/414) merged as `e7ba40469eae1aa54b4347af19e58341f492edcb`, integrating the published Networks 1.0.60 / InfinityExpansion2 2.0.15 pair into held r143.
 - PR [#415](https://github.com/wickidcow/Slimefun-Legacy/pull/415) merged as `513d316f65f7701a75f4289aa92e886eae363a06`, advancing only CrystamaeHistoria to 1.0.2 and MobCapturer to 1.0.7 in r144. All 43 other source selections retained r143.
@@ -15,7 +104,7 @@ Core **4.1.76 remains unreleased and held for explicit maintainer approval** aft
 - This work covers startup and load evidence for the audited declared-addon subset. It does not add Folia declarations, establish chicken gameplay or cross-region safety, or certify the complete 45-addon bundle. Direct Networks and InfinityExpansion2 changes remain with their separate repair workstream.
 - GeneticChickenEngineering [PR #4](https://github.com/wickidcow/SF_GeneticChickEngineering/pull/4) merged as `a46359e675fe21b509642698fd77d75580436155`, now selected by r145. Its [hosted compatibility run](https://github.com/wickidcow/SF_GeneticChickEngineering/actions/runs/39661722799) passed all three API lanes and packaged ABI/ownership checks; publication was skipped. The r145 native and full-stack acceptance and final reproducible release validation remain **pending**. Core stays at **4.1.76**; addon and core publication remain held. No new release, tag or public asset replacement is authorized by these changes.
 
-### Current next actions
+### Historical next actions before f472c473 acceptance
 
 1. The bounded GeneticChickenEngineering startup repair is accepted and pinned. Preserve its exact source, all 44 other complete addon entries and the publication hold during integration.
 2. Complete PR #413's exact-source declared-addon startup and receipt checks. Record actual results and retained limitations; compile or descriptor admission alone is insufficient.

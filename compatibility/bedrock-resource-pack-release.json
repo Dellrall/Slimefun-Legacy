@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "repository": "wickidcow/Slimefun-Legacy",
+  "release_tag": "v4.1.75",
+  "release_id": 415923695,
+  "asset_id": 664136278,
+  "asset_name": "GEYSER_SFL_RP_Experimental_v0.0.1.zip",
+  "size_bytes": 226576,
+  "sha256": "ba4fa277fb71a33ca557e0206ea51c40680593952a5d47fbd849b335c9fe09bf",
+  "carry_forward_tags": [
+    "v4.1.76"
+  ],
+  "stability": "experimental",
+  "requires": "Geyser with both the bundled custom mappings and Bedrock resource pack installed",
+  "note": "Maintainer-approved optional Bedrock download, carried forward byte-for-byte from the existing release asset. This pin establishes archive identity and structure, not complete Bedrock texture or client compatibility."
+}
