@@ -1,4 +1,4 @@
-name: Update v4.1.76 SlimeHUD addon safely
+name: Update v4.1.76 SlimeHUD 2.0.7 addon safely
 
 on:
   pull_request:
@@ -38,8 +38,8 @@ jobs:
         run: |
           set -euo pipefail
           git clone https://github.com/wickidcow/SF_SlimeHUD.git hud
-          git -C hud checkout --detach 91a27b9f7b6d34089611f1ddea0e5464a4885d1f
-          test "$(git -C hud rev-parse HEAD)" = '91a27b9f7b6d34089611f1ddea0e5464a4885d1f'
+          git -C hud checkout --detach 72ba3ca673beb2b48c15b5dc77bf1d1880f8a1e3
+          test "$(git -C hud rev-parse HEAD)" = '72ba3ca673beb2b48c15b5dc77bf1d1880f8a1e3'
 
       - uses: actions/setup-java@v5
         with:
@@ -48,13 +48,13 @@ jobs:
           cache: maven
           cache-dependency-path: hud/pom.xml
 
-      - name: Rebuild exact SlimeHUD 2.0.6 and run its regression suite
+      - name: Rebuild exact SlimeHUD 2.0.7 and run its regression suite
         shell: bash
         run: |
           set -euo pipefail
           mvn -B -ntp -f hud/pom.xml clean package
-          test -s hud/target/SF_SlimeHUD2.0.6.jar
-          echo 'cf171cb05e1a95056564ac938af06568e214a498a6733a53d61a1f0e6f011b75  hud/target/SF_SlimeHUD2.0.6.jar' | sha256sum -c
+          test -s hud/target/SF_SlimeHUD2.0.7.jar
+          echo '0faa208bc991852e4e23ea839247141cf719363dc49dc3056bac8cee071e05a7  hud/target/SF_SlimeHUD2.0.7.jar' | sha256sum -c
 
       - name: Download untouched published v4.1.76 ZIP
         env:
@@ -66,7 +66,7 @@ jobs:
           mkdir -p downloaded
           gh release download v4.1.76 --repo wickidcow/Slimefun-Legacy --pattern 'SF_Addons_1.21.11-26.3.zip' --dir downloaded
           test -s downloaded/SF_Addons_1.21.11-26.3.zip
-          echo '0427b467a4b79c50801571775b8f1afe030cb50103f8059421b8ad6d4c8943a6  downloaded/SF_Addons_1.21.11-26.3.zip' | sha256sum -c
+          echo '4543de9a9d7ff137ecb8a98e997f1a1b0e0ca4abc99929c1324eff7684b235bd  downloaded/SF_Addons_1.21.11-26.3.zip' | sha256sum -c
 
       - name: Replace only SlimeHUD, update manifest and verify all other bytes
         shell: bash
@@ -80,10 +80,10 @@ jobs:
           name = "SF_Addons_1.21.11-26.3.zip"
           src = Path("downloaded") / name
           dst = Path("dist") / name
-          hud = Path("hud/target/SF_SlimeHUD2.0.6.jar")
-          expected_bundle_sha = "0427b467a4b79c50801571775b8f1afe030cb50103f8059421b8ad6d4c8943a6"
-          expected_hud_sha = "cf171cb05e1a95056564ac938af06568e214a498a6733a53d61a1f0e6f011b75"
-          source_pin = "91a27b9f7b6d34089611f1ddea0e5464a4885d1f"
+          hud = Path("hud/target/SF_SlimeHUD2.0.7.jar")
+          expected_bundle_sha = "4543de9a9d7ff137ecb8a98e997f1a1b0e0ca4abc99929c1324eff7684b235bd"
+          expected_hud_sha = "0faa208bc991852e4e23ea839247141cf719363dc49dc3056bac8cee071e05a7"
+          source_pin = "72ba3ca673beb2b48c15b5dc77bf1d1880f8a1e3"
           def sha(b): return hashlib.sha256(b).hexdigest()
           def check(condition, message):
               if not condition: raise RuntimeError(message)
@@ -107,7 +107,7 @@ jobs:
           check(not re.search(r"(?m)^\s*-\s*WIT\s*$", descriptor), "WIT is still a soft dependency")
           config = plugin["config.yml"].decode()
           check(re.search(r"(?m)^\s*default-enabled:\s*false\s*$", config) is not None, "HUD must default OFF")
-          check(re.search(r"(?m)^\s*crouch-only:\s*false\s*$", config) is not None, "Missing crouch-only option")
+          check(re.search(r"(?m)^\s*crouch-only:\s*true\s*$", config) is not None, "Crouch-only should be ON by default")
           check(re.search(r"(?m)^\s*disabled:\s*false\s*$", config) is not None, "Global disable blocks opting in")
           
           with ZipFile(io.BytesIO(original)) as z:
@@ -117,68 +117,39 @@ jobs:
                     "Release manifest or checksums missing")
               manifest = json.loads(previous["SF_ADDON_MANIFEST.json"])
               check(manifest.get("bundle") == name, "Unexpected bundle identifier")
+              check(manifest.get("bundle_revision") == 147, "Expected current release bundle revision 147")
               check(manifest.get("core_source_commit") == "9075ea852095b28543aaa1456bc2576778cb4c4d",
                     "Unexpected core release commit")
               rows = manifest["addons"]
               check(len(rows) == 45 and len({r["slug"] for r in rows}) == 45, "Expected 45 maintained addons")
               old_names = {r["jar"] for r in rows}
               actual_names = {n for n in previous if n.endswith(".jar")}
-              # The published v4.1.76 asset was manually hotfixed: MagicExpansion
-              # 1.1.16 was replaced by 1.1.17 without refreshing the manifest.
-              # Admit exactly this known file swap, and reconcile the manifest
-              # to the actual 1.1.17 bytes. No other content differences are allowed.
-              magic = next((r for r in rows if r["slug"] == "magicexpansion"), None)
-              check(magic is not None and magic["repository"] == "wickidcow/SF_MagicExpansion",
-                    "Unexpected MagicExpansion source")
-              check(magic["jar"] == "SF_MagicExpansion1.1.16.jar",
-                    "Unexpected pre-hotfix MagicExpansion metadata")
-              check(old_names - actual_names == {"SF_MagicExpansion1.1.16.jar"} and
-                    actual_names - old_names == {"SF_MagicExpansion1.1.17.jar"},
-                    f"Unexpected published file difference; missing={sorted(old_names - actual_names)} extra={sorted(actual_names - old_names)}")
-              check(len(actual_names) == 45, "Unexpected count of published JAR files")
-              magic_payload = previous["SF_MagicExpansion1.1.17.jar"]
-              with ZipFile(io.BytesIO(magic_payload)) as magic_archive:
-                  magic_files = unpack(magic_archive)
-              check("plugin.yml" in magic_files, "MagicExpansion plugin descriptor missing")
-              check(re.search(r"(?m)^version:\s*1\.1\.17\s*$",
-                              magic_files["plugin.yml"].decode()) is not None,
-                    "Published MagicExpansion is not version 1.1.17")
-              magic_sha = sha(magic_payload)
-              old_sums = previous["SHA256SUMS.txt"].decode().splitlines()
-              check(len(old_sums) == 45, "Unexpected number of published checksum entries")
+              check(old_names == actual_names, "Published addon files differ from the verified revision 147 manifest")
+              old_sums = sorted(previous["SHA256SUMS.txt"].decode().strip().splitlines())
+              expected_sums = sorted(f'{sha(previous[row["jar"]])}  {row["jar"]}' for row in rows)
+              check(old_sums == expected_sums, "Published checksums do not match revision 147")
               for row in rows:
-                  if row["slug"] == "magicexpansion":
-                      continue
-                  check(f'{sha(previous[row["jar"]])}  {row["jar"]}' in old_sums,
-                        f'Published checksums differ for {row["jar"]}')
                   check(sha(previous[row["jar"]]) == row["sha256"],
-                        f'Published manifest differs for {row["jar"]}')
-              check(any(line.endswith("  SF_MagicExpansion1.1.16.jar") or
-                        line.endswith("  SF_MagicExpansion1.1.17.jar") for line in old_sums),
-                    "MagicExpansion checksum entry missing")
+                        "Published addon metadata digest mismatch: " + row["jar"])
+              magic = next((r for r in rows if r["slug"] == "magicexpansion"), None)
+              check(magic is not None and magic["jar"] == "SF_MagicExpansion1.1.17.jar",
+                    "MagicExpansion 1.1.17 must be retained")
+              magic_sha = sha(previous[magic["jar"]])
               matches = [r for r in rows if r["slug"] == "slimehud"]
               check(len(matches) == 1 and matches[0]["repository"] == "wickidcow/SF_SlimeHUD",
                     "Unexpected SlimeHUD record")
               old_row = matches[0]
               old_hud = old_row["jar"]
-              check(old_hud == "SF_SlimeHUD2.0.5.jar" and "SF_SlimeHUD2.0.6.jar" not in previous,
-                    "Released SlimeHUD is not the expected 2.0.5; refuse to patch")
-              corrected_magic = copy.deepcopy(magic)
-              corrected_magic.update({"jar": "SF_MagicExpansion1.1.17.jar",
-                                      "source_jar": "SF_MagicExpansion1.1.17.jar",
-                                      "version": "1.1.17",
-                                      "commit": "e0097f1d8e984e8d19692fcc5a28729366b72d48",
-                                      "sha256": magic_sha})
+              check(old_hud == "SF_SlimeHUD2.0.6.jar" and "SF_SlimeHUD2.0.7.jar" not in previous,
+                    "Published SlimeHUD must still be 2.0.6")
               new_row = copy.deepcopy(old_row)
-              new_row.update({"jar": "SF_SlimeHUD2.0.6.jar",
-                              "source_jar": "SF_SlimeHUD2.0.6.jar",
-                              "version": "2.0.6", "commit": source_pin, "sha256": expected_hud_sha})
+              new_row.update({"jar": "SF_SlimeHUD2.0.7.jar",
+                              "source_jar": "SF_SlimeHUD2.0.7.jar",
+                              "version": "2.0.7", "commit": source_pin, "sha256": expected_hud_sha})
               fresh_manifest = copy.deepcopy(manifest)
-              fresh_manifest["bundle_revision"] = 147
+              fresh_manifest["bundle_revision"] = 148
               fresh_manifest["addons"] = [
-                  new_row if row["slug"] == "slimehud"
-                  else corrected_magic if row["slug"] == "magicexpansion"
-                  else row for row in rows
+                  new_row if row["slug"] == "slimehud" else row for row in rows
               ]
               fresh = dict(previous)
               del fresh[old_hud]
@@ -191,7 +162,7 @@ jobs:
               check(all(fresh[k] == previous[k] for k in previous if k not in
                         (old_hud, "SF_ADDON_MANIFEST.json", "SHA256SUMS.txt")),
                     "An unrelated file would change")
-              check(sha(fresh[corrected_magic["jar"]]) == magic_sha, "MagicExpansion changed")
+              check(sha(fresh[magic["jar"]]) == magic_sha, "MagicExpansion changed")
               dst.parent.mkdir(parents=True, exist_ok=True)
               with ZipFile(dst, "w", allowZip64=True) as out:
                   for n in z.namelist():
@@ -213,7 +184,7 @@ jobs:
               "slimehud_source": source_pin,
               "magicexpansion_sha256_preserved": magic_sha,
               "other_addons_preserved": 44,
-              "bundle_revision": 147,
+              "bundle_revision": 148,
               "addon_count": 45
           }
           Path("dist/verify.json").write_text(json.dumps(receipt, indent=2) + "\n")
@@ -232,7 +203,7 @@ jobs:
       - name: Keep a verified live-release ZIP preview for review
         uses: actions/upload-artifact@v7
         with:
-          name: SF_Addons_v4.1.76_SlimeHUD_2.0.6_preview
+          name: SF_Addons_v4.1.76_SlimeHUD_2.0.7_preview
           path: dist/SF_Addons_1.21.11-26.3.zip
           archive: false
           if-no-files-found: error
@@ -255,17 +226,17 @@ jobs:
           import json
           source=json.load(open('compatibility/sfl-addon-release-matrix.json'))
           rows=[r for r in source['addons'] if r['slug']=='slimehud']
-          assert source['bundle_revision']==147 and len(rows)==1
-          assert rows[0]['source_commit']=='91a27b9f7b6d34089611f1ddea0e5464a4885d1f'
+          assert source['bundle_revision']==148 and len(rows)==1
+          assert rows[0]['source_commit']=='72ba3ca673beb2b48c15b5dc77bf1d1880f8a1e3'
           PY
-          test "$(gh api "repos/$REPO/actions/runs/39835535620" --jq '.head_sha')" = 'ff42d27d942ef70471ce6c7b5e8f6cd8c7a5c4d9'
-          test "$(gh api "repos/$REPO/actions/runs/39835535620" --jq '.conclusion')" = success
+          test "$(gh api "repos/$REPO/actions/runs/39857943769" --jq '.head_sha')" = '1a5b28ec04441339b41f227b2d607ca66bc563c2'
+          test "$(gh api "repos/$REPO/actions/runs/39857943769" --jq '.conclusion')" = success
           original_id="$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | select(.name == "SF_Addons_1.21.11-26.3.zip") | .id')"
           original_digest="$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | select(.name == "SF_Addons_1.21.11-26.3.zip") | .digest')"
           test -n "$original_id"
-          test "$original_digest" = 'sha256:0427b467a4b79c50801571775b8f1afe030cb50103f8059421b8ad6d4c8943a6'
-          BACKUP=SF_Addons_1.21.11-26.3.before-SlimeHUD-2.0.6.zip
-          test -z "$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | select(.name == "SF_Addons_1.21.11-26.3.before-SlimeHUD-2.0.6.zip") | .id')"
+          test "$original_digest" = 'sha256:4543de9a9d7ff137ecb8a98e997f1a1b0e0ca4abc99929c1324eff7684b235bd'
+          BACKUP=SF_Addons_1.21.11-26.3.before-SlimeHUD-2.0.7.zip
+          test -z "$(gh api "repos/$REPO/releases/tags/$TAG" --jq '.assets[] | select(.name == "SF_Addons_1.21.11-26.3.before-SlimeHUD-2.0.7.zip") | .id')"
           gh api --method PATCH "repos/$REPO/releases/assets/$original_id" -f name="$BACKUP" >/dev/null
           rollback() {
             echo 'Release update failed; restoring the previous addon ZIP.' >&2
