@@ -46,6 +46,10 @@ public class CargoNet extends AbstractItemNetwork implements HologramOwner {
     private final Set<Location> outputNodes = ConcurrentHashMap.newKeySet();
 
     protected final Map<Location, Integer> roundRobin = new ConcurrentHashMap<>();
+
+    // Keep malformed node values from filling the server log on every cargo tick.
+    // This cache is diagnostic-only: every tick still reads the live stored frequency.
+    private final Map<Location, String> reportedInvalidFrequencies = new ConcurrentHashMap<>();
     private int tickDelayThreshold = 0;
 
     public static @Nullable CargoNet getNetworkFromLocation(@Nonnull Location l) {
@@ -105,6 +109,7 @@ public class CargoNet extends AbstractItemNetwork implements HologramOwner {
     @Override
     public void onClassificationChange(Location l, NetworkComponent from, NetworkComponent to) {
         connectorCache.remove(l);
+        reportedInvalidFrequencies.remove(l);
 
         if (from == NetworkComponent.TERMINUS) {
             inputNodes.remove(l);
@@ -206,16 +211,15 @@ public class CargoNet extends AbstractItemNetwork implements HologramOwner {
     }
 
     /**
-     * This method returns the frequency a given node is set to.
-     * Should there be invalid data this method it will fall back to zero in
-     * order to preserve the integrity of the {@link CargoNet}.
+     * Returns a node's currently configured frequency. Unavailable, malformed, or
+     * unrepresentable values are excluded from this tick instead of aborting its
+     * network scan. Frequencies outside 0-15 are still filtered by the callers.
      *
      * @param node
-     *            The {@link Location} of our cargo node
-     *
-     * @return The frequency of the given node
+     *            The location of the cargo node
+     * @return The configured frequency, or -1 when it cannot be read
      */
-    private static int getFrequency(@Nonnull Location node) {
+    private int getFrequency(@Nonnull Location node) {
         var data = StorageCacheUtils.getBlock(node);
         if (data == null) {
             return -1;
@@ -227,26 +231,67 @@ public class CargoNet extends AbstractItemNetwork implements HologramOwner {
         }
 
         String frequency = data.getData("frequency");
+        if (frequency == null) {
+            reportedInvalidFrequencies.remove(node);
+            return -1;
+        }
 
+        int parsed = parseFrequency(frequency);
+        if (parsed < 0) {
+            if (shouldReportInvalidFrequency(reportedInvalidFrequencies, node, frequency)) {
+                Slimefun.logger()
+                        .log(
+                                Level.SEVERE,
+                                () -> "Failed to parse a Cargo Node Frequency ("
+                                        + node.getWorld().getName()
+                                        + " - "
+                                        + node.getBlockX()
+                                        + ','
+                                        + node.getBlockY()
+                                        + ','
+                                        + node.getBlockZ()
+                                        + "): "
+                                        + frequency);
+            }
+            return -1;
+        }
+
+        reportedInvalidFrequencies.remove(node);
+        return parsed;
+    }
+
+    /**
+     * Parse a node frequency without allocating a regex matcher for the common
+     * single-digit channels. Preserve the legacy numeric validation and parse
+     * leading-zero, multi-digit values exactly as before.
+     */
+    static int parseFrequency(@Nullable String frequency) {
         if (frequency == null) {
             return -1;
-        } else if (!CommonPatterns.NUMERIC.matcher(frequency).matches()) {
-            Slimefun.logger()
-                    .log(
-                            Level.SEVERE,
-                            () -> "Failed to parse a Cargo Node Frequency ("
-                                    + node.getWorld().getName()
-                                    + " - "
-                                    + node.getBlockX()
-                                    + ','
-                                    + node.getBlockY()
-                                    + ','
-                                    + node.getBlockZ()
-                                    + "): "
-                                    + frequency);
-            return -1;
-        } else {
-            return Integer.parseInt(frequency);
         }
+
+        if (frequency.length() == 1) {
+            char digit = frequency.charAt(0);
+            if (digit >= '0' && digit <= '9') {
+                return digit - '0';
+            }
+        }
+
+        if (!CommonPatterns.NUMERIC.matcher(frequency).matches()) {
+            return -1;
+        }
+
+        try {
+            return Integer.parseInt(frequency);
+        } catch (NumberFormatException ignored) {
+            // Even an all-digit value may exceed the integer range.
+            return -1;
+        }
+    }
+
+    /** Report a changed invalid value once per node, and again after recovery. */
+    static boolean shouldReportInvalidFrequency(
+            @Nonnull Map<Location, String> reported, @Nonnull Location node, @Nonnull String frequency) {
+        return !frequency.equals(reported.put(node, frequency));
     }
 }
