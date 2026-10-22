@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bundle_revision": 145,
+  "bundle_revision": 146,
   "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
@@ -250,7 +250,7 @@
       "repository": "wickidcow/SF_SlimeHUD",
       "slug": "slimehud",
       "artifact_base": "SlimeHUD",
-      "source_commit": "c3b8f18b2f15e88402ef7d5238bba9f57ad22f17"
+      "source_commit": "c6e65f921b77aebb481feb7af36c7abbb47a54ca"
     },
     {
       "repository": "wickidcow/SF_SlimeTinkerIE2",
