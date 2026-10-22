@@ -128,13 +128,13 @@ class NativeStorageProbeContracts(unittest.TestCase):
 
     def test_unknown_revision_is_rejected_instead_of_skipped(self):
         self.manifest["bundle_revision"] = 148
-        self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144, r145 r146 or r147")
+        self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144, r145, r146 or r147")
 
     def test_non_integer_revisions_are_rejected(self):
         for value in (141.0, "141", 142.0, "142", 143.0, "143", 144.0, "144", 145.0, "145", 146.0, "146", 147.0, "147", True, None):
             with self.subTest(value=value):
                 self.manifest["bundle_revision"] = value
-                self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144, r145 r146 or r147")
+                self.reject("requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144, r145, r146 or r147")
 
     def test_r141_requires_networks_1_0_59_and_its_exact_source(self):
         self.populate(141)
