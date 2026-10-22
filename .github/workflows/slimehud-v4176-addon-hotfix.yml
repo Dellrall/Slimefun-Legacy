@@ -102,7 +102,7 @@ jobs:
               plugin = unpack(z)
           check("plugin.yml" in plugin, "Missing SlimeHUD plugin descriptor")
           descriptor = plugin["plugin.yml"].decode()
-          check(re.search(r"(?m)^version:\s*2\.0\.6\s*$", descriptor) is not None, "Wrong SlimeHUD version")
+          check(re.search(r"(?m)^version:\s*2\.0\.7\s*$", descriptor) is not None, "Wrong SlimeHUD version")
           check("WITIntegration" not in "\n".join(plugin), "WIT integration not removed")
           check(not re.search(r"(?m)^\s*-\s*WIT\s*$", descriptor), "WIT is still a soft dependency")
           config = plugin["config.yml"].decode()
