@@ -17,7 +17,7 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/reproducible-release.yml"
-BEDROCK = "GEYSER_SFL_RP_Experimental_v0.0.1.zip"
+BEDROCK = "SFL_GEYSER_RP_experimental_v1.0.3_complete.zip"
 CORE = "Slimefun-Legacy4.1.76.jar"
 BUNDLE = "SF_Addons_1.21.11-26.3.zip"
 JAVA_PACK = "SlimefunLegacyRP.zip"
@@ -49,19 +49,53 @@ def fixture_zip() -> bytes:
         }))
         pack.writestr("textures/items/test.png", base64.b64decode(
             "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a9GQAAAAASUVORK5CYII="))
+    stat_icons = io.BytesIO()
+    with zipfile.ZipFile(nested) as source, zipfile.ZipFile(stat_icons, "w") as pack:
+        pack.writestr("manifest.json", source.read("manifest.json"))
+        for name in ("pack_icon.png", "font/glyph_ED.png", "font/glyph_EE.png"):
+            pack.writestr(name, source.read("textures/items/test.png"))
     outer = io.BytesIO()
     with zipfile.ZipFile(outer, "w") as archive:
-        archive.writestr("Geyser-Spigot/packs/SlimefunBedrockRP.mcpack", nested.getvalue())
-        for index in range(20):
-            archive.writestr(f"Geyser-Spigot/custom_mappings/test-{index}.json", json.dumps({
+        archive.writestr("README.txt", "Original overlay fixture\n")
+        archive.writestr("INSTALL.md", "Complete installation fixture: Geyser and matching mappings are required.\n")
+        for name in ("SlimefunBedrockRP_1.0.1.mcpack", "Albion_ValhallaMMO_Bedrock_1.0.1.mcpack",
+                     "Albion_ValhallaMMO_Stat_Icons_1.0.0.mcpack"):
+            content = stat_icons.getvalue() if "Stat_Icons" in name else nested.getvalue()
+            directory = "optional/" if "Stat_Icons" in name else "packs/"
+            archive.writestr(directory + name, content)
+        legacy_mappings = (
+            "SF-Androids.json", "SF-Armors.json", "SF-Basic_Machines.json", "SF-Cargo.json",
+            "SF-EG-Drinks.json", "SF-EG-Food.json", "SF-Energy&Electricity.json", "SF-Food.json",
+            "SF-Gps.json", "SF-Gui.json", "SF-Items.json", "SF-Magical_Gadgets.json",
+            "SF-Magical_Items.json", "SF-Resources.json", "SF-Talisman-I.json", "SF-Talisman-II.json",
+            "SF-Technical_Components.json", "SF-Tools.json", "SF-Weapons.json", "SlimefunItems.json",
+        )
+        for index, name in enumerate(legacy_mappings):
+            archive.writestr("custom_mappings/" + name, json.dumps({
                 "format_version": "1",
                 "items": {"minecraft:stick": [{"name": f"offline_fixture_{index}", "custom_model_data": index + 1}]},
             }))
+        archive.writestr("custom_mappings/albion_valhallammo_mappings.json", json.dumps({
+            "format_version": 2,
+            "items": {"minecraft:stick": [{"type": "definition", "model": "minecraft:stick",
+                                            "bedrock_identifier": "albion_valhalla:offline_fixture",
+                                            "predicate": [{"type": "range_dispatch", "property": "custom_model_data",
+                                                           "threshold": 3510001.0, "scale": 1.0, "index": 0}],
+                                            "bedrock_options": {"icon": "albion_valhalla_offline_fixture"}}]},
+        }))
+        archive.writestr("custom_mappings/migrated-custom-skulls.json", json.dumps({
+            "format_version": 1,
+            "skulls": {"username": [], "uuid": [], "profile": [], "skin_hash": ["a" * 64]},
+        }))
+        archive.writestr("custom_mappings/albion_slimefun_legacy_skulls.json", json.dumps({
+            "format_version": 1,
+            "skulls": {"username": [], "uuid": [], "profile": [], "skin_hash": ["b" * 64]},
+        }))
     return outer.getvalue()
 
 
 FAKE_GH = r'''#!/usr/bin/env python3
-import json, os, pathlib, shutil, sys
+import json, os, pathlib, sys
 args = sys.argv[1:]
 with open(os.environ['MOCK_CALLS'], 'a') as calls:
     calls.write(json.dumps(args) + '\n')
@@ -69,21 +103,8 @@ repo = 'wickidcow/Slimefun-Legacy'
 target = 'v4.1.76'
 state_path = pathlib.Path(os.environ['MOCK_TARGET'])
 state = json.loads(state_path.read_text())
-if args == ['api', f'repos/{repo}/releases/tags/v4.1.75']:
-    print(pathlib.Path(os.environ['MOCK_SOURCE']).read_text())
-elif args == ['api', f'repos/{repo}/releases/tags/{target}']:
+if args == ['api', f'repos/{repo}/releases/tags/{target}']:
     print(json.dumps(state))
-elif args[:3] == ['release', 'download', 'v4.1.75']:
-    if args[args.index('--repo') + 1] != repo:
-        sys.exit(12)
-    name = args[args.index('--pattern') + 1]
-    if name != 'GEYSER_SFL_RP_Experimental_v0.0.1.zip':
-        sys.exit(13)
-    directory = pathlib.Path(args[args.index('--dir') + 1])
-    if not directory.resolve().is_relative_to(pathlib.Path.cwd()):
-        sys.exit(14)
-    directory.mkdir(exist_ok=True)
-    shutil.copyfile(os.environ['MOCK_DOWNLOAD'], directory / name)
 elif args[:3] == ['release', 'view', target]:
     if '--json' in args:
         print('\n'.join(a['name'] for a in state['assets']))
@@ -134,15 +155,12 @@ class BedrockReleaseWorkflowTests(unittest.TestCase):
         self.pin = json.loads((ROOT / "compatibility/bedrock-resource-pack-release.json").read_text())
         self.pin.update(size_bytes=len(self.archive), sha256=hashlib.sha256(self.archive).hexdigest())
         self.write_json("compatibility/bedrock-resource-pack-release.json", self.pin)
-        self.download = self.directory / "source-pack.zip"
-        self.download.write_bytes(self.archive)
-        source_asset = self.asset(BEDROCK, self.pin["asset_id"])
-        self.source = {"id": self.pin["release_id"], "tag_name": self.pin["release_tag"],
-                       "draft": False, "prerelease": False, "assets": [source_asset]}
+        self.checked_in_pack = self.directory / self.pin["archive_path"]
+        self.checked_in_pack.parent.mkdir(parents=True, exist_ok=True)
+        self.checked_in_pack.write_bytes(self.archive)
         self.target = {"id": 900000076, "tag_name": TARGET_TAG, "draft": False, "prerelease": False,
                        "assets": [self.asset(CORE, 1), self.asset(BUNDLE, 2), self.asset(JAVA_PACK, 3),
                                   self.asset(BEDROCK, 4)]}
-        self.write_json("source.json", self.source)
         self.write_json("target.json", self.target)
         (self.directory / "docs/releases/4.1.76.md").write_text("Offline release fixture\n")
         for filename in (CORE, BUNDLE, JAVA_PACK):
@@ -160,10 +178,11 @@ class BedrockReleaseWorkflowTests(unittest.TestCase):
             "OPTIONAL_BEDROCK_PACK": BEDROCK, "OUTPUT_NAME": CORE,
             "CANONICAL_ADDON_BUNDLE": BUNDLE, "CANONICAL_RESOURCE_PACK": JAVA_PACK,
             "MOCK_CALLS": str(self.directory / "calls.jsonl"),
-            "MOCK_SOURCE": str(self.directory / "source.json"),
             "MOCK_TARGET": str(self.directory / "target.json"),
-            "MOCK_DOWNLOAD": str(self.download), "MOCK_RELEASE_EXISTS": "1",
+            "MOCK_RELEASE_EXISTS": "1",
         }
+        if sys.flags.optimize:
+            self.env["PYTHONOPTIMIZE"] = str(sys.flags.optimize)
 
     def asset(self, name: str, identifier: int) -> dict:
         return {"name": name, "id": identifier, "state": "uploaded",
@@ -184,34 +203,36 @@ class BedrockReleaseWorkflowTests(unittest.TestCase):
     def deletion_names(self) -> list:
         return [call[3] for call in self.calls() if call[:2] == ["release", "delete-asset"]]
 
-    def test_verified_origin_bytes_are_staged_unchanged(self):
+    def test_verified_checked_in_bytes_are_staged_without_mutable_origin_download(self):
         result = self.run_step("Require pinned optional Bedrock resource pack")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(self.archive, (self.directory / "dist" / BEDROCK).read_bytes())
-        self.assertEqual(["api", f"repos/{REPOSITORY}/releases/tags/v4.1.75"], self.calls()[0])
-        self.assertEqual(["release", "download", "v4.1.75"], self.calls()[1][:3])
+        self.assertEqual([], self.calls())
         self.assertEqual([], self.deletion_names())
         self.assertIn("Requires Geyser", (self.directory / "summary.md").read_text())
 
-    def test_changed_source_metadata_or_download_never_stages_pack(self):
-        original = json.loads(json.dumps(self.source))
-        for change in ("asset_id", "digest", "size", "zip_bytes"):
+    def test_changed_or_missing_checked_in_pack_never_stages(self):
+        for change in ("digest", "size", "zip_bytes", "old_asset_name", "missing_archive", "unsafe_archive_path"):
             with self.subTest(change=change):
-                source = json.loads(json.dumps(original))
-                self.download.write_bytes(self.archive)
-                if change == "asset_id":
-                    source["assets"][0]["id"] += 1
-                elif change == "digest":
-                    source["assets"][0]["digest"] = "sha256:" + "0" * 64
+                pin = json.loads(json.dumps(self.pin))
+                self.checked_in_pack.write_bytes(self.archive)
+                if change == "digest":
+                    pin["sha256"] = "0" * 64
                 elif change == "size":
-                    source["assets"][0]["size"] += 1
+                    pin["size_bytes"] += 1
+                elif change == "zip_bytes":
+                    self.checked_in_pack.write_bytes(self.archive[:-1] + bytes([self.archive[-1] ^ 1]))
+                elif change == "old_asset_name":
+                    pin["asset_name"] = "GEYSER_SFL_RP_Experimental_v0.0.1.zip"
+                elif change == "unsafe_archive_path":
+                    pin["archive_path"] = "../outside.zip"
                 else:
-                    self.download.write_bytes(self.archive[:-1] + bytes([self.archive[-1] ^ 1]))
-                self.write_json("source.json", source)
+                    self.checked_in_pack.unlink()
+                self.write_json("compatibility/bedrock-resource-pack-release.json", pin)
                 result = self.run_step("Require pinned optional Bedrock resource pack")
                 self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
                 self.assertFalse((self.directory / "dist" / BEDROCK).exists())
-                self.assertEqual([], self.deletion_names())
+                self.assertEqual([], self.calls())
 
     def test_unapproved_target_version_refuses_before_download(self):
         self.env["LEGACY_ARTIFACT_VERSION"] = "4.1.77"
@@ -221,7 +242,8 @@ class BedrockReleaseWorkflowTests(unittest.TestCase):
         self.assertEqual([], self.calls())
 
     def test_normalizer_accepts_exact_four_assets_with_new_bedrock_id(self):
-        self.assertNotEqual(self.pin["asset_id"], self.target["assets"][-1]["id"])
+        self.assertNotIn(self.target["assets"][-1]["id"],
+                         [source["asset_id"] for source in self.pin["source_assets"]])
         result = self.run_step("Normalize and verify release assets")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertEqual(self.target, json.loads((self.directory / "target.json").read_text()))

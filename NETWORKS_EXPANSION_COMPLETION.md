@@ -1,12 +1,215 @@
 # Networks Expansion — core release integration checkpoint
 
-Updated: 2026-10-21 (America/New_York). This file tracks the coordinated **Slimefun Legacy 4.1.76 / r145** candidate integration and the maintainer-approved optional Bedrock download. Historical integration evidence is preserved below. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult the current handoff and Git state before resuming; do not repeat accepted production repairs.
+Updated: 2026-10-22 (UTC). This file tracks the coordinated **Slimefun Legacy 4.1.76 / r145** candidate integration and the requested optional Bedrock download. Historical integration evidence is preserved below. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult the current handoff and Git state before resuming; do not repeat accepted production repairs.
 
 ## Publication boundary
 
 Core **4.1.76 remains unreleased and held for explicit maintainer approval** after the concrete candidate is verified. Continue integration, testing, review and merge without restarting the addon repairs. Do not publish a core tag/release or replace existing v4.1.75 assets during validation. `reproducible-release.yml` now defaults manual dispatch to `publish=false` and requires explicit `publish=true` plus successful runtime evidence for either publishing or normalizing assets.
 
-## Current handoff — optional Bedrock pack carryover
+## Current handoff — complete, immutable Bedrock installation ZIP
+
+The two externally replaced public pack downloads are no longer release-build
+acquisition dependencies. This follow-up stores the complete installation ZIP in
+Git, validates its exact identity and copies it unchanged into the held four-asset
+release. Branch: **`release/4.1.76-complete-bedrock-pack`**, based on accepted merge
+`4c2bdf4edc685afbfaa81cde168252b19094e428`. Local snapshot `debc3dec921ff27e7e35d4383861bca3e78a9649`
+preserves the tested intermediate 0.0.2 work; it is superseded by this complete
+candidate. Core remains **4.1.76**, bundle **r145**, with all 45 addon source pins
+and production Java unchanged. No additional version bump is needed for this
+unreleased candidate.
+
+### Completed implementation
+
+- Vendored `compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip`:
+  **2,390,264 bytes**, SHA-256
+  `60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c`.
+  It contains 28 files: all 23 mappings, two required main packs, a separate optional
+  stat-icon pack, unchanged upstream `README.txt`, and new `INSTALL.md`.
+- Preserved 21 base mapping files from the retained 0.0.2 archive and all six files
+  from the current 1.0.3 overlay. All 27 supplied component files remain byte-identical;
+  no inner pack, mapping identity, image or model was rewritten. The complete ZIP
+  has 1,543 disjoint skull hashes (1,453 base plus 90 new), 507 Albion definitions,
+  and no duplicate old main-pack versions. Deterministic outer serialization was
+  repeated independently with identical bytes. The full component ledger and
+  loader summary are committed in `compatibility/bedrock/complete-pack-provenance.json`.
+- Schema 2 pins the repository archive and both original source identities as
+  provenance. Removed historical assets are not required downloads. Release staging
+  verifies the exact target tag, archive hash, size, safe unique paths, CRCs,
+  mapping schemas, disjoint skull maps and nested JSON/material syntax before
+  copying it. Both instruction files and the complete base mapping set are required.
+- Cleanup preserves the exact current **overlay** only on origin `v4.1.75`, and the
+  exact **complete ZIP** only on successor `v4.1.76`. Swapped roles, historical
+  filenames, changed bytes and unreviewed future assets still stop before any DELETE.
+  The complete ZIP does not replace or alter the public overlay during validation.
+- README, release notes and installation guide state that the Bedrock download is
+  optional and experimental; **Geyser, both main packs and all 23 JSON mappings are
+  required**. The stat-icon font pack is separately optional. Upgrade instructions
+  back up and replace only the two old main packs sharing the new packs' UUIDs.
+  The public 1.0.3 overlay alone is explicitly unsuitable for a fresh installation.
+
+### Actual verification
+
+- Archive verifier: **45/45 PASS normally and 45/45 with `python -O`**. The real
+  complete ZIP passes with no origin metadata or network request; optional checking
+  of retained current-overlay metadata also passes. Nested content: 2,758 files.
+- Cleanup policy: **51/51 PASS normally and 51/51 with `python -O`**, after retained
+  RED-before evidence against the previous policy. Normal and optimized policy
+  preflights, plus the actual workflow shell exercised with live release metadata
+  and a local `gh` stub, retain all four current public assets with **zero delete IDs**.
+  Fresh before/after release metadata and actual overlay bytes are unchanged.
+- Real release workflow shell: **7/7 PASS normally and 7/7 with `python -O`**,
+  including unchanged-byte staging with **zero source API calls**, missing or
+  changed archive rejection, exact four-asset normalization and explicit
+  publication guards. All **26 release dispatch/evidence controls PASS**.
+- Exact complete-ZIP runtime: **Geyser Standalone 2.12.0 build 1268**, source
+  `d14f204635dceb37f2bfaf87cc3b733bc4f1e1eb`, Java 25.0.4.1. Both a fresh default
+  installation and a separate run with optional stat icons loaded successfully,
+  registered **1,543 custom skulls/blocks**, generated 1,543 skull textures and
+  shut down normally (exit zero). All 28 candidate input files remained unchanged.
+  Runtime receipt SHA-256:
+  `7825e850e17081ed48dd7f045cd5fb4684dd853319e3b4dbd3a11af6786722e9`.
+- Both runs retain **107 legacy texture-size deprecation warnings**. No Bedrock
+  client or live Java backend connected. Rendering, hand/armor visuals, item
+  interactions, production transport and embedded Geyser-Spigot/Folia behavior
+  remain untested. The isolated transport configuration emitted its expected
+  NetherNet migration notice; no pack/mapping load error was concealed. Actual
+  1,543-block counts supersede the unchanged upstream README's unsupported count.
+- The preceding isolated local Java clean build passed **941 tests / 162 suites,
+  zero failures/errors and one existing external-database skip**, plus Spotless
+  and the deprecation/removal gate. No production/build dependency changes followed
+  that run. Its environment failures and final pass remain recorded below.
+- Complete repository invariant suite: **PASS**; workflow YAML and all **14**
+  embedded Bash scripts pass syntax checks. Independent bounded reviews of the
+  verifier, cleanup, workflow and documentation are **CLEAR**. The first invariant
+  attempt was blocked by sandbox-localhost socket restrictions in the HTTP fixture;
+  the authorized rerun passed with no source or gate change. Hosted PR/final-merge
+  gates remain pending. All 4c2bdf4e
+  canonical/native/full-stack/Folia results below belong to that prior merge;
+  they are not relabeled as acceptance for a new source.
+
+### Files changed and exact next action
+
+Files: the schema 2 Bedrock pin, complete ZIP and component provenance; archive
+verifier/tests; preservation policy/tests; reproducible release workflow and its
+real-shell tests; README, Bedrock installation guide, 4.1.76 notes and this checkpoint.
+
+Local validation is complete. Commit this exact snapshot and open the scoped
+follow-up PR. Require the relevant hosted
+checks and normal review before merging. Then require the new final source's
+canonical bundle, native acceptance, automatic full-stack follower and Folia
+admission, followed by Reproducible Release with **`publish=false`**. Record exact
+PR/merge/run/artifact identities in tracker [#378](https://github.com/wickidcow/Slimefun-Legacy/issues/378)
+and the release proposal. Preserve the old downloads and update the verified
+addon handoff. Core publication remains held for explicit maintainer approval of
+the concrete four-asset result. Do not restart accepted GCE, Networks or IE2 repairs.
+
+## Historical intermediate handoff — replacement Bedrock pack 0.0.2
+
+PR [#416](https://github.com/wickidcow/Slimefun-Legacy/pull/416) is merged at
+`4c2bdf4edc685afbfaa81cde168252b19094e428`. Its requested optional Bedrock
+carryover and Geyser installation documentation are implemented. All 12 PR
+workflows passed before the normal merge. The following exact-merge checks passed:
+
+- Canonical [39703387481](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39703387481):
+  48/48 jobs, all 45 addon JARs verified. Core SHA-256
+  `ad7226076b5ecafc617ff62cd05c2250a6cca22e893fe753143f5a0493e452b3`;
+  r145 ZIP SHA-256 `3553748164cdc4022b9e0b4d7f952d17d9dceb38bba4236b47e02eb38d9de192`.
+- Native [39703768197](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39703768197):
+  six jobs passed, strict exact-release paired storage/retirement verification passed.
+- Automatic full-stack [39704405884](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39704405884):
+  seven jobs and all four runtime lanes passed. Original artifacts passed the strict
+  producer/source/input verifier against canonical run 39703387481.
+- Folia admission/runtime [39703994390](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39703994390):
+  both jobs passed. Both Folia 26.3 build 5 ALPHA boots enabled GCE 1.0.4,
+  registered 64 chickens and shut down normally. Installed core and all 12 admitted
+  addon identities reproduce exactly from the canonical artifacts. This establishes
+  startup acceptance; it does not establish full chicken/cross-region gameplay.
+  Networks and IE2 remain excluded and unsupported on Folia runtime.
+
+### New source-asset change and concrete repair
+
+During validation, the public v4.1.75 release replaced the selected
+`GEYSER_SFL_RP_Experimental_v0.0.1.zip` (asset 664136278) with
+`GEYSER_SFL_RP_v0.0.2.zip` (asset **664289959**), uploaded on
+2026-10-22 at 01:13 UTC. No release assets were changed by this workstream.
+The original 0.0.1 bytes were retained locally before the replacement.
+
+The earlier direct cleanup [39703387561](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39703387561)
+passed with zero deletions before the external change. Afterward, reproducible
+run [39703387579](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39703387579)
+failed at the Bedrock source size check; both clean core builds had already passed
+byte equality. Cleanup follower [39704405847](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39704405847)
+refused the unreviewed 0.0.2 filename before deletion. These are actual failed
+release checks, not failed plugin compilation or runtime tests.
+
+Branch **`release/4.1.76-bedrock-pack-v002`**, based on `4c2bdf4e`, prepares the
+currently published replacement as a reviewable, held candidate. The version
+change and additional content were stated explicitly; no affirmative maintainer
+answer choosing 0.0.2 or authorizing publication has been received. Core remains
+4.1.76/r145, with all 45 addon pins unchanged. This scoped development does not
+publish, restore, delete or replace any public asset.
+
+- Current archive: **1,329,705 bytes**, SHA-256
+  `b27941425a646ba97c4789ecf2841e20f08663e79b3d538b552516d40cc67ee1`.
+- Contents: the unchanged Slimefun `.mcpack`, 20 legacy Slimefun mapping JSONs,
+  two additional Albion ValhallaMMO packs, one format-v2 Valhalla mapping JSON
+  (507 item definitions), and one custom-skull mapping JSON (1,453 skin hashes).
+  Three Slimefun mapping files remove duplicates/an invalid item key and separate
+  the sugar-based zinc-dust name. This is a substantive archive replacement.
+- Read-only inspection passed outer/three inner CRCs, safe unique paths and all
+  1,175 strict JSON parses. No Geyser JAR, extension JAR or server configuration is
+  included. Archive inspection does not establish Bedrock client rendering.
+- Changes in this branch: the exact replacement pin, scoped archive validators
+  for its three pack/mapping schemas, exact preservation policy and rejection
+  tests, release-workflow filename and integration fixtures, README/release/install
+  documentation and this checkpoint. Future/unknown assets still fail closed.
+- Focused follow-up verification: **47 preservation**, **36 archive-verifier**,
+  and **7 actual release-workflow shell tests** pass normally and under optimized
+  Python; the shell suites propagate optimization into their helper subprocesses.
+  All **26 release dispatch/evidence controls**, the complete invariant suite, YAML
+  parsing and 14 embedded Bash syntax checks pass. Independent bounded reviews of
+  the verifier and preservation/workflow/docs changes are clear.
+- Actual isolated Geyser **2.12.0 build 1268** / Java 25.0.4.1 loader check passes:
+  all three supplied packs loaded, all **1,453 skulls** registered, zero client
+  connections and normal shutdown. Every supplied file remained byte-identical.
+  The **107 texture-size deprecation warnings** remain documented; Bedrock rendering,
+  item interactions, embedded Spigot behavior and production connectivity were not
+  tested. Initial direct-DNS failure and one cold-cache Mojang texture timeout are
+  retained; the final warm-cache run fetched the missing texture and passed.
+- Initial shell fixture incorrectly used a non-Albion icon prefix; the real helper
+  rejected it. The fixture was corrected and both full shell-suite modes passed.
+  Initial local build setup lacked Git metadata, and an overlapping retry interfered
+  with generated test files. Both clients were stopped and diagnostics retained;
+  one clean isolated build then passed **941 tests / 162 suites, zero failures or
+  errors and one existing external-database skip**, plus Spotless and the Java
+  deprecation/removal gate. No production
+  code or test gate was changed to accommodate these environment failures.
+- The successful plugin and runtime receipts above belong to `4c2bdf4e`; do not
+  relabel them as final-source acceptance for this later commit.
+
+### Additional external replacement before commit
+
+The final source read found that public v4.1.75 had replaced 0.0.2 again with
+`SFL_GEYSER_RP_experimental_v1.0.3.zip`, asset **664360404**, 1,265,679 bytes,
+SHA-256 `90d78fcf8382bdee1bce3a364515769cb8325c174b58c34b512039502cc50e51`.
+The completed 0.0.2 implementation and tests are preserved in this branch, but
+its old origin is no longer available. Do not merge this 0.0.2 snapshot as an
+accepted release candidate. Compare the new archive against the preserved bytes,
+then update only the affected pin/layout/docs and relevant tests. Production
+Java, addon source pins and the completed repair findings remain unchanged.
+
+### Exact next action
+
+Finish the bounded 1.0.3 archive comparison and update this held candidate to the
+stable current source. Reuse the completed plugin findings; run affected asset
+checks and then the required hosted checks on the final source. Require current
+source metadata, exact ZIP identity and all runtime/equality gates before the
+final manual `publish=false` validation. Keep tracker
+[#378](https://github.com/wickidcow/Slimefun-Legacy/issues/378) current with actual
+commit/run/artifact evidence. Publication remains held until explicit maintainer
+approval of the concrete verified four-asset release candidate.
+
+## Historical PR #416 handoff — original Bedrock pack carryover
 
 The maintainer explicitly requested carrying `GEYSER_SFL_RP_Experimental_v0.0.1.zip`
 into the next release, describing it as optional for Bedrock players and stating
@@ -85,7 +288,7 @@ passes; the overall run is successful on attempt 2. Separate full-build evidence
 records 183 tests, zero failures/errors/skips. This test-only repair leaves the
 published IE2 2.0.15 pin and r145 plugin bytes unchanged.
 
-### Exact next action
+### Historical next action before PR #416 merge
 
 Complete review and normal hosted checks for this scoped carryover change, merge
 it, then accept the final merge source through the existing exact-source bundle,
