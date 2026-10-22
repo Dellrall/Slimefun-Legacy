@@ -122,31 +122,64 @@ jobs:
               rows = manifest["addons"]
               check(len(rows) == 45 and len({r["slug"] for r in rows}) == 45, "Expected 45 maintained addons")
               old_names = {r["jar"] for r in rows}
-              actual_names = {n for n in previous if n.endswith(".jar")}
-              check(old_names == actual_names, f"Unexpected addon file set; missing={sorted(old_names - actual_names)} extra={sorted(actual_names - old_names)}")
-              old_sums = sorted(previous["SHA256SUMS.txt"].decode().splitlines())
-              check(old_sums == sorted(f'{sha(previous[r["jar"]])}  {r["jar"]}' for r in rows),
-                    "Current published archive checksum manifest is inconsistent")
-              check(all(sha(previous[r["jar"]]) == r["sha256"] for r in rows),
-                    "Current addon metadata SHA does not match payload")
-              matches = [r for r in rows if r["slug"] == "slimehud"]
-              check(len(matches) == 1 and matches[0]["repository"] == "wickidcow/SF_SlimeHUD",
-                    "Unexpected SlimeHUD record")
-              old_row = matches[0]
-              old_hud = old_row["jar"]
-              check(old_hud == "SF_SlimeHUD2.0.5.jar" and "SF_SlimeHUD2.0.6.jar" not in previous,
-                    "Released SlimeHUD is not the expected 2.0.5; refuse to patch")
-              magic = next((r for r in rows if r["slug"] == "magicexpansion"), None)
-              check(magic is not None and magic["jar"] in previous,
-                    "Current MagicExpansion hotfix missing")
-              magic_sha = sha(previous[magic["jar"]])
-              new_row = copy.deepcopy(old_row)
+          actual_names = {n for n in previous if n.endswith(".jar")}
+          # The published v4.1.76 asset was manually hotfixed: MagicExpansion
+          # 1.1.16 was replaced by 1.1.17 without refreshing the manifest.
+          # Admit exactly this known file swap, and reconcile the manifest
+          # to the actual 1.1.17 bytes. No other content differences are allowed.
+          magic = next((r for r in rows if r["slug"] == "magicexpansion"), None)
+          check(magic is not None and magic["repository"] == "wickidcow/SF_MagicExpansion",
+                "Unexpected MagicExpansion source")
+          check(magic["jar"] == "SF_MagicExpansion1.1.16.jar",
+                "Unexpected pre-hotfix MagicExpansion metadata")
+          check(old_names - actual_names == {"SF_MagicExpansion1.1.16.jar"} and
+                actual_names - old_names == {"SF_MagicExpansion1.1.17.jar"},
+                f"Unexpected published file difference; missing={sorted(old_names - actual_names)} extra={sorted(actual_names - old_names)}")
+          check(len(actual_names) == 45, "Unexpected count of published JAR files")
+          magic_payload = previous["SF_MagicExpansion1.1.17.jar"]
+          with ZipFile(io.BytesIO(magic_payload)) as magic_archive:
+              magic_files = unpack(magic_archive)
+          check("plugin.yml" in magic_files, "MagicExpansion plugin descriptor missing")
+          check(re.search(r"(?m)^version:\s*1\.1\.17\s*$",
+                          magic_files["plugin.yml"].decode()) is not None,
+                "Published MagicExpansion is not version 1.1.17")
+          magic_sha = sha(magic_payload)
+          old_sums = previous["SHA256SUMS.txt"].decode().splitlines()
+          check(len(old_sums) == 45, "Unexpected number of published checksum entries")
+          for row in rows:
+              if row["slug"] == "magicexpansion":
+                  continue
+              check(f'{sha(previous[row["jar"]])}  {row["jar"]}' in old_sums,
+                    f'Published checksums differ for {row["jar"]}')
+              check(sha(previous[row["jar"]]) == row["sha256"],
+                    f'Published manifest differs for {row["jar"]}')
+          check(any(line.endswith("  SF_MagicExpansion1.1.16.jar") or
+                    line.endswith("  SF_MagicExpansion1.1.17.jar") for line in old_sums),
+                "MagicExpansion checksum entry missing")
+          matches = [r for r in rows if r["slug"] == "slimehud"]
+          check(len(matches) == 1 and matches[0]["repository"] == "wickidcow/SF_SlimeHUD",
+                "Unexpected SlimeHUD record")
+          old_row = matches[0]
+          old_hud = old_row["jar"]
+          check(old_hud == "SF_SlimeHUD2.0.5.jar" and "SF_SlimeHUD2.0.6.jar" not in previous,
+                "Released SlimeHUD is not the expected 2.0.5; refuse to patch")
+          corrected_magic = copy.deepcopy(magic)
+          corrected_magic.update({"jar": "SF_MagicExpansion1.1.17.jar",
+                                  "source_jar": "SF_MagicExpansion1.1.17.jar",
+                                  "version": "1.1.17",
+                                  "commit": "e0097f1d8e984e8d19692fcc5a28729366b72d48",
+                                  "sha256": magic_sha})
+          new_row = copy.deepcopy(old_row)
               new_row.update({"jar": "SF_SlimeHUD2.0.6.jar",
                               "source_jar": "SF_SlimeHUD2.0.6.jar",
                               "version": "2.0.6", "commit": source_pin, "sha256": expected_hud_sha})
               fresh_manifest = copy.deepcopy(manifest)
               fresh_manifest["bundle_revision"] = 147
-              fresh_manifest["addons"] = [new_row if row["slug"] == "slimehud" else row for row in rows]
+              fresh_manifest["addons"] = [
+              new_row if row["slug"] == "slimehud"
+              else corrected_magic if row["slug"] == "magicexpansion"
+              else row for row in rows
+          ]
               fresh = dict(previous)
               del fresh[old_hud]
               fresh[new_row["jar"]] = new_hud
@@ -158,7 +191,7 @@ jobs:
               check(all(fresh[k] == previous[k] for k in previous if k not in
                         (old_hud, "SF_ADDON_MANIFEST.json", "SHA256SUMS.txt")),
                     "An unrelated file would change")
-              check(sha(fresh[magic["jar"]]) == magic_sha, "MagicExpansion changed")
+              check(sha(fresh[corrected_magic["jar"]]) == magic_sha, "MagicExpansion changed")
               dst.parent.mkdir(parents=True, exist_ok=True)
               with ZipFile(dst, "w", allowZip64=True) as out:
                   for n in z.namelist():
