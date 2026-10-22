@@ -16,6 +16,8 @@ from typing import Any
 
 BUNDLE = "SF_Addons_1.21.11-26.3.zip"
 PACK = "SlimefunLegacyRP.zip"
+BEDROCK_PACK = "GEYSER_SFL_RP_Experimental_v0.0.1.zip"
+BEDROCK_PIN_PATH = Path(__file__).resolve().parents[1] / "compatibility/bedrock-resource-pack-release.json"
 ROLLBACK = "SF_Addons_r136_1.21.11-26.3.zip"
 # The existing, deliberately retained asset; not permission for arbitrary extras.
 # Source: release 412654205 / asset 641318435, inspected October 15, 2026.
@@ -59,6 +61,43 @@ def retained_identity(asset: dict[str, Any]) -> dict[str, Any]:
     return {key: asset[key] for key in ("id", "name", "size", "digest", "state")}
 
 
+def load_bedrock_pin() -> dict[str, Any]:
+    pin = load_json(BEDROCK_PIN_PATH)
+    if not isinstance(pin, dict) or type(pin.get("schema_version")) is not int or pin["schema_version"] != 1:
+        raise PolicyError("Invalid Bedrock preservation pin schema")
+    if pin.get("repository") != "wickidcow/Slimefun-Legacy" or pin.get("asset_name") != BEDROCK_PACK:
+        raise PolicyError("Unexpected Bedrock preservation repository or filename")
+    for key in ("release_id", "asset_id", "size_bytes"):
+        if not positive_int(pin.get(key)):
+            raise PolicyError(f"Invalid Bedrock preservation pin {key}")
+    if not isinstance(pin.get("sha256"), str) or not re.fullmatch(r"[0-9a-f]{64}", pin["sha256"]):
+        raise PolicyError("Invalid Bedrock preservation SHA-256 pin")
+    tags = pin.get("carry_forward_tags")
+    if (not isinstance(tags, list) or not tags
+            or any(not isinstance(tag, str) or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", tag)
+                   for tag in tags)
+            or len(set(tags)) != len(tags)):
+        raise PolicyError("Bedrock carry-forward tags must be an explicit unique stable-tag list")
+    origin = pin.get("release_tag")
+    if not isinstance(origin, str) or not re.fullmatch(r"v[0-9]+\.[0-9]+\.[0-9]+", origin) or origin in tags:
+        raise PolicyError("Invalid Bedrock preservation origin tag")
+    return pin
+
+
+def retained_bedrock_identity(release: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
+    pin = load_bedrock_pin()
+    tag = release["tag_name"]
+    if tag == pin["release_tag"]:
+        if release["id"] != pin["release_id"] or asset["id"] != pin["asset_id"]:
+            raise PolicyError("Original Bedrock release/asset identity differs from the reviewed pin")
+    elif tag not in pin["carry_forward_tags"]:
+        raise PolicyError("Bedrock pack is not approved on this release tag")
+    identity = retained_identity(asset)
+    if identity["size"] != pin["size_bytes"] or identity["digest"] != "sha256:" + pin["sha256"]:
+        raise PolicyError("Bedrock pack size/digest differs from the reviewed carry-forward pin")
+    return identity
+
+
 def plan_release(release: Any, *, allow_legacy: bool = True) -> dict[str, Any]:
     if not isinstance(release, dict) or not positive_int(release.get("id")):
         raise PolicyError("Expected a GitHub release object with a positive numeric ID")
@@ -89,6 +128,8 @@ def plan_release(release: Any, *, allow_legacy: bool = True) -> dict[str, Any]:
             raise PolicyError(f"Asset is not fully uploaded: {name}")
         if name in {core, BUNDLE, PACK}:
             keep[name] = retained_identity(asset)
+        elif name == BEDROCK_PACK:
+            keep[name] = retained_bedrock_identity(release, asset)
         elif name == ROLLBACK:
             expected = ROLLBACK_PIN
             if release["id"] != expected["release_id"] or tag != expected["tag"]:

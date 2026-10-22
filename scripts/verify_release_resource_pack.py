@@ -71,7 +71,7 @@ def verify_static(root: Path, pin: dict) -> None:
         "release upload contains pack": 'gh release upload "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK"' in release_workflow,
         "release creation contains pack": 'gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK"' in release_workflow,
         "release layout requires pack": 'grep -Fxq "$RESOURCE_PACK" assets-after.txt' in release_workflow,
-        "release layout requires three assets": 'if [[ "$ASSET_COUNT" -ne 3 ]]' in release_workflow,
+        "release layout requires four approved assets": 'if [[ "$ASSET_COUNT" -ne 4 ]]' in release_workflow,
         "mirror workflow uploads pack": 'gh release upload "$TARGET_TAG" "$PACK"' in mirror_workflow,
         "mirror workflow verifies published digest": "Published Slimefun release resource-pack digest mismatch" in mirror_workflow,
         "cleanup uses preflight policy": "python3 scripts/verify_sfl_release_assets.py plan" in cleanup_workflow,

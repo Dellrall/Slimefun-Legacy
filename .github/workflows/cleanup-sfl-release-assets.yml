@@ -7,11 +7,13 @@ on:
       - '.github/workflows/cleanup-sfl-release-assets.yml'
       - 'scripts/verify_sfl_release_assets.py'
       - 'scripts/test_verify_sfl_release_assets.py'
+      - 'compatibility/bedrock-resource-pack-release.json'
   pull_request:
     paths:
       - '.github/workflows/cleanup-sfl-release-assets.yml'
       - 'scripts/verify_sfl_release_assets.py'
       - 'scripts/test_verify_sfl_release_assets.py'
+      - 'compatibility/bedrock-resource-pack-release.json'
   workflow_run:
     workflows: ['Build SF Addons 1.21.11-26.3 Bundle']
     types: [completed]
@@ -80,8 +82,9 @@ jobs:
             echo '## Slimefun Legacy release cleanup'
             echo
             echo '- Exact tag-matching core JAR and canonical addon bundle are required.'
-            echo '- The optional resource pack and explicitly pinned r136 rollback are preserved.'
-            echo '- Unknown assets fail preflight before deletion; no blanket four-asset exception.'
+            echo '- The Java resource pack, pinned optional Bedrock pack and pinned r136 rollback are preserved.'
+            echo '- Bedrock bytes and approved release tags must match the reviewed carry-forward pin.'
+            echo '- Unknown assets fail preflight before deletion; no blanket extra-asset exception.'
             echo '- Retained IDs, sizes and API digests must match before and after cleanup.'
             echo '- Only the established obsolete-asset families may be removed.'
             echo '- Individual addon releases remain the responsibility of their own repositories.'

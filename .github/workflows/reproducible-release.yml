@@ -14,6 +14,10 @@ on:
     paths:
       - gradle.properties
       - 'docs/releases/**'
+      - '.github/workflows/reproducible-release.yml'
+      - 'compatibility/bedrock-resource-pack-release.json'
+      - 'scripts/verify_release_bedrock_pack.py'
+      - 'scripts/test_verify_release_bedrock_pack.py'
 
 permissions:
   contents: write
@@ -23,6 +27,8 @@ env:
   CANONICAL_ADDON_BUNDLE: SF_Addons_1.21.11-26.3.zip
   CANONICAL_RESOURCE_PACK: SlimefunLegacyRP.zip
   RESOURCE_PACK_PIN: compatibility/resource-pack-release.json
+  OPTIONAL_BEDROCK_PACK: GEYSER_SFL_RP_Experimental_v0.0.1.zip
+  BEDROCK_PACK_PIN: compatibility/bedrock-resource-pack-release.json
 
 concurrency:
   group: reproducible-release-${{ github.ref }}
@@ -262,6 +268,36 @@ jobs:
             echo "Official resource pack bytes: ${PACK_SIZE}"
           } >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Require pinned optional Bedrock resource pack
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PIN="$BEDROCK_PACK_PIN"
+          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --target-tag "v${LEGACY_ARTIFACT_VERSION}"
+          PACK_REPO="$(jq -r '.repository' "$PIN")"
+          PACK_TAG="$(jq -r '.release_tag' "$PIN")"
+          PACK_ASSET="$(jq -r '.asset_name' "$PIN")"
+          test "$PACK_ASSET" = "$OPTIONAL_BEDROCK_PACK"
+
+          mkdir -p bedrock-pack-artifact
+          gh api "repos/${PACK_REPO}/releases/tags/${PACK_TAG}" > "$RUNNER_TEMP/bedrock-pack-release.json"
+          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" \
+            --release-json "$RUNNER_TEMP/bedrock-pack-release.json"
+          gh release download "$PACK_TAG" --repo "$PACK_REPO" \
+            --pattern "$PACK_ASSET" --dir bedrock-pack-artifact
+          PACK="bedrock-pack-artifact/$PACK_ASSET"
+          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --zip "$PACK"
+          cp "$PACK" "dist/$OPTIONAL_BEDROCK_PACK"
+
+          {
+            echo "Optional experimental Bedrock resource pack: ${PACK_ASSET}"
+            echo "Source: ${PACK_REPO} ${PACK_TAG}; exact approved archive retained."
+            echo 'Requires Geyser and both the included packs/ and custom_mappings/ files.'
+            sha256sum "dist/$OPTIONAL_BEDROCK_PACK"
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Upload raw reproducible JAR artifact
         uses: actions/upload-artifact@v7
         with:
@@ -291,6 +327,7 @@ jobs:
           JAR="dist/${OUTPUT_NAME}"
           BUNDLE="dist/${CANONICAL_ADDON_BUNDLE}"
           RESOURCE_PACK="dist/${CANONICAL_RESOURCE_PACK}"
+          BEDROCK_PACK="dist/${OPTIONAL_BEDROCK_PACK}"
           NOTES_FILE="docs/releases/${LEGACY_ARTIFACT_VERSION}.md"
           TITLE="Slimefun Legacy ${LEGACY_ARTIFACT_VERSION}"
 
@@ -305,7 +342,7 @@ jobs:
                 exit 1
               fi
             fi
-            gh release upload "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --clobber
             if [[ -f "$NOTES_FILE" ]]; then
               gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file "$NOTES_FILE"
             else
@@ -320,9 +357,9 @@ jobs:
               fi
             fi
             if [[ -f "$NOTES_FILE" ]]; then
-              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes-file "$NOTES_FILE" --title "$TITLE"
+              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes-file "$NOTES_FILE" --title "$TITLE"
             else
-              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes --title "$TITLE"
+              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes --title "$TITLE"
             fi
           fi
 
@@ -337,6 +374,7 @@ jobs:
           CORE_JAR="${OUTPUT_NAME}"
           BUNDLE="$CANONICAL_ADDON_BUNDLE"
           RESOURCE_PACK="$CANONICAL_RESOURCE_PACK"
+          BEDROCK_PACK="$OPTIONAL_BEDROCK_PACK"
 
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets-before.txt
 
@@ -353,6 +391,11 @@ jobs:
           grep -Fxq "$CORE_JAR" assets-after.txt
           grep -Fxq "$BUNDLE" assets-after.txt
           grep -Fxq "$RESOURCE_PACK" assets-after.txt
+          grep -Fxq "$BEDROCK_PACK" assets-after.txt
+
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RUNNER_TEMP/published-bedrock-pack.json"
+          python3 scripts/verify_release_bedrock_pack.py . --pin "$BEDROCK_PACK_PIN" \
+            --target-release-json "$RUNNER_TEMP/published-bedrock-pack.json" --target-tag "$TAG"
 
           if grep -Eq '^SF_.*\.jar$' assets-after.txt; then
             echo 'Raw addon JARs remain on the Slimefun Legacy release.' >&2
@@ -366,8 +409,8 @@ jobs:
           fi
 
           ASSET_COUNT="$(wc -l < assets-after.txt | tr -d ' ')"
-          if [[ "$ASSET_COUNT" -ne 3 ]]; then
-            echo "Expected exactly three release assets (core + canonical addon bundle + resource pack); found ${ASSET_COUNT}." >&2
+          if [[ "$ASSET_COUNT" -ne 4 ]]; then
+            echo "Expected exactly four release assets (core + canonical addon bundle + Java pack + optional Bedrock pack); found ${ASSET_COUNT}." >&2
             cat assets-after.txt >&2
             exit 1
           fi
@@ -378,7 +421,8 @@ jobs:
             echo "- Core: ${CORE_JAR}"
             echo "- Addon bundle: ${BUNDLE}"
             echo "- Resource pack: ${RESOURCE_PACK}"
+            echo "- Optional Bedrock pack (Geyser required): ${BEDROCK_PACK}"
             echo '- Individual addon JARs: not published here'
             echo '- Obsolete SFL_Addons* bundles: removed'
-            echo '- Release assets: exactly three'
+            echo '- Release assets: exactly four'
           } >> "$GITHUB_STEP_SUMMARY"
