@@ -1,65 +1,145 @@
 # Optional Bedrock resource pack — Geyser required
 
-Slimefun Legacy provides **`GEYSER_SFL_RP_Experimental_v0.0.1.zip`** as an optional
-download for servers with Bedrock players. It contains a Bedrock resource pack and
-the matching Geyser custom-item mappings. **Geyser must already be installed and
-configured, and both the pack and the mapping files must be installed for this
-integration to work.** The archive contains no Geyser plugin JAR or server config.
+The Slimefun Legacy 4.1.76 candidate includes an **optional, experimental resource
+pack bundle for Bedrock players**:
+[`SFL_GEYSER_RP_experimental_v1.0.3_complete.zip`](../compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip).
+**Geyser must be installed and configured. Install both main `.mcpack` files and
+all 23 matching JSON mappings together in the running Geyser instance.** These
+are drop-in resource and mapping files; the ZIP includes no Geyser plugin JAR or
+server configuration.
 
-The held 4.1.76 candidate carries forward the exact ZIP already available on
-[v4.1.75](https://github.com/wickidcow/Slimefun-Legacy/releases/download/v4.1.75/GEYSER_SFL_RP_Experimental_v0.0.1.zip).
-It remains an **experimental 0.0.1** resource pack. Its inclusion does not establish
-complete texture coverage, compatibility with every other pack, or successful
-rendering on every supported Bedrock client. Core and addon publication remains
-subject to the existing release hold.
+This complete ZIP includes the base mappings needed for a fresh installation;
+**no earlier ZIP is required**. It combines the preserved base files with the
+updated main packs and mappings from the 1.0.3 overlay. The separate public 1.0.3
+overlay assumes an existing base installation and is not the complete download
+linked above.
 
-## Install the drop-in files
+## Included content
 
-1. Install and configure [Geyser](https://geysermc.org/wiki/geyser/setup/) first,
-   and confirm that a Bedrock player can connect to the Java server.
-2. Stop the server normally and back up the existing Geyser data folder.
-3. Extract the outer `GEYSER_SFL_RP_Experimental_v0.0.1.zip`. Copy **both** sets of
-   files below into the existing Geyser-Spigot installation, merging directories
-   while preserving unrelated packs, mappings and configuration.
-
-| Files inside the downloaded ZIP | Destination for Geyser-Spigot |
+| Files in the complete ZIP | Installation and purpose |
 | --- | --- |
-| `Geyser-Spigot/packs/SlimefunBedrockRP.mcpack` | `plugins/Geyser-Spigot/packs/SlimefunBedrockRP.mcpack` |
-| All 20 JSON files in `Geyser-Spigot/custom_mappings/` | `plugins/Geyser-Spigot/custom_mappings/` |
+| `packs/SlimefunBedrockRP_1.0.1.mcpack` | Required main pack for Slimefun Bedrock resources. |
+| `packs/Albion_ValhallaMMO_Bedrock_1.0.1.mcpack` | Required main pack for the bundled Albion item and equipment mappings. |
+| `custom_mappings/` | All 23 JSON files are required for the complete bundle: 20 Slimefun item mappings, one Albion item mapping and two skull mappings. |
+| `optional/Albion_ValhallaMMO_Stat_Icons_1.0.0.mcpack` | Optional ValhallaMMO stat/effect text icons; not installed by default. |
+| `INSTALL.md` and `README.txt` | Complete-install instructions and the unchanged upstream overlay notes. |
 
-4. Keep the `.mcpack` as a file. The outer ZIP is an installation bundle; place
-   its contents in the locations above rather than placing that ZIP in `packs`.
-   Avoid adding a second `Geyser-Spigot` directory inside the existing one. If
-   these named Slimefun files are already installed, back them up before replacing
-   them; retain unrelated files.
-5. Ensure Geyser's `enable-custom-content` setting is enabled. In the current
-   configuration format it is under `gameplay`. Start the server normally and
-   check Geyser's startup log for pack or mapping errors.
-6. Have Bedrock players reconnect and accept the offered resource pack. Check
-   representative Slimefun items in the guide and in hand before wider use.
+The mapping files contain **507 Albion item definitions** and **1,543 unique
+custom skull hashes**: the original 1,453 plus 90 additional hashes. The two main
+packs contain the geometry, armor and material changes supplied by the 1.0.3
+overlay. Component versions remain 1.0.1, as shown in their filenames. All 27
+supplied component files are copied unchanged; the complete outer archive adds
+`INSTALL.md`. The earlier-base prerequisite in the preserved `README.txt` is
+already satisfied by this complete ZIP.
 
-For Geyser installed on a proxy or as a standalone process, use the `packs` and
-`custom_mappings` directories belonging to that running Geyser installation. The
-`Geyser-Spigot/` directory in this download supplies the layout; it does not change
-where Geyser runs.
+These resources do not install ValhallaMMO or supply its server gameplay. The
+optional stat-icon pack is separate from the two required main packs and can be
+left out.
 
-Geyser's official [resource-pack instructions](https://geysermc.org/wiki/geyser/packs/)
-and [custom-item instructions](https://geysermc.org/wiki/geyser/custom-items/#loading-mappings-and-resource-packs)
-describe pack delivery, custom-content enablement and these directories.
+## Install or update the drop-in files
+
+1. Install and configure [Geyser](https://geysermc.org/wiki/geyser/setup/) and
+   confirm that a Bedrock player can connect to the Java server. Use a Geyser
+   build supporting the item and skull mapping formats described below.
+2. Stop the server or proxy running Geyser normally. Back up its data folder,
+   including existing mappings and resource packs, before changing any files.
+3. When upgrading, move the older versions of the two main packs outside the
+   active `packs/` directory after backing them up. The updated packs retain the
+   same UUIDs, so only one version of each should be active. Use the table below
+   to identify the older files. Preserve unrelated packs, mappings and config.
+4. Extract `SFL_GEYSER_RP_experimental_v1.0.3_complete.zip`. Copy the two `.mcpack`
+   files from its root `packs/` directory into Geyser's `packs/` directory and
+   all 23 JSON files from `custom_mappings/` into Geyser's matching directory.
+   Merge the directories and replace the corresponding backed-up mapping files.
+   Keep each `.mcpack` as a file; the outer ZIP itself is not a resource pack.
+5. If wanted, copy `optional/Albion_ValhallaMMO_Stat_Icons_1.0.0.mcpack` into
+   Geyser's `packs/` directory. This optional font pack is unchanged from the
+   earlier bundle. Keep at most one installed copy; leaving it under `optional/`
+   does not activate it.
+6. Set `enable-custom-content: true` under the existing `gameplay:` section of
+   Geyser's `config.yml`. Start Geyser normally and inspect its startup log for
+   pack or mapping errors. A complete restart is required for the registrations.
+7. Reconnect Bedrock players and have them accept the pack update. Check
+   representative Slimefun items, custom skulls and Albion equipment in the guide,
+   inventory and hand before wider use. Check text icons if the optional pack is
+   installed.
+
+| Earlier main pack to back up and remove from the active folder | Replacement in this ZIP | Shared pack UUID |
+| --- | --- | --- |
+| `SlimefunBedrockRP.mcpack` | `SlimefunBedrockRP_1.0.1.mcpack` | `f3e14cb9-aea6-58a4-bd52-1bc3c9b9084a` |
+| `Albion_ValhallaMMO_Bedrock_1.0.0.mcpack` | `Albion_ValhallaMMO_Bedrock_1.0.1.mcpack` | `38dd6eec-1713-5df4-9e88-037b3279d6cc` |
+
+If an installed pack was renamed, identify it by the UUID in its manifest before
+replacing it. Do not remove another pack just because its filename looks similar.
+
+| Content | Geyser-Spigot destination |
+| --- | --- |
+| The two required main `.mcpack` files | `plugins/Geyser-Spigot/packs/` |
+| All 23 JSON files, including both skull mappings | `plugins/Geyser-Spigot/custom_mappings/` |
+| The optional stat-icon `.mcpack`, if selected | `plugins/Geyser-Spigot/packs/` |
+
+When Geyser runs on a proxy or as a standalone process, install the files in that
+running instance's `packs` and `custom_mappings` directories. Copying them only to
+a backend Java server does not configure a separate proxy's Geyser. Do not create
+an extra nested `Geyser-Spigot/` directory. Geyser's
+[resource-pack guide](https://geysermc.org/wiki/geyser/packs/) documents platform
+paths and pack delivery; its [custom-content guide](https://geysermc.org/wiki/geyser/custom-content/)
+documents the mapping folder and configuration setting.
+
+## Item and skull mapping formats
+
+`albion_valhallammo_mappings.json` uses numeric `format_version: 2` and an `items`
+object containing arrays of definitions for Java item IDs. This is the structure
+in Geyser's current [custom-item documentation](https://geysermc.org/wiki/geyser/custom-items/).
+
+`migrated-custom-skulls.json` and `albion_slimefun_legacy_skulls.json` use numeric
+`format_version: 1` with a `skulls` object and `skin_hash` entries. Keep both as
+JSON in `custom_mappings/`; do not rename them to `custom-skulls.yml`. Geyser's
+[custom-skull documentation](https://geysermc.org/wiki/geyser/custom-skulls/)
+uses this JSON format and explains that the older YAML file is migrated
+automatically. Geyser fetches uncached public skull textures and generates its
+skull resources at startup. The item and skull files intentionally use different
+format versions.
+
+The main Albion pack's `ResourcePackManager 2.4.6` metadata identifies a generation
+tool. It does not declare a required installed extension, and the ZIP supplies none.
+
+## Verified loading and remaining checks
+
+The exact complete ZIP passed two isolated loader checks on **Geyser Standalone
+2.12.0 build 1268**, using Java 25.0.4.1. The default installation loaded the two
+main packs; a separate run also loaded the explicitly enabled optional stat-icon
+pack. Both registered **1,543 custom skulls and blocks**, generated a skull pack
+with 1,543 texture files, and shut down normally. All 28 supplied files remained
+unchanged. The observed skull/block count is 1,543; the preserved upstream
+`README.txt` describes a different count without its supporting reports.
+
+Both checks retained **107 texture-size deprecation warnings** from the Slimefun
+mappings. Those mappings need future migration to attachables before Geyser
+removes that support. The isolated checks had no connected Bedrock client or live
+Java backend. Rendering, hand and armor visuals, live item interactions,
+production connectivity and embedded Geyser-Spigot/Folia behavior remain untested.
+The pack remains experimental; complete texture coverage and compatibility with
+other packs are not established. Missing upstream artwork has not been replaced
+with another item's texture.
 
 ## Optional installation and exact download
 
-Servers without Bedrock players can omit this download. It is separate from the
-Java resource pack, `SlimefunLegacyRP.zip`, and from the addon JAR bundle. Java
-resource-pack delivery does not install the Bedrock pack or Geyser mappings.
+Servers without Bedrock players can omit the download. It is separate from the
+Java resource pack, `SlimefunLegacyRP.zip`, and the addon JAR bundle. Java resource
+pack delivery does not install the Bedrock resources or Geyser mappings.
 
-The release process preserves the reviewed archive without changing its textures,
-mapping identifiers or nested pack bytes. Its source asset and checksum are pinned
-in [`compatibility/bedrock-resource-pack-release.json`](../compatibility/bedrock-resource-pack-release.json).
+The complete ZIP is stored with this source at
+[`compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip`](../compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip).
+The [component ledger and loader results](../compatibility/bedrock/complete-pack-provenance.json)
+record the preserved source files and the two isolated checks. Its exact bytes are pinned in
+[`compatibility/bedrock-resource-pack-release.json`](../compatibility/bedrock-resource-pack-release.json),
+so release acquisition does not depend on an older public asset remaining
+available at a replaceable download URL.
 
 | Identity | Value |
 | --- | --- |
-| Filename | `GEYSER_SFL_RP_Experimental_v0.0.1.zip` |
-| Size | 226,576 bytes |
-| SHA-256 | `ba4fa277fb71a33ca557e0206ea51c40680593952a5d47fbd849b335c9fe09bf` |
-
+| Filename | `SFL_GEYSER_RP_experimental_v1.0.3_complete.zip` |
+| Files | 28: 23 mappings, two required packs, one optional pack and two instruction files |
+| Size | 2,390,264 bytes |
+| SHA-256 | `60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c` |

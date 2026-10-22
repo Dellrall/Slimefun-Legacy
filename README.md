@@ -95,7 +95,7 @@ The supported production line uses Java 25. The repository also builds with Java
 
 Resource-pack delivery is optional and remains off unless a server owner explicitly enables it. Servers already using ItemsAdder can leave Legacy's sender disabled and continue using their own combined pack. See [`docs/RESOURCE_PACK.md`](docs/RESOURCE_PACK.md).
 
-**Optional Bedrock resource pack:** the 4.1.76 candidate carries forward `GEYSER_SFL_RP_Experimental_v0.0.1.zip` as a separate download. **Geyser is required**, together with both the included `.mcpack` and custom-mapping JSON files installed in the running Geyser instance. This experimental download is optional for Bedrock players; see the [drop-in installation instructions](docs/bedrock-resource-pack.md). Publication of the candidate remains held.
+**Optional Bedrock resource pack:** the 4.1.76 candidate includes the [complete experimental Bedrock bundle](compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip). **Geyser is required**, with both main `.mcpack` files and all 23 matching JSON mappings installed together in the running Geyser instance. The base files needed for a fresh installation are included; the ValhallaMMO stat-icon font pack is optional and separate. See the [installation and upgrade instructions](docs/bedrock-resource-pack.md).
 
 Download a tested build from [GitHub Releases](https://github.com/wickidcow/Slimefun-Legacy/releases). Development artifacts are available from [GitHub Actions](https://github.com/wickidcow/Slimefun-Legacy/actions).
 > [!WARNING]

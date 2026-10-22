@@ -16,6 +16,7 @@ on:
       - 'docs/releases/**'
       - '.github/workflows/reproducible-release.yml'
       - 'compatibility/bedrock-resource-pack-release.json'
+      - 'compatibility/bedrock/**'
       - 'scripts/verify_release_bedrock_pack.py'
       - 'scripts/test_verify_release_bedrock_pack.py'
 
@@ -27,7 +28,7 @@ env:
   CANONICAL_ADDON_BUNDLE: SF_Addons_1.21.11-26.3.zip
   CANONICAL_RESOURCE_PACK: SlimefunLegacyRP.zip
   RESOURCE_PACK_PIN: compatibility/resource-pack-release.json
-  OPTIONAL_BEDROCK_PACK: GEYSER_SFL_RP_Experimental_v0.0.1.zip
+  OPTIONAL_BEDROCK_PACK: SFL_GEYSER_RP_experimental_v1.0.3_complete.zip
   BEDROCK_PACK_PIN: compatibility/bedrock-resource-pack-release.json
 
 concurrency:
@@ -269,31 +270,21 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Require pinned optional Bedrock resource pack
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
           PIN="$BEDROCK_PACK_PIN"
           python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --target-tag "v${LEGACY_ARTIFACT_VERSION}"
-          PACK_REPO="$(jq -r '.repository' "$PIN")"
-          PACK_TAG="$(jq -r '.release_tag' "$PIN")"
           PACK_ASSET="$(jq -r '.asset_name' "$PIN")"
+          PACK="$(jq -r '.archive_path' "$PIN")"
           test "$PACK_ASSET" = "$OPTIONAL_BEDROCK_PACK"
-
-          mkdir -p bedrock-pack-artifact
-          gh api "repos/${PACK_REPO}/releases/tags/${PACK_TAG}" > "$RUNNER_TEMP/bedrock-pack-release.json"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" \
-            --release-json "$RUNNER_TEMP/bedrock-pack-release.json"
-          gh release download "$PACK_TAG" --repo "$PACK_REPO" \
-            --pattern "$PACK_ASSET" --dir bedrock-pack-artifact
-          PACK="bedrock-pack-artifact/$PACK_ASSET"
+          test -f "$PACK"
           python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --zip "$PACK"
           cp "$PACK" "dist/$OPTIONAL_BEDROCK_PACK"
 
           {
             echo "Optional experimental Bedrock resource pack: ${PACK_ASSET}"
-            echo "Source: ${PACK_REPO} ${PACK_TAG}; exact approved archive retained."
+            echo "Source: ${GITHUB_SHA}:${PACK}; complete archive and component provenance are pinned."
             echo 'Requires Geyser and both the included packs/ and custom_mappings/ files.'
             sha256sum "dist/$OPTIONAL_BEDROCK_PACK"
           } >> "$GITHUB_STEP_SUMMARY"

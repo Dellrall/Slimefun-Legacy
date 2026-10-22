@@ -2,6 +2,7 @@
 """Offline policy and real workflow-shell tests; GitHub CLI is always a fake."""
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -44,7 +45,8 @@ def release(*, pack: bool = True, rollback: bool = True) -> dict:
 
 
 def bedrock_release(tag: str = "v4.1.75") -> dict:
-    # Observed origin metadata, independent of the candidate's preservation pin.
+    # Origin overlay and composed successor are deliberately distinct assets.
+    # These identities are independent of the candidate's preservation pin.
     origin = tag == "v4.1.75"
     state = {
         "id": 415923695 if origin else 500000076,
@@ -53,8 +55,10 @@ def bedrock_release(tag: str = "v4.1.75") -> dict:
             asset(f"Slimefun-Legacy{tag[1:]}.jar", 650941345),
             asset(BUNDLE, 650941344),
             asset(PACK, 650941348),
-            asset("GEYSER_SFL_RP_Experimental_v0.0.1.zip", 664136278 if origin else 700000076,
-                  "ba4fa277fb71a33ca557e0206ea51c40680593952a5d47fbd849b335c9fe09bf", 226576),
+            (asset("SFL_GEYSER_RP_experimental_v1.0.3.zip", 664360404,
+                   "90d78fcf8382bdee1bce3a364515769cb8325c174b58c34b512039502cc50e51", 1265679)
+             if origin else asset("SFL_GEYSER_RP_experimental_v1.0.3_complete.zip", 700000076,
+                                  "60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c", 2390264)),
         ],
     }
     return state
@@ -135,6 +139,8 @@ def exercise_shell(state: dict, *, replacement: dict | None = None, fail_delete:
             "MOCK_STATE": str(state_file),
             "MOCK_CALLS": str(calls_file),
         }
+        if sys.flags.optimize:
+            env["PYTHONOPTIMIZE"] = str(sys.flags.optimize)
         if replacement is not None:
             replacement_path = directory / "replacement.json"
             replacement_path.write_text(json.dumps(replacement), encoding="utf-8")
@@ -160,8 +166,23 @@ class PolicyTests(unittest.TestCase):
                 state = bedrock_release(tag)
                 plan = plan_release(state)
                 self.assertEqual(4, len(plan["retained"]))
-                self.assertEqual(state["assets"][-1], plan["retained"][BEDROCK_PACK])
+                self.assertEqual(state["assets"][-1], plan["retained"][state["assets"][-1]["name"]])
                 self.assertEqual([], plan["remove"])
+
+    def test_source_overlay_and_complete_candidate_cannot_swap_release_roles(self):
+        for tag, other in (("v4.1.75", "v4.1.76"), ("v4.1.76", "v4.1.75")):
+            with self.subTest(tag=tag):
+                state = bedrock_release(tag)
+                state["assets"][-1] = bedrock_release(other)["assets"][-1]
+                with self.assertRaises(PolicyError):
+                    plan_release(state)
+
+    def test_complete_candidate_name_cannot_wrap_overlay_bytes(self):
+        state = bedrock_release("v4.1.76")
+        source = bedrock_release()["assets"][-1]
+        state["assets"][-1].update(size=source["size"], digest=source["digest"])
+        with self.assertRaises(PolicyError):
+            plan_release(state)
 
     def test_bedrock_origin_requires_original_release_and_asset_ids(self):
         for altered in ("release", "asset"):
@@ -176,12 +197,28 @@ class PolicyTests(unittest.TestCase):
 
     def test_bedrock_only_allows_reviewed_bytes_and_filename(self):
         for tag in ("v4.1.75", "v4.1.76"):
-            for key, value in [("size", 226577), ("digest", "sha256:" + "0" * 64),
+            for key, value in [("size", 1265680), ("digest", "sha256:" + "0" * 64),
                                ("name", "GEYSER_SFL_RP_Experimental_v0.0.2.zip"),
+                               ("name", "GEYSER_SFL_RP_v0.0.3.zip"),
                                ("name", "Geyser-Spigot-RP-alpha-v0.0.3.zip")]:
                 with self.subTest(tag=tag, key=key, value=value):
                     state = bedrock_release(tag)
                     state["assets"][-1][key] = value
+                    with self.assertRaises(PolicyError):
+                        plan_release(state)
+
+    def test_previous_bedrock_asset_is_not_retained_by_the_current_pin(self):
+        historical = [
+            asset("GEYSER_SFL_RP_Experimental_v0.0.1.zip", 664136278,
+                  "ba4fa277fb71a33ca557e0206ea51c40680593952a5d47fbd849b335c9fe09bf", 226576),
+            asset("GEYSER_SFL_RP_v0.0.2.zip", 664289959,
+                  "b27941425a646ba97c4789ecf2841e20f08663e79b3d538b552516d40cc67ee1", 1329705),
+        ]
+        for tag in ("v4.1.75", "v4.1.76"):
+            for previous in historical:
+                with self.subTest(tag=tag, name=previous["name"]):
+                    state = bedrock_release(tag)
+                    state["assets"][-1] = previous
                     with self.assertRaises(PolicyError):
                         plan_release(state)
 
@@ -215,15 +252,39 @@ class PolicyTests(unittest.TestCase):
         original_pin = load_json(BEDROCK_PIN_PATH)
         changes = [("schema_version", True), ("repository", "other/repository"),
                    ("asset_name", "another.zip"), ("release_id", True), ("asset_id", 0),
+                   ("archive_path", "../unreviewed.zip"), ("stability", "stable"),
                    ("size_bytes", -1), ("sha256", "invalid"), ("release_tag", "latest"),
                    ("carry_forward_tags", ["v4.1.75"]), ("carry_forward_tags", ["v4.1.76", "v4.1.76"]),
                    ("carry_forward_tags", "v4.1.76"), ("carry_forward_tags", []),
-                   ("carry_forward_tags", ["latest"])]
+                   ("carry_forward_tags", ["latest"]), ("carry_forward_tags", ["v4.1.77"])]
         with tempfile.TemporaryDirectory() as temporary:
             pin_path = Path(temporary) / "pin.json"
             for key, value in changes:
                 with self.subTest(key=key, value=value):
                     pin_path.write_text(json.dumps(original_pin | {key: value}))
+                    with patch("verify_sfl_release_assets.BEDROCK_PIN_PATH", pin_path):
+                        with self.assertRaises(PolicyError):
+                            plan_release(bedrock_release())
+
+    def test_bedrock_source_provenance_cannot_change_or_use_numeric_coercion(self):
+        original_pin = load_json(BEDROCK_PIN_PATH)
+        candidates = [None, {}, [], original_pin["source_assets"][:1],
+                      list(reversed(original_pin["source_assets"])),
+                      original_pin["source_assets"] + [original_pin["source_assets"][0]]]
+        for index in (0, 1):
+            for key, value in (("release_id", True), ("asset_id", 0),
+                               ("asset_id", float(original_pin["source_assets"][index]["asset_id"])),
+                               ("size_bytes", float(original_pin["source_assets"][index]["size_bytes"])),
+                               ("sha256", "0" * 64), ("release_tag", "v4.1.76"),
+                               ("asset_name", "unreviewed.zip"), ("extra", True)):
+                changed = copy.deepcopy(original_pin["source_assets"])
+                changed[index][key] = value
+                candidates.append(changed)
+        with tempfile.TemporaryDirectory() as temporary:
+            pin_path = Path(temporary) / "pin.json"
+            for sources in candidates:
+                with self.subTest(sources=sources):
+                    pin_path.write_text(json.dumps(original_pin | {"source_assets": sources}))
                     with patch("verify_sfl_release_assets.BEDROCK_PIN_PATH", pin_path):
                         with self.assertRaises(PolicyError):
                             plan_release(bedrock_release())
@@ -409,14 +470,45 @@ class WorkflowShellTests(unittest.TestCase):
 
     def test_changed_or_unapproved_bedrock_blocks_before_any_deletion(self):
         for tag, key, value in [
-                ("v4.1.75", "size", 226577),
+                ("v4.1.75", "id", 664360405),
+                ("v4.1.75", "size", 1265680),
                 ("v4.1.76", "digest", "sha256:" + "0" * 64),
+                ("v4.1.76", "name", "GEYSER_SFL_RP_Experimental_v0.0.1.zip"),
+                ("v4.1.76", "name", "GEYSER_SFL_RP_v0.0.2.zip"),
+                ("v4.1.76", "name", "GEYSER_SFL_RP_v0.0.3.zip"),
                 ("v4.1.76", "name", "Geyser-Spigot-RP-alpha-v0.0.3.zip"),
                 ("v4.1.77", "state", "uploaded")]:
             with self.subTest(tag=tag, key=key):
                 state = bedrock_release(tag)
                 state["assets"][-1][key] = value
                 state["assets"].append(asset("SF_Test1.0.jar", 1))
+                result, after, calls = exercise_shell(state)
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual(state, after)
+                self.assertEqual([], deletions(calls))
+
+    def test_overlay_and_complete_candidate_swaps_block_before_any_deletion(self):
+        for tag, other in (("v4.1.75", "v4.1.76"), ("v4.1.76", "v4.1.75")):
+            for append in (False, True):
+                with self.subTest(tag=tag, append=append):
+                    state = bedrock_release(tag)
+                    replacement = bedrock_release(other)["assets"][-1]
+                    if append:
+                        state["assets"].append(replacement)
+                    else:
+                        state["assets"][-1] = replacement
+                    state["assets"].insert(0, asset("SF_Test1.0.jar", 1))
+                    result, after, calls = exercise_shell(state)
+                    self.assertNotEqual(0, result.returncode)
+                    self.assertEqual(state, after)
+                    self.assertEqual([], deletions(calls))
+
+    def test_extra_bedrock_or_unknown_asset_blocks_all_deletions(self):
+        for name in ("GEYSER_SFL_RP_Experimental_v0.0.1.zip", "GEYSER_SFL_RP_v0.0.2.zip", "GEYSER_SFL_RP_v0.0.3.zip",
+                     "Geyser-Spigot-RP-alpha-v0.0.3.zip", "unexpected.zip"):
+            with self.subTest(name=name):
+                state = bedrock_release()
+                state["assets"].extend([asset("SF_Test1.0.jar", 1), asset(name, 2)])
                 result, after, calls = exercise_shell(state)
                 self.assertNotEqual(0, result.returncode)
                 self.assertEqual(state, after)

@@ -1,16 +1,32 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "repository": "wickidcow/Slimefun-Legacy",
-  "release_tag": "v4.1.75",
-  "release_id": 415923695,
-  "asset_id": 664136278,
-  "asset_name": "GEYSER_SFL_RP_Experimental_v0.0.1.zip",
-  "size_bytes": 226576,
-  "sha256": "ba4fa277fb71a33ca557e0206ea51c40680593952a5d47fbd849b335c9fe09bf",
+  "asset_name": "SFL_GEYSER_RP_experimental_v1.0.3_complete.zip",
+  "archive_path": "compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip",
+  "size_bytes": 2390264,
+  "sha256": "60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c",
   "carry_forward_tags": [
     "v4.1.76"
   ],
   "stability": "experimental",
-  "requires": "Geyser with both the bundled custom mappings and Bedrock resource pack installed",
-  "note": "Maintainer-approved optional Bedrock download, carried forward byte-for-byte from the existing release asset. This pin establishes archive identity and structure, not complete Bedrock texture or client compatibility."
+  "source_assets": [
+    {
+      "release_tag": "v4.1.75",
+      "release_id": 415923695,
+      "asset_id": 664289959,
+      "asset_name": "GEYSER_SFL_RP_v0.0.2.zip",
+      "size_bytes": 1329705,
+      "sha256": "b27941425a646ba97c4789ecf2841e20f08663e79b3d538b552516d40cc67ee1"
+    },
+    {
+      "release_tag": "v4.1.75",
+      "release_id": 415923695,
+      "asset_id": 664360404,
+      "asset_name": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "size_bytes": 1265679,
+      "sha256": "90d78fcf8382bdee1bce3a364515769cb8325c174b58c34b512039502cc50e51"
+    }
+  ],
+  "requires": "Geyser with the bundled custom mappings and Bedrock resource packs installed",
+  "note": "Complete experimental installation candidate stored in this repository. Combines the 20 unchanged Slimefun mapping files and base skull mapping from the retained v0.0.2 archive with all six unchanged v1.0.3 overlay files, plus INSTALL.md. The two source records preserve provenance; removed historical release assets are not acquisition dependencies. This pin does not claim explicit maintainer approval of these replacement versions or authorize publication; the release remains held. Archive identity and structure checks do not establish complete Bedrock texture or client compatibility."
 }

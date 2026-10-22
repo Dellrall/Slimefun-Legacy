@@ -1,0 +1,436 @@
+{
+  "schema_version": 1,
+  "artifact": {
+    "repository": "wickidcow/Slimefun-Legacy",
+    "asset_name": "SFL_GEYSER_RP_experimental_v1.0.3_complete.zip",
+    "archive_path": "compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip",
+    "size_bytes": 2390264,
+    "sha256": "60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c"
+  },
+  "source_assets": [
+    {
+      "release_tag": "v4.1.75",
+      "release_id": 415923695,
+      "asset_id": 664289959,
+      "asset_name": "GEYSER_SFL_RP_v0.0.2.zip",
+      "size_bytes": 1329705,
+      "sha256": "b27941425a646ba97c4789ecf2841e20f08663e79b3d538b552516d40cc67ee1"
+    },
+    {
+      "release_tag": "v4.1.75",
+      "release_id": 415923695,
+      "asset_id": 664360404,
+      "asset_name": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "size_bytes": 1265679,
+      "sha256": "90d78fcf8382bdee1bce3a364515769cb8325c174b58c34b512039502cc50e51"
+    }
+  ],
+  "composition": {
+    "deterministic_zip": {
+      "compression": "ZIP_STORED",
+      "timestamp": "1980-01-01T00:00:00",
+      "file_mode": "0644",
+      "file_type": "regular",
+      "sorted_paths": true,
+      "directory_entries": false,
+      "two_independent_serializations_identical": true
+    },
+    "counts": {
+      "total_files": 28,
+      "original_files_preserved": 27,
+      "new_install_document": 1,
+      "mapping_json_files": 23,
+      "active_main_packs": 2,
+      "optional_packs": 1,
+      "base_skin_hashes": 1453,
+      "additional_skin_hashes": 90,
+      "total_unique_skin_hashes": 1543
+    },
+    "original_overlay_readme_unchanged": true,
+    "old_main_packs_excluded": true,
+    "json_files_not_merged_or_rewritten": true
+  },
+  "entries": [
+    {
+      "destination_path": "INSTALL.md",
+      "source_archive": null,
+      "source_path": "INSTALL.md (new complete-install instructions)",
+      "bytes": 2865,
+      "sha256": "032c372d6097ffd7c647e21029428f4b9240bc81812761bde61317caf43d6ec0",
+      "source_bytes_unchanged": null,
+      "role": "New complete-install wrapper instructions"
+    },
+    {
+      "bytes": 6916,
+      "destination_path": "README.txt",
+      "sha256": "4f6694295bcd4cecacfd43cf0b803f5cfc6bd7e98a162087752d4d0c0a8cf7f0",
+      "source_archive": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "source_path": "README.txt",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1498,
+      "destination_path": "custom_mappings/SF-Androids.json",
+      "sha256": "b3f71f45e9688d66f3f7c3e141d6fab1bc0530701ed7ff7e71288d5a7990ced4",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Androids.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 2905,
+      "destination_path": "custom_mappings/SF-Armors.json",
+      "sha256": "bb8746dd56c948bf9224ddaf2a158c0b7f16ea421881eaef9e0e44d8a21ef8f7",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Armors.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 3642,
+      "destination_path": "custom_mappings/SF-Basic_Machines.json",
+      "sha256": "7a81d260447f447c9757dab46c9aa6411268fef465c19e08d74f1d7cb41871b5",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Basic_Machines.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1328,
+      "destination_path": "custom_mappings/SF-Cargo.json",
+      "sha256": "984bef961668ddf1410fad9fe87648f7090a0d22113d35a4a8815a62bc9bd06d",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Cargo.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 4222,
+      "destination_path": "custom_mappings/SF-EG-Drinks.json",
+      "sha256": "d9f148be7932655b7424eeef51fb404f19d40276ce4afa5d6ad65485eb59f3a7",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-EG-Drinks.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 10499,
+      "destination_path": "custom_mappings/SF-EG-Food.json",
+      "sha256": "8269c14108e63a75a67ccd682d74af7f2de91ec8cdf523206923ecb9c3c0146a",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-EG-Food.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 4837,
+      "destination_path": "custom_mappings/SF-Energy&Electricity.json",
+      "sha256": "03b229dde532368fd77ec450b9ca3fd7d04d83656469e57d199c1821735e757b",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Energy&Electricity.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 2003,
+      "destination_path": "custom_mappings/SF-Food.json",
+      "sha256": "d12d6ee71a7e78f8818b95255073989678565531aac72d58227ff146df58b0aa",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Food.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1764,
+      "destination_path": "custom_mappings/SF-Gps.json",
+      "sha256": "afbce8e1b9aa6d933788c6bf9e246ffc672b8859d190c594cf6e152bf147b33b",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Gps.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1360,
+      "destination_path": "custom_mappings/SF-Gui.json",
+      "sha256": "902dc61da7fa1b70cdbd4ed1b462cd28e775677f2d6906f690d7bcbcf4d1f6e8",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Gui.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1619,
+      "destination_path": "custom_mappings/SF-Items.json",
+      "sha256": "0476ca35c48a5370db7148582bff48cad4a0ae4782bf1c5ef3cf1e5dd4d4367f",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Items.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 2483,
+      "destination_path": "custom_mappings/SF-Magical_Gadgets.json",
+      "sha256": "9a22ea0e2c1123473cdfbb2fef6eeffacfb41efd711ed546c5d2e81b687a3313",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Magical_Gadgets.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 2846,
+      "destination_path": "custom_mappings/SF-Magical_Items.json",
+      "sha256": "df5a5ed200da3417de42a36697e3cb0b99589468aab04badf730ea1fe34f360e",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Magical_Items.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 6937,
+      "destination_path": "custom_mappings/SF-Resources.json",
+      "sha256": "d59ab1f258ff4fba19d0631a25460dc41117c2f16417ad5c93670d7fa286c554",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Resources.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1898,
+      "destination_path": "custom_mappings/SF-Talisman-I.json",
+      "sha256": "6f4ce332226e696520090b115a59ef8d556c2024f8fd7785ba9101742746217c",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Talisman-I.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 2092,
+      "destination_path": "custom_mappings/SF-Talisman-II.json",
+      "sha256": "01e64503021b8e9b3d9732caeeb0cb28d78b9e7cdae8f467121d2a0d66e0a568",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Talisman-II.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1940,
+      "destination_path": "custom_mappings/SF-Technical_Components.json",
+      "sha256": "c968193a384fd9d1804bfd41360fb990d83c1ab06adad7d7514c29b71c51bf40",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Technical_Components.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1957,
+      "destination_path": "custom_mappings/SF-Tools.json",
+      "sha256": "c7abcfdcff77665a9d3d782b9844e111cc1cf797f0b7386c72171e530702592b",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Tools.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 804,
+      "destination_path": "custom_mappings/SF-Weapons.json",
+      "sha256": "80a2ad5f9c5bba0d6188e69611f4927c7e41ac22ba9b10872dd6020e6f3475a2",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SF-Weapons.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 4772,
+      "destination_path": "custom_mappings/SlimefunItems.json",
+      "sha256": "b2d4b151b8381a19509f0bbee5c29a0a548220343981e2675953c0e69a20faba",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/SlimefunItems.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 6600,
+      "destination_path": "custom_mappings/albion_slimefun_legacy_skulls.json",
+      "sha256": "040e18bfe560eb2ee0d498cf6234845a93cdb038f2ecc4df0d7691c8ade6a537",
+      "source_archive": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "source_path": "custom_mappings/albion_slimefun_legacy_skulls.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 236653,
+      "destination_path": "custom_mappings/albion_valhallammo_mappings.json",
+      "sha256": "8d2ca0d5ed719de60e213ba83c587a6f5efafa57fa94ff30e46bbc4b1c0e3284",
+      "source_archive": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "source_path": "custom_mappings/albion_valhallammo_mappings.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 104925,
+      "destination_path": "custom_mappings/migrated-custom-skulls.json",
+      "sha256": "a841c5948608d0cd26320726130ed1fddbe2d587f5f971781bb2f8903aaebbc9",
+      "source_archive": "GEYSER_SFL_RP_v0.0.2.zip",
+      "source_path": "Geyser-Spigot/custom_mappings/migrated-custom-skulls.json",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 82428,
+      "destination_path": "optional/Albion_ValhallaMMO_Stat_Icons_1.0.0.mcpack",
+      "sha256": "cf8111461c228bb2eb37f65ee39ef201cd575268a01fce77b4b06ebce03346ea",
+      "source_archive": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "source_path": "optional/Albion_ValhallaMMO_Stat_Icons_1.0.0.mcpack",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 1494168,
+      "destination_path": "packs/Albion_ValhallaMMO_Bedrock_1.0.1.mcpack",
+      "sha256": "ac306c82a06b186af2754e450740f7a57459c8ba3ccc2e0f63f165c510929742",
+      "source_archive": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "source_path": "packs/Albion_ValhallaMMO_Bedrock_1.0.1.mcpack",
+      "source_bytes_unchanged": true
+    },
+    {
+      "bytes": 390243,
+      "destination_path": "packs/SlimefunBedrockRP_1.0.1.mcpack",
+      "sha256": "ea0ca69194f206c707a6716e9163be3696d8a13380f7e3b8d2e2880aaa021757",
+      "source_archive": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+      "source_path": "packs/SlimefunBedrockRP_1.0.1.mcpack",
+      "source_bytes_unchanged": true
+    }
+  ],
+  "loader_verification": {
+    "status": "PASS_WITH_WARNINGS",
+    "checked_at_utc": "2026-10-22T02:04:37.096532+00:00",
+    "scope": "Local complete-install candidate, actual Geyser loader with default and explicitly enabled optional-stat configurations; no Bedrock client or connected Java server.",
+    "geyser": {
+      "version": "2.12.0",
+      "build": 1268,
+      "source_commit": "d14f204635dceb37f2bfaf87cc3b733bc4f1e1eb",
+      "java_version": "25.0.4.1+1-LTS",
+      "bytes": 61967731,
+      "sha256": "87c8d732c4772b813f65b245acdabf9852af3632854116a312a132568141a348"
+    },
+    "results": [
+      {
+        "configuration": "default complete installation",
+        "status": "PASS_WITH_WARNINGS",
+        "runtime_mapping_inventory": {
+          "customBlocks": 1543,
+          "customSkulls": 1543,
+          "customItems": 2613,
+          "customEntities": 0
+        },
+        "new_public_texture_downloads": 90,
+        "exact_expected_texture_hash_cache_count": 1543,
+        "generated_skull_pack_texture_count": 1543,
+        "generated_skull_pack_crc_pass": true,
+        "source_files_unchanged": 28,
+        "connection_attempts": 0,
+        "extensions_loaded": 0,
+        "texture_size_deprecation_warning_count": 107,
+        "normal_console_shutdown": true
+      },
+      {
+        "configuration": "with optional stat icons",
+        "status": "PASS_WITH_WARNINGS",
+        "runtime_mapping_inventory": {
+          "customBlocks": 1543,
+          "customSkulls": 1543,
+          "customItems": 2613,
+          "customEntities": 0
+        },
+        "new_public_texture_downloads": 0,
+        "exact_expected_texture_hash_cache_count": 1543,
+        "generated_skull_pack_texture_count": 1543,
+        "generated_skull_pack_crc_pass": true,
+        "source_files_unchanged": 28,
+        "connection_attempts": 0,
+        "extensions_loaded": 0,
+        "texture_size_deprecation_warning_count": 107,
+        "normal_console_shutdown": true
+      }
+    ],
+    "known_limits": [
+      "The 107 retained legacy texture-size deprecation warnings remain in both configurations.",
+      "The seven ERROR-level lines are the intentionally isolated RakNet-only NetherNet migration notice, not pack/mapping errors. Production NetherNet connectivity was not tested.",
+      "318 DEBUG component-resolution messages and a Netty/JDK25 Unsafe fallback occur without preventing registration or normal shutdown.",
+      "The original upstream README remains unchanged. Its 1550-block statement is not reproduced by this precise 23-mapping input: actual inventory here is 1543 custom blocks/skulls. Refer to these original local receipts rather than the missing upstream reports.",
+      "Runtime dump reports pack names and aggregate mapping counts, not source-manifest UUID membership. Exact archive hashes and post-run byte comparison establish which supplied packs were deployed.",
+      "No Bedrock client connected; texture rendering, hand/armor visuals, live item interactions, server recipes, embedded Geyser-Spigot/Folia runtime, and complete live gameplay compatibility are not certified.",
+      "Only matching public texture-hash cache files were reused; no previous generated skull pack, player data, live server data or credentials were copied."
+    ],
+    "evidence": [
+      {
+        "name": "assemble_complete_pack.py",
+        "bytes": 11900,
+        "sha256": "5bae780789f28f436696530445a9501daa8feab7c15f7f65a34685769fe7b649"
+      },
+      {
+        "name": "run_complete_probe.py",
+        "bytes": 11551,
+        "sha256": "c8b5dbf3447ac238fc380b8db84d2e3946565c6d3ad55e60af35b09fbecec1e1"
+      },
+      {
+        "name": "default-runtime-process-receipt.json",
+        "bytes": 1152,
+        "sha256": "a0eec16aaaa8b89ec1b83293987ec9a8146f9b62afdbf7e90ed05355b8d146a6"
+      },
+      {
+        "name": "default-loader-console.log",
+        "bytes": 164062,
+        "sha256": "82729b7ab6290dade2e47d14d013c430ca0688f4b4a9d0c9e8e94973fe5064db"
+      },
+      {
+        "name": "default-inputs.json",
+        "bytes": 4999,
+        "sha256": "bbeb04f80fa844d4e1748a340291287d70c9cb0ac677d1d9f12a9857fcfbd713"
+      },
+      {
+        "name": "default-command.json",
+        "bytes": 652,
+        "sha256": "32c273d2166f9bf06133b89be94b41aa787c6551eaee301f587df2f30af4600f"
+      },
+      {
+        "name": "dump.json",
+        "bytes": 5483,
+        "sha256": "30ef27c04d02e845c152b3d88110c2a8584cdfc2ca82d0d72b5932fc2969d027"
+      },
+      {
+        "name": "probe-config.yml",
+        "bytes": 471,
+        "sha256": "04119a5706b512a301af72a601b9d72d75cf28400fd504b314f7d2daccba623e"
+      },
+      {
+        "name": "player_skulls.mcpack",
+        "bytes": 2763674,
+        "sha256": "bd429a97e03b53d990f8155718c1a9100a0e0b2839be0cbe651ff762edb4eceb"
+      },
+      {
+        "name": "optional-runtime-process-receipt.json",
+        "bytes": 1151,
+        "sha256": "b0a7c67acb6fc0c5e15b4bdb9d57ac8b315e35ceb460c2b65539ad7e8854f49d"
+      },
+      {
+        "name": "optional-loader-console.log",
+        "bytes": 125732,
+        "sha256": "d58516d36b51c9dddea6f8cd2e9128d727db1cb07cddba35122432c1d05745c8"
+      },
+      {
+        "name": "optional-inputs.json",
+        "bytes": 4998,
+        "sha256": "a42f1550e6b794e2798815be38e954a325fc2db5eddd90cc6d56466dd5409a37"
+      },
+      {
+        "name": "optional-command.json",
+        "bytes": 652,
+        "sha256": "32c273d2166f9bf06133b89be94b41aa787c6551eaee301f587df2f30af4600f"
+      },
+      {
+        "name": "dump.json",
+        "bytes": 5604,
+        "sha256": "6219fa215f95d5f6d8bc2738a8c4aad1aa427a07ec0e852dd6e53bad70b5223d"
+      },
+      {
+        "name": "probe-config.yml",
+        "bytes": 471,
+        "sha256": "f0bdd0120d2170aaa0fe9cdeb2160892313ad823b55f32efbd058b62d9564a1e"
+      },
+      {
+        "name": "player_skulls.mcpack",
+        "bytes": 2763674,
+        "sha256": "bc35d56c039fe58222cb2b91892f4c1a99914a7ca984a9e7c35c326a9c40dd61"
+      }
+    ]
+  },
+  "receipt_hashes": [
+    {
+      "name": "bedrock-v103-complete-composition.json",
+      "bytes": 12644,
+      "sha256": "7aa61b765a74651ffe474e54fd50a15c9fd1bbd4aa6ad396125d177e178ee2eb"
+    },
+    {
+      "name": "bedrock-v103-complete-geyser-loader-verification.json",
+      "bytes": 15237,
+      "sha256": "7825e850e17081ed48dd7f045cd5fb4684dd853319e3b4dbd3a11af6786722e9"
+    }
+  ]
+}
