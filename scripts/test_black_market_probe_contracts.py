@@ -122,7 +122,7 @@ class AdmissionTests(unittest.TestCase):
         self.assertEqual(evidence["magic_version"], "1.1.15")
 
     def test_bad_or_noninteger_revision_refused(self):
-        for revision in (136, 146, "141", 141.0, "142", 142.0, "143", 143.0, "144", 144.0, "145", 145.0, True):
+        for revision in (136, 148, "141", 141.0, "142", 142.0, "143", 143.0, "144", 144.0, "145", 145.0, "146", 146.0, "147", 147.0, True):
             with self.subTest(revision=revision):
                 self.manifest["bundle_revision"] = revision
                 self.write_bundle()
@@ -192,6 +192,46 @@ class AdmissionTests(unittest.TestCase):
                 self.rows[0]["commit"] = probe.MAGIC_RELEASES[140][0]
                 self.write_bundle()
                 self.rejects()
+
+    def test_r146_requires_magic_1_1_17_and_exact_source(self):
+        commit, jar = probe.MAGIC_RELEASES[146]
+        old_jar = self.rows[0]["jar"]
+        blob = self.blobs.pop(old_jar)
+        (self.work / "plugins" / old_jar).unlink()
+        self.blobs[jar] = blob
+        (self.work / "plugins" / jar).write_bytes(blob)
+        self.rows[0].update(jar=jar, commit=commit)
+        self.manifest["bundle_revision"] = 146
+        self.write_bundle()
+        evidence = self.validate()
+        self.assertEqual(evidence["bundle_revision"], 146)
+        self.assertEqual(evidence["magic_version"], "1.1.17")
+        self.assertEqual(evidence["tested_addons"][probe.MAGIC]["commit"], commit)
+        self.assertEqual(evidence["tested_addons"][probe.MAGIC]["jar"], jar)
+        self.assertEqual(evidence["result"], "STARTED")
+        self.rows[0]["commit"] = probe.MAGIC_RELEASES[145][0]
+        self.write_bundle()
+        self.rejects()
+
+    def test_r147_requires_magic_1_1_17_and_exact_source(self):
+        commit, jar = probe.MAGIC_RELEASES[147]
+        old_jar = self.rows[0]["jar"]
+        blob = self.blobs.pop(old_jar)
+        (self.work / "plugins" / old_jar).unlink()
+        self.blobs[jar] = blob
+        (self.work / "plugins" / jar).write_bytes(blob)
+        self.rows[0].update(jar=jar, commit=commit)
+        self.manifest["bundle_revision"] = 147
+        self.write_bundle()
+        evidence = self.validate()
+        self.assertEqual(evidence["bundle_revision"], 147)
+        self.assertEqual(evidence["magic_version"], "1.1.17")
+        self.assertEqual(evidence["tested_addons"][probe.MAGIC]["commit"], commit)
+        self.assertEqual(evidence["tested_addons"][probe.MAGIC]["jar"], jar)
+        self.assertEqual(evidence["result"], "STARTED")
+        self.rows[0]["commit"] = probe.MAGIC_RELEASES[145][0]
+        self.write_bundle()
+        self.rejects()
 
     def test_missing_checksum_refused(self):
         del self.rows[0]["sha256"]
