@@ -2,9 +2,11 @@
 
 Updated: 2026-10-22 (UTC). This file tracks the coordinated **Slimefun Legacy 4.1.76 / r145** candidate integration and the requested optional Bedrock download. Historical integration evidence is preserved below. The completed addon development remains recorded in [Networks' permanent checkpoint](https://github.com/wickidcow/SF_NetworksExp/blob/master/NETWORKS_EXPANSION_COMPLETION.md). Consult the current handoff and Git state before resuming; do not repeat accepted production repairs.
 
-## Publication boundary
+> **Current status, October 22, 2026:** Core [v4.1.76](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.76) is published. Its live 45-addon ZIP is **r147**, retaining Networks 1.0.60, InfinityExpansion2 2.0.15 and MagicExpansion 1.1.17 and adding SlimeHUD 2.0.6. The published addon ZIP was re-downloaded and verified with SHA-256 `4543de9a9d7ff137ecb8a98e997f1a1b0e0ca4abc99929c1324eff7684b235bd` by [the release hotfix run](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39839621622). The r145 release-hold text below is preserved as historical context, not an active hold. Do not substitute r145 or r143 bundles for this published asset.
 
-Core **4.1.76 remains unreleased and held for explicit maintainer approval** after the concrete candidate is verified. Continue integration, testing, review and merge without restarting the addon repairs. Do not publish a core tag/release or replace existing v4.1.75 assets during validation. `reproducible-release.yml` now defaults manual dispatch to `publish=false` and requires explicit `publish=true` plus successful runtime evidence for either publishing or normalizing assets.
+## Historical publication boundary — satisfied
+
+At this pre-release checkpoint, core **4.1.76 was held for explicit maintainer approval** until the exact candidate passed its release gates. That hold is now satisfied: v4.1.76 and the subsequent r147 addon bundle are published. Historical instructions to avoid replacing v4.1.75 assets describe the former validation phase, not the current release state. `reproducible-release.yml` retains guarded publishing and evidence requirements; future changes must not silently substitute older addon bundle revisions.
 
 ## Current handoff — complete, immutable Bedrock installation ZIP
 
