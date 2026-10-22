@@ -122,7 +122,8 @@ jobs:
               rows = manifest["addons"]
               check(len(rows) == 45 and len({r["slug"] for r in rows}) == 45, "Expected 45 maintained addons")
               old_names = {r["jar"] for r in rows}
-              check(old_names == {n for n in previous if n.endswith(".jar")}, "Unexpected addon file set")
+              actual_names = {n for n in previous if n.endswith(".jar")}
+              check(old_names == actual_names, f"Unexpected addon file set; missing={sorted(old_names - actual_names)} extra={sorted(actual_names - old_names)}")
               old_sums = sorted(previous["SHA256SUMS.txt"].decode().splitlines())
               check(old_sums == sorted(f'{sha(previous[r["jar"]])}  {r["jar"]}' for r in rows),
                     "Current published archive checksum manifest is inconsistent")
