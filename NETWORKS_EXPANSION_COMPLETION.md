@@ -53,8 +53,9 @@ unreleased candidate.
   complete ZIP passes with no origin metadata or network request; optional checking
   of retained current-overlay metadata also passes. Nested content: 2,758 files.
 - Cleanup policy: **51/51 PASS normally and 51/51 with `python -O`**, after retained
-  RED-before evidence against the previous policy. Both actual workflow-shell
-  preflights retain all four current public assets with **zero delete IDs**.
+  RED-before evidence against the previous policy. Normal and optimized policy
+  preflights, plus the actual workflow shell exercised with live release metadata
+  and a local `gh` stub, retain all four current public assets with **zero delete IDs**.
   Fresh before/after release metadata and actual overlay bytes are unchanged.
 - Real release workflow shell: **7/7 PASS normally and 7/7 with `python -O`**,
   including unchanged-byte staging with **zero source API calls**, missing or
