@@ -229,6 +229,14 @@ jobs:
           path: dist/verify.json
           if-no-files-found: error
 
+      - name: Keep a verified live-release ZIP preview for review
+        uses: actions/upload-artifact@v7
+        with:
+          name: SF_Addons_v4.1.76_SlimeHUD_2.0.6_preview
+          path: dist/SF_Addons_1.21.11-26.3.zip
+          archive: false
+          if-no-files-found: error
+
       - name: Publish only after all source, run, and release guards
         if: github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == true)
         env:
