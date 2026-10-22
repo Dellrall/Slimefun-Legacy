@@ -6,19 +6,39 @@ Updated: 2026-10-22 (UTC). This file tracks the coordinated **Slimefun Legacy 4.
 
 Core **4.1.76 remains unreleased and held for explicit maintainer approval** after the concrete candidate is verified. Continue integration, testing, review and merge without restarting the addon repairs. Do not publish a core tag/release or replace existing v4.1.75 assets during validation. `reproducible-release.yml` now defaults manual dispatch to `publish=false` and requires explicit `publish=true` plus successful runtime evidence for either publishing or normalizing assets.
 
-## Current handoff — complete, immutable Bedrock installation ZIP
+## Current handoff — merged and verified complete candidate; publication held
 
-The two externally replaced public pack downloads are no longer release-build
-acquisition dependencies. This follow-up stores the complete installation ZIP in
-Git, validates its exact identity and copies it unchanged into the held four-asset
-release. Branch: **`release/4.1.76-complete-bedrock-pack`**, based on accepted merge
-`4c2bdf4edc685afbfaa81cde168252b19094e428`. Local snapshot `debc3dec921ff27e7e35d4383861bca3e78a9649`
-preserves the tested intermediate 0.0.2 work; it is superseded by this complete
-candidate. Core remains **4.1.76**, bundle **r145**, with all 45 addon source pins
-and production Java unchanged. No additional version bump is needed for this
-unreleased candidate.
+PR [#417](https://github.com/wickidcow/Slimefun-Legacy/pull/417) merged normally
+into `master` at **`9075ea852095b28543aaa1456bc2576778cb4c4d`**. Its tree is
+**`061770ab05d8a25ac5cd4abb9dac141132c02898`**, identical to the reviewed PR head
+`21ac88ca14f50d3441a3b0915a714d2d8a56810f`. The PR's 82 terminal checks comprise
+**75 successes and seven intentional skips**, with no failure, cancellation or
+pending check; all **10 applicable direct workflow families succeeded**. The
+separate Purpur/Folia 26.3 PR workflow files were outside this change's path
+conditions; the final-source native and Folia runs below provide fresh acceptance.
+No workflow was disabled to obtain the result.
+
+The release source remains **`9075ea852095b28543aaa1456bc2576778cb4c4d`** throughout
+final validation. Core remains **4.1.76**, bundle **r145**, and all 45 addon source
+pins and production Java remain unchanged by the Bedrock integration. **No further
+version bump is needed.** The two externally replaced public Bedrock downloads
+are provenance records rather than release acquisition dependencies. The complete
+installation ZIP is committed in Git, verified by exact identity and copied
+unchanged into the held four-asset release candidate.
+
+This evidence-only checkpoint is stored on
+`checkpoints/4.1.76-bedrock-verified-9075ea8`, based on
+`9075ea852095b28543aaa1456bc2576778cb4c4d`; the release source remains
+`9075ea852095b28543aaa1456bc2576778cb4c4d`. The checkpoint and
+[final acceptance receipt](compatibility/release-acceptance/4.1.76-9075ea8.json)
+preserve the completed verification without moving `master` or rebuilding the
+release from a documentation-only commit. Keep the compiled source and runtime
+evidence bound to `9075ea8`, not to the checkpoint commit. The tested intermediate
+snapshot `debc3dec921ff27e7e35d4383861bca3e78a9649` and all older handoffs below
+remain historical.
 
 ### Completed implementation
+
 
 - Vendored `compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip`:
   **2,390,264 bytes**, SHA-256
@@ -47,7 +67,7 @@ unreleased candidate.
   back up and replace only the two old main packs sharing the new packs' UUIDs.
   The public 1.0.3 overlay alone is explicitly unsuitable for a fresh installation.
 
-### Actual verification
+### Local verification retained
 
 - Archive verifier: **45/45 PASS normally and 45/45 with `python -O`**. The real
   complete ZIP passes with no origin metadata or network request; optional checking
@@ -82,26 +102,199 @@ unreleased candidate.
   embedded Bash scripts pass syntax checks. Independent bounded reviews of the
   verifier, cleanup, workflow and documentation are **CLEAR**. The first invariant
   attempt was blocked by sandbox-localhost socket restrictions in the HTTP fixture;
-  the authorized rerun passed with no source or gate change. Hosted PR/final-merge
-  gates remain pending. All 4c2bdf4e
-  canonical/native/full-stack/Folia results below belong to that prior merge;
-  they are not relabeled as acceptance for a new source.
+  the authorized rerun passed with no source or gate change. The completed hosted
+  checks and final-source verification are recorded below. All 4c2bdf4e receipts
+  in the historical sections still belong only to that prior merge.
 
-### Files changed and exact next action
+### Hosted review and exact final-source verification
 
-Files: the schema 2 Bedrock pin, complete ZIP and component provenance; archive
-verifier/tests; preservation policy/tests; reproducible release workflow and its
-real-shell tests; README, Bedrock installation guide, 4.1.76 notes and this checkpoint.
+Every final-source result in this section binds source
+`9075ea852095b28543aaa1456bc2576778cb4c4d`. PR artifacts and prior `4c2bdf4e`
+artifacts are not substituted for the final canonical inputs.
 
-Local validation is complete. Commit this exact snapshot and open the scoped
-follow-up PR. Require the relevant hosted
-checks and normal review before merging. Then require the new final source's
-canonical bundle, native acceptance, automatic full-stack follower and Folia
-admission, followed by Reproducible Release with **`publish=false`**. Record exact
-PR/merge/run/artifact identities in tracker [#378](https://github.com/wickidcow/Slimefun-Legacy/issues/378)
-and the release proposal. Preserve the old downloads and update the verified
-addon handoff. Core publication remains held for explicit maintainer approval of
-the concrete four-asset result. Do not restart accepted GCE, Networks or IE2 repairs.
+| Gate | Actual result | Evidence |
+| --- | --- | --- |
+| PR #417 review and applicable CI | Normal merge; 82 terminal checks, 75 successful and seven intentional skips; all 10 direct workflow families successful | [PR #417](https://github.com/wickidcow/Slimefun-Legacy/pull/417), reviewed head `21ac88ca14f50d3441a3b0915a714d2d8a56810f` |
+| Final main build | **PASS** | [39711112208](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112208), attempt 1 |
+| Final canonical core and addon bundle | **48/48 jobs PASS**, including all 45 addon builds and packaging | [39711112456](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112456), attempt 1 |
+| Existing public release preservation | **PASS; zero deleted assets**, all four current v4.1.75 assets retained | [39711112172](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112172), job `119602460091` |
+| Native retirement and paired storage | **6/6 jobs PASS**; strict exact-release native pair accepted | [39711192917](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711192917), attempt 1 |
+| Folia admission and declared-addon startup | **PASS**; all 12 admitted original JAR identities reproduce exactly; GCE registers 64 chickens on each of two boots | [39711323021](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711323021), attempt 1 |
+| Automatic final full-stack follower | **7/7 jobs PASS**; four runtime lanes, eight stack boots with all 45 addons and 16 Black Market phase boots accepted | [39711984493](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711984493), producer `39711112456` |
+| Manual Reproducible Release with `publish=false` | **PASS**; both clean builds and original JAR equal canonical; exact native/full-stack evidence reproduced; both pack staging gates successful | [39712892387](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39712892387), job `119608145896`, `workflow_dispatch` / `master` / source `9075ea8` |
+| Public 4.1.76 release | **HELD; not published** | Explicit maintainer approval of the verified concrete four-asset candidate is still required |
+
+The 10 successful direct PR workflow runs are
+[39710160519](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160519),
+[39710160552](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160552),
+[39710160557](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160557),
+[39710160617](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160617),
+[39710160597](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160597),
+[39710160602](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160602),
+[39710160605](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160605),
+[39710160534](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160534),
+[39710160537](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160537),
+and [39710160510](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39710160510).
+Their test checkout may use the PR merge source
+`b0e4045ee9b561a0e87a6d265e0a061d6670ca81`; that is distinct from the reviewed
+branch head and final normal merge. Only the fresh `9075ea8` artifacts below are
+accepted final release inputs.
+
+### Exact compiled and packaged identities
+
+| Artifact | Bytes | SHA-256 | Producer or source |
+| --- | ---: | --- | --- |
+| `Slimefun-Legacy4.1.76.jar` (canonical bytes) | 8,684,431 | `be58eef8965eeb31fb930e6cfa204f74f221f95bf649976eb17802886c859916` | Canonical run `39711112456`, artifact `12397541205` |
+| `SF_Addons_1.21.11-26.3.zip` / r145 | 28,195,295 | `a2c6f61dc3cc89a01e9f1606a0c6881a250c9066546de509bc3052c4e8bafd9d` | Canonical run `39711112456`, artifact `12397406749` |
+| `SlimefunLegacyRP.zip` (official Java resource pack) | 9,143,959 | `1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83` | Official `wickidcow/SFL_RP_Official` / `v4.0.1`, asset `619496149`; unchanged `compatibility/resource-pack-release.json` |
+| `SFL_GEYSER_RP_experimental_v1.0.3_complete.zip` | 2,390,264 | `60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c` | Committed `compatibility/bedrock/` archive at source `9075ea8` |
+
+Both downloaded GitHub artifact containers match their API sizes and SHA-256
+values before extraction. The final JAR passes the strict source/version/Java 21
+bytecode verifier, including all seven required runtime classes. The addon ZIP
+passes safe paths, outer and all 45 inner JAR CRCs, exact maintained-addon set,
+all embedded versions and source pins, manifest/checksum agreement, and r145/core
+source binding. Closing API snapshots preserve both original artifact identities
+and their successful producing jobs. The final main build also passed its build,
+invariant, release-evidence control and metadata gates.
+
+The canonical receipt is `bedrock-complete-final-bundle-verification.json`,
+SHA-256 **`49f6145de7cd3c4aebe20f7a597f7da460eb83aafde8d745e0f49433a6bd388a`**.
+Its final metadata-close receipt is
+`bedrock-complete-final-canonical-metadata-close.json`, SHA-256
+`2a9ddbe3aaf6a3c259d5526881e8d4c186df4aad848bb73d8442674ee737517c`.
+Local originals remain under
+`/tmp/networks-completion-20261021/artifacts/bedrock-complete-final/canonical-core/`
+and `canonical-bundle/`; the run/artifact IDs above identify the hosted originals.
+The initial restricted-sandbox download could not open a socket; the authorized
+read-only download succeeded with exact API identity and required no source change.
+
+The important addon identities are unchanged:
+
+| Addon | Bundled version | Exact source commit | JAR SHA-256 |
+| --- | --- | --- | --- |
+| Networks Expansion | 1.0.60 | `d41d362c8b71073dca41abc24f6ef6a5a8688fff` | `e355ce958bd1e3d3c8ddd65d7f56dbd2b8d4c605ca6b0f1025a34e65c6a808b2` |
+| InfinityExpansion2 | 2.0.15 | `168815bb99e5701d3680095a9eb9170d83a19740` | `897bd4de70c9219217ecfb0f8cf68f0147b6c38758a239085db39718dd686eef` |
+| GeneticChickEngineering | 1.0.4 | `a46359e675fe21b509642698fd77d75580436155` | `d3bea54d2d47a5d031ec7c504f772ac5151634aa7025b88b12ce9db36fd55162` |
+
+### Final runtime and asset-preservation evidence
+
+- Native run `39711192917` passed both original two-JVM paired storage lanes on
+  Purpur 1.21.11 build 2568 and Purpur 26.3 build 2652, using the exact canonical
+  core, Networks and IE2 bytes. Native entity-retirement probes passed 26
+  assertions on Purpur 26.3 build 2646 and 27 on Folia 26.3 build 3, with normal
+  shutdown. Strict acceptance is `PASS_EXACT_RELEASE_NATIVE_PAIR`, recorded in
+  `bedrock-complete-final-native-verification.json`, SHA-256
+  `9ef7764b0cd6ef8ce128de41abc4542d65e5b9adcabc949bb4c2b21a76351b37`.
+  This covers the actual storage/lifecycle fixtures; it does not certify every
+  client transaction, crash recovery case or cross-region addon interaction.
+- Folia run `39711323021` reproduced the original 12-addon admission report,
+  installed identities and runtime selection from the final canonical ZIP. Both
+  Folia 26.3 build 5 ALPHA boots enabled GCE **1.0.4**, registered **64 chickens**,
+  logged no ERROR/SEVERE messages and shut down normally. Receipt
+  `bedrock-complete-final-folia-verification.json`, SHA-256
+  `0691a103f9ac7aa370fac378f4d4221d77b049c5594eafc0987e6ab0df527359`, records
+  `PASS_EXACT_SOURCE_FOLIA_DECLARED_ADDON_STARTUP`. Existing experimental-scheduler,
+  offline-fixture, storage-pool and missing optional integration warnings remain
+  visible. This establishes startup/restart acceptance for the admitted subset,
+  not full chicken gameplay or full-stack/cross-region Folia compatibility.
+  **Networks and IE2 remain excluded and unsupported on Folia runtime.**
+- Automatic full-stack run `39711984493` completed all seven jobs. The strict
+  verifier binds its original core/bundle and four runtime artifacts to canonical
+  run `39711112456`, source `9075ea8` and the exact accepted hashes. All six
+  downloaded containers passed API size/hash, safe-path and CRC checks; closing
+  run/attempt/job/artifact metadata remained stable. Paper 1.21.11 build 132,
+  Paper 26.2 build 134, Paper 26.3 build 211 and Purpur 26.3 build 2646 each passed
+  both stack boots with all 45 addons enabled, normal shutdown and no ERROR/SEVERE
+  messages. All 16 Black Market seed/verify/missing/restored phase boots passed.
+  The Paper 26.3 Networks/Fluffy native fixture also passed its rich-PDC and item
+  count conservation check. Receipt `bedrock-complete-final-fullstack-verification.json`,
+  SHA-256 `11311c824cf1f5737321511eb649fa7e173f209924c62152326eae0fff8bae09`,
+  records these exact-input startup/restart and bounded fixture results. Existing
+  warnings remain in the original logs; this does not establish universal
+  gameplay, client-click, arbitrary crash or full-stack Folia certification.
+- Hosted cleanup run `39711112172` passed the strict preservation verifier.
+  `delete-ids.txt` is empty; before and after release metadata are byte-identical.
+  All four v4.1.75 IDs, sizes and digests remain unchanged: core `650941345`, addon
+  ZIP `650941344`, official Java pack `650941348`, and current Bedrock overlay
+  `664360404`. The overlay remains 1,265,679 bytes with SHA-256
+  `90d78fcf8382bdee1bce3a364515769cb8325c174b58c34b512039502cc50e51`.
+  Receipt `bedrock-complete-final-cleanup-verification.json`, SHA-256
+  `af2bb72218626cb9cb83bc13068f070a0a30e19603343615fb6e73fd461a0ff0`,
+  records **`PASS_ZERO_DELETIONS`**. No public asset was changed by this workstream.
+
+### Final validation-only release acceptance
+
+Manual [Reproducible Release 39712892387](https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39712892387)
+completed successfully with **`publish=false`**, event `workflow_dispatch`,
+branch `master`, exact source `9075ea8`, attempt 1 and job `119608145896`.
+Both actual clean-build log hashes and the independently downloaded raw JAR
+(artifact `12397143444`) equal canonical SHA-256
+`be58eef8965eeb31fb930e6cfa204f74f221f95bf649976eb17802886c859916`.
+The unchanged release-artifact verifier accepts its source, version, Java 21
+bytecode and all seven critical runtime classes.
+
+The original `release-runtime-evidence` artifact `12397178230` is 105,667,415 bytes
+and passes API digest/length, extraction/path and CRC checks. The unchanged
+native and full-stack verifiers reproduce the original PASS results against
+canonical run `39711112456`, native run `39711192917` and full-stack run
+`39711984493`, with the exact core/bundle bytes in the table above. The separate
+Folia receipt remains the accepted evidence for its 12-addon startup subset.
+
+Both resource-pack staging gates passed their original metadata/archive and
+unchanged-copy checks. The official Java pack retains its unchanged pin; the
+complete optional Bedrock pack comes from the accepted repository archive with
+no dependency on removed public source assets. The staged packs were not
+separately uploaded as validation artifacts; their acceptance is supported by
+the immutable pins and actual successful hosted verification/copy gates.
+Candidate completion succeeded. **Publishing and release-asset normalization
+were skipped.** Closing run/attempt/job/step/artifact metadata remains stable.
+
+Receipt `bedrock-complete-final-release-validation.json`, SHA-256
+**`b38a6b4f3c1204c94af54f6ebd505e2d8a8232b50e3ac8fa03e92f4d1f9857dd`**,
+records **`PASS_MANUAL_PUBLISH_FALSE_RELEASE_VALIDATION`**. This is successful
+release validation; it does not grant publication approval or extend the bounded
+runtime/Bedrock-client claims above.
+
+### Closing public state
+
+The closing API snapshot at **2026-10-22 02:45:57 UTC** records all **14** listed
+exact-source `9075ea8` workflow executions successful, including manual
+Reproducible Release `39712892387`. Its original artifacts were then accepted
+independently as recorded above. `master` still points to
+`9075ea852095b28543aaa1456bc2576778cb4c4d`; no `v4.1.76` tag exists, and no
+`v4.1.76` release appears in the latest 15 releases. All four current v4.1.75
+asset identities match the preservation evidence above. Snapshot:
+`bedrock-complete-final-public-state.json`, SHA-256
+`e99ce52c21cf8698e2a24855f9e22e77dbecaa70272fbf0e57352a0edef2ad4b`.
+No publication was authorized or performed by this workstream.
+
+### Files changed, publication boundary and exact next action
+
+PR #417 contains the schema 2 Bedrock pin, complete ZIP and component provenance;
+archive verifier/tests; preservation policy/tests; reproducible release workflow
+and its real-shell tests; README, Bedrock installation guide, 4.1.76 notes and the
+preceding checkpoint. This new evidence snapshot changes only the permanent
+checkpoint and its acceptance receipt; it does not change production code, the
+version, dependency pins, release inputs or accepted compiled source.
+
+**Required technical gates are complete for this reviewed candidate.** The final
+canonical build, native paired storage, full-stack runtime, declared-Folia startup,
+asset preservation and manual `publish=false` release validation have all passed
+with exact-source evidence. The documented scope limits and 107 legacy Geyser
+warnings remain. Core 4.1.76 is still **unreleased and held for explicit maintainer
+publication approval**; no further version bump is needed.
+
+**Exact next action:** present the concrete four-asset `v4.1.76` publication from
+source `9075ea852095b28543aaa1456bc2576778cb4c4d` for explicit maintainer approval,
+with this checkpoint, its acceptance receipt and tracker
+[#378](https://github.com/wickidcow/Slimefun-Legacy/issues/378) preserving the final
+results. After approval, run the protected publisher with the accepted source
+and evidence, then verify the actual public tag, release and all four uploaded
+asset names, sizes and hashes against the table above. Until that approval, keep
+publication held. Do not publish unrelated Slimefun changes, advance the accepted
+release source merely to record evidence, or restart the accepted GCE, Networks
+and IE2 repairs.
 
 ## Historical intermediate handoff — replacement Bedrock pack 0.0.2
 

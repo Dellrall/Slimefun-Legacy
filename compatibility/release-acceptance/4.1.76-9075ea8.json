@@ -1,0 +1,436 @@
+{
+  "schema": 1,
+  "status": "PASS_SCOPED_RELEASE_ACCEPTANCE_PUBLICATION_HELD",
+  "recorded_at_utc": "2026-10-22T02:53:07.552247+00:00",
+  "repository": "wickidcow/Slimefun-Legacy",
+  "release_source": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+  "release_source_tree": "061770ab05d8a25ac5cd4abb9dac141132c02898",
+  "evidence_branch": "checkpoints/4.1.76-bedrock-verified-9075ea8",
+  "evidence_branch_is_release_source": false,
+  "core_version": "4.1.76",
+  "addon_bundle_revision": 145,
+  "maintained_addon_count": 45,
+  "pull_request": {
+    "number": 417,
+    "reviewed_head": "21ac88ca14f50d3441a3b0915a714d2d8a56810f",
+    "merge_commit": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+    "successful_checks": 75,
+    "intentional_skips": 7,
+    "successful_direct_workflows": 10,
+    "review_type": "Automated bounded review; normal merge; no human publication authorization claimed"
+  },
+  "release_assets": [
+    {
+      "bytes": 8684431,
+      "evidence": "Actual raw rehearsal artifact; canonical byte equality; unchanged release artifact verifier PASS.",
+      "name": "Slimefun-Legacy4.1.76.jar",
+      "sha256": "be58eef8965eeb31fb930e6cfa204f74f221f95bf649976eb17802886c859916"
+    },
+    {
+      "bundle_revision": 145,
+      "bytes": 28195295,
+      "canonical_run_id": 39711112456,
+      "evidence": "Original rehearsal collector archive; canonical bundle equality; unchanged native/full-stack verifiers PASS.",
+      "name": "SF_Addons_1.21.11-26.3.zip",
+      "sha256": "a2c6f61dc3cc89a01e9f1606a0c6881a250c9066546de509bc3052c4e8bafd9d"
+    },
+    {
+      "asset_id": 619496149,
+      "bytes": 9143959,
+      "evidence": "Immutable pin and successful hosted metadata/archive verification plus copy gate; staged pack not separately uploaded.",
+      "name": "SlimefunLegacyRP.zip",
+      "release_tag": "v4.0.1",
+      "repository": "wickidcow/SFL_RP_Official",
+      "sha256": "1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83",
+      "staging_gate": "success"
+    },
+    {
+      "archive_path": "compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip",
+      "bytes": 2390264,
+      "evidence": "Committed archive identity and successful hosted target/archive verification plus copy gate; staged pack not separately uploaded.",
+      "name": "SFL_GEYSER_RP_experimental_v1.0.3_complete.zip",
+      "sha256": "60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c",
+      "staging_gate": "success"
+    }
+  ],
+  "exact_source_workflows": [
+    {
+      "id": 39712892387,
+      "name": "Reproducible Release",
+      "event": "workflow_dispatch",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39712892387"
+    },
+    {
+      "id": 39711984550,
+      "name": "Validate verified SF addon JARs",
+      "event": "workflow_run",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711984550"
+    },
+    {
+      "id": 39711984490,
+      "name": "Clean Slimefun Legacy release assets",
+      "event": "workflow_run",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711984490"
+    },
+    {
+      "id": 39711984493,
+      "name": "Paper 26.2 / 26.3 Full Stack Smoke",
+      "event": "workflow_run",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711984493"
+    },
+    {
+      "id": 39711323021,
+      "name": "Folia 26.3 Addon Admission Audit",
+      "event": "workflow_dispatch",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711323021"
+    },
+    {
+      "id": 39711192917,
+      "name": "Native Entity Retirement Regression",
+      "event": "workflow_dispatch",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711192917"
+    },
+    {
+      "id": 39711112124,
+      "name": "Mirror official resource pack to Slimefun release",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112124"
+    },
+    {
+      "id": 39711112172,
+      "name": "Clean Slimefun Legacy release assets",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112172"
+    },
+    {
+      "id": 39711112113,
+      "name": "Paper/Purpur 1.21.11 Compatibility",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112113"
+    },
+    {
+      "id": 39711112208,
+      "name": "Build Slimefun Legacy",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112208"
+    },
+    {
+      "id": 39711112143,
+      "name": "Paper 26.2 Runtime Smoke",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112143"
+    },
+    {
+      "id": 39711112114,
+      "name": "Purpur/Folia/Leaf 26.2 Runtime Smoke",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112114"
+    },
+    {
+      "id": 39711112456,
+      "name": "Build SF Addons 1.21.11-26.3 Bundle",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112456"
+    },
+    {
+      "id": 39711112219,
+      "name": "Reproducible Release",
+      "event": "push",
+      "head_sha": "9075ea852095b28543aaa1456bc2576778cb4c4d",
+      "attempt": 1,
+      "status": "completed",
+      "conclusion": "success",
+      "html_url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39711112219"
+    }
+  ],
+  "acceptance_receipts": [
+    {
+      "name": "bedrock-complete-final-bundle-verification.json",
+      "bytes": 22864,
+      "sha256": "49f6145de7cd3c4aebe20f7a597f7da460eb83aafde8d745e0f49433a6bd388a",
+      "status": "PASS"
+    },
+    {
+      "name": "bedrock-complete-final-native-verification.json",
+      "bytes": 5870,
+      "sha256": "9ef7764b0cd6ef8ce128de41abc4542d65e5b9adcabc949bb4c2b21a76351b37",
+      "status": "PASS_EXACT_RELEASE_NATIVE_PAIR"
+    },
+    {
+      "name": "bedrock-complete-final-fullstack-verification.json",
+      "bytes": 19489,
+      "sha256": "11311c824cf1f5737321511eb649fa7e173f209924c62152326eae0fff8bae09",
+      "status": "PASS"
+    },
+    {
+      "name": "bedrock-complete-final-folia-verification.json",
+      "bytes": 9961,
+      "sha256": "0691a103f9ac7aa370fac378f4d4221d77b049c5594eafc0987e6ab0df527359",
+      "status": "PASS_EXACT_SOURCE_FOLIA_DECLARED_ADDON_STARTUP"
+    },
+    {
+      "name": "bedrock-complete-final-cleanup-verification.json",
+      "bytes": 2371,
+      "sha256": "af2bb72218626cb9cb83bc13068f070a0a30e19603343615fb6e73fd461a0ff0",
+      "status": "PASS_ZERO_DELETIONS"
+    },
+    {
+      "name": "bedrock-complete-final-release-validation.json",
+      "bytes": 7561,
+      "sha256": "b38a6b4f3c1204c94af54f6ebd505e2d8a8232b50e3ac8fa03e92f4d1f9857dd",
+      "status": "PASS_MANUAL_PUBLISH_FALSE_RELEASE_VALIDATION"
+    },
+    {
+      "name": "bedrock-complete-final-public-state.json",
+      "bytes": 6415,
+      "sha256": "e99ce52c21cf8698e2a24855f9e22e77dbecaa70272fbf0e57352a0edef2ad4b",
+      "status": "PASS_UNPUBLISHED_PUBLIC_STATE"
+    }
+  ],
+  "manual_release_validation": {
+    "run": {
+      "attempt": 1,
+      "branch": "master",
+      "event": "workflow_dispatch",
+      "id": 39712892387,
+      "url": "https://github.com/wickidcow/Slimefun-Legacy/actions/runs/39712892387",
+      "workflow": ".github/workflows/reproducible-release.yml"
+    },
+    "job": {
+      "conclusion": "success",
+      "id": 119608145896,
+      "name": "release-artifact",
+      "status": "completed"
+    },
+    "artifacts": [
+      {
+        "artifact_id": 12397178230,
+        "bytes": 105667415,
+        "members": 87,
+        "name": "release-runtime-evidence",
+        "sha256": "9b0886c411c063aa04fe99abda3aab83169ad52f32ecaca2a05f77f36a67faab"
+      },
+      {
+        "artifact_id": 12397143444,
+        "bytes": 8684431,
+        "canonical_byte_equality": true,
+        "name": "Slimefun-Legacy4.1.76.jar",
+        "raw_artifact": true,
+        "sha256": "be58eef8965eeb31fb930e6cfa204f74f221f95bf649976eb17802886c859916"
+      }
+    ],
+    "clean_builds": [
+      {
+        "build": "first",
+        "job_log_line": 1507,
+        "sha256": "be58eef8965eeb31fb930e6cfa204f74f221f95bf649976eb17802886c859916"
+      },
+      {
+        "build": "second",
+        "job_log_line": 1553,
+        "sha256": "be58eef8965eeb31fb930e6cfa204f74f221f95bf649976eb17802886c859916"
+      }
+    ],
+    "runtime_evidence": {
+      "canonical_run": {
+        "attempt": 1,
+        "event": "push",
+        "id": 39711112456
+      },
+      "full_stack_required_jobs": 7,
+      "full_stack_run": {
+        "attempt": 1,
+        "event": "workflow_run",
+        "id": 39711984493
+      },
+      "full_stack_runtime_lanes": 4,
+      "full_stack_status": "PASS",
+      "native_required_jobs": 6,
+      "native_run": {
+        "attempt": 1,
+        "id": 39711192917
+      },
+      "native_status": "PASS_EXACT_RELEASE_NATIVE_PAIR",
+      "original_summary_sha256": "38b2f9f39e14e706fdba932b9e2a8cbde7b72b331e9de68acd42ba8836f8b3e6",
+      "original_summary_status": "PASS",
+      "reproduced_exactly": true
+    },
+    "publication_steps_skipped": [
+      "Normalize and verify release assets",
+      "Publish reproducible release assets"
+    ],
+    "raw_core_verifier": {
+      "critical_runtime_classes": 7,
+      "java_target": 21,
+      "owned_classes": 1443,
+      "report": {
+        "bytes": 928,
+        "sha256": "5810bd4364a5e7d7de1a79654200377cd5cc1be44b7cf9257828423beba67d95"
+      },
+      "status": "PASS"
+    }
+  },
+  "runtime_scope": {
+    "native": {
+      "run_id": 39711192917,
+      "required_jobs": 6,
+      "purpur_storage_lanes": [
+        "1.21.11 build 2568",
+        "26.3 build 2652"
+      ],
+      "roundtrips_per_lane": 24,
+      "tagged_items_recovered_after_restart_per_lane": 192,
+      "retirement_assertions": {
+        "purpur_26_3_build_2646": 26,
+        "folia_26_3_build_3": 27
+      }
+    },
+    "full_stack": {
+      "run_id": 39711984493,
+      "required_jobs": 7,
+      "runtime_lanes": 4,
+      "stack_boots": 8,
+      "addons_enabled_per_boot": 45,
+      "black_market_phase_boots": 16
+    },
+    "folia": {
+      "run_id": 39711323021,
+      "platform": "Folia 26.3 build 5 ALPHA",
+      "admitted_addons": 12,
+      "boots": 2,
+      "gce_version": "1.0.4",
+      "chickens_registered_per_boot": 64,
+      "gce_sha256": "d3bea54d2d47a5d031ec7c504f772ac5151634aa7025b88b12ce9db36fd55162",
+      "excluded_addons": [
+        "Networks",
+        "InfinityExpansion2"
+      ]
+    },
+    "bedrock": {
+      "geyser": "Standalone 2.12.0 build 1268",
+      "configuration_runs": [
+        "default two main packs",
+        "optional stat icons explicitly enabled"
+      ],
+      "custom_skulls_per_run": 1543,
+      "input_files_unchanged": 28,
+      "texture_size_deprecation_warnings_per_run": 107,
+      "receipt": {
+        "name": "bedrock-v103-complete-geyser-loader-verification.json",
+        "bytes": 15237,
+        "sha256": "7825e850e17081ed48dd7f045cd5fb4684dd853319e3b4dbd3a11af6786722e9"
+      }
+    }
+  },
+  "local_regression_evidence": {
+    "archive_tests_normal_and_optimized": 45,
+    "cleanup_tests_normal_and_optimized": 51,
+    "release_workflow_shell_tests_normal_and_optimized": 7,
+    "dispatch_evidence_controls": 26,
+    "java_test_cases": 941,
+    "java_test_suites": 162,
+    "java_failures": 0,
+    "java_errors": 0,
+    "existing_external_database_skips": 1,
+    "production_or_dependency_changes_since_java_build": false
+  },
+  "preserved_public_release": {
+    "id": 415923695,
+    "tag": "v4.1.75",
+    "html_url": "https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.75",
+    "assets": [
+      {
+        "id": 664360404,
+        "name": "SFL_GEYSER_RP_experimental_v1.0.3.zip",
+        "bytes": 1265679,
+        "sha256": "90d78fcf8382bdee1bce3a364515769cb8325c174b58c34b512039502cc50e51"
+      },
+      {
+        "id": 650941344,
+        "name": "SF_Addons_1.21.11-26.3.zip",
+        "bytes": 24558130,
+        "sha256": "322c7b4b7dd06a46f15f35235c8b5cfaf6092f0381300aeff02ce6be375b5813"
+      },
+      {
+        "id": 650941345,
+        "name": "Slimefun-Legacy4.1.75.jar",
+        "bytes": 8682772,
+        "sha256": "206cd1e54e81bf7d3968b2b2a4bd698f1271dca9dd474f2aebf4a7a195c1b060"
+      },
+      {
+        "id": 650941348,
+        "name": "SlimefunLegacyRP.zip",
+        "bytes": 9143959,
+        "sha256": "1b856fff90fe78b7d5964a86a8ed281517d073a082db485d73f31cd07aa64a83"
+      }
+    ]
+  },
+  "publication": {
+    "authorized": false,
+    "state": "HELD_FOR_EXPLICIT_MAINTAINER_APPROVAL",
+    "target_tag": "v4.1.76",
+    "tag_exists_at_closing_snapshot": false,
+    "release_in_latest_15_at_closing_snapshot": false,
+    "closing_snapshot_utc": "2026-10-22T02:45:57Z"
+  },
+  "limitations": [
+    "Folia acceptance covers the 12 declared addons startup, shutdown and restart; it does not certify all chicken, player, machine or cross-region gameplay.",
+    "Networks and InfinityExpansion2 remain unsupported and excluded from Folia runtime.",
+    "Storage conservation and independent-JVM restart fixtures do not certify arbitrary process-crash atomicity or every addon interaction.",
+    "The optional experimental Bedrock pack has 107 texture-size deprecation warnings; no connected Bedrock-client rendering, live backend, production transport or embedded Geyser-Spigot/Folia verification was performed.",
+    "Staged resource packs are verified by their immutable pins and successful hosted metadata/archive/copy gates; the manual workflow does not separately upload those staged packs."
+  ],
+  "exact_next_action": "After explicit maintainer publication approval, confirm master remains9075ea852095b28543aaa1456bc2576778cb4c4d and accepted identities are unchanged; dispatch Reproducible Release with publish=true; require its existing gates; verify the four actual published assets and apply approved public release wording. Do not build or publish from this evidence-only checkpoint commit."
+}
