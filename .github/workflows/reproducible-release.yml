@@ -15,6 +15,7 @@ on:
       - gradle.properties
       - 'docs/releases/**'
       - '.github/workflows/reproducible-release.yml'
+      - 'scripts/runtime_download.sh'
 
 permissions:
   contents: write
