@@ -146,20 +146,31 @@ public final class ItemStackService {
             return false;
         }
 
-        // Dough's fast-path capacity check assumes one source stack can occupy
-        // one physical slot. An oversized output (e.g. 65 cobblestone) must be
-        // simulated across actual slots instead of treating a single empty slot
-        // as sufficient, even when addons list that same slot more than once.
-        if (!hasVirtualItemsInSlots(inventory, slots)
+        // Dough's fast path answers whether a single physical slot can accept
+        // the whole output. For vanilla items that fit a single stack, a
+        // positive answer is sufficient. A negative answer is not: multiple
+        // partially filled stacks may collectively have enough free space.
+        boolean vanillaItem = !hasVirtualItemsInSlots(inventory, slots)
                 && !isVirtualItem(item)
-                && SlimefunItem.getByItem(item) == null
-                && item.getAmount() <= Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())) {
-            if (slots.length == 0) {
-                return InvUtils.fits(inventory, item);
+                && SlimefunItem.getByItem(item) == null;
+        if (vanillaItem) {
+            // Preserve Dough's inventory-type admission rules on the fallback.
+            if (!InvUtils.isItemAllowed(item.getType(), inventory.getType())) {
+                return false;
             }
 
-            return InvUtils.fits(inventory, ItemStackWrapper.wrap(item), slots);
+            if (item.getAmount() <= Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())) {
+                boolean fitsSingleSlot = slots.length == 0
+                        ? InvUtils.fits(inventory, item)
+                        : InvUtils.fits(inventory, ItemStackWrapper.wrap(item), slots);
+                if (fitsSingleSlot) {
+                    return true;
+                }
+            }
         }
+
+        // Handle oversized outputs and split capacity across distinct physical
+        // stacks without modifying the real menu or counting repeated slots twice.
 
         ItemStack[] contents = Arrays.stream(inventory.getContents())
                 .map(stack -> stack == null ? null : stack.clone())
