@@ -208,6 +208,15 @@ jobs:
                             "errors": result["errors"]}, indent=2)[:17000])
           PY
 
+      - name: Preserve exact public ZIP bytes for independently reproducible audit
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-v4176-bedrock-public-bytes
+          path: build/bedrock-asset-audit/SlimefunLegacyRP_GEYSER-BEDROCK.zip
+          retention-days: 7
+          if-no-files-found: warn
+
       - name: Preserve full read-only comparison and release input metadata
         if: always()
         uses: actions/upload-artifact@v7
