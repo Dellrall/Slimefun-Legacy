@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.xzavier0722.mc.plugin.slimefun4.storage.controller.InventoryReadTestPlugin;
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.InventoryContext;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -18,14 +19,22 @@ import org.mockbukkit.mockbukkit.MockBukkit;
 /** Multi-output machine preflight must not count the same physical slot twice. */
 class TestItemStackServiceMultiOutputCapacity {
 
+    private InventoryReadTestPlugin fixture;
+
     @BeforeEach
     void startServer() {
-        MockBukkit.mock();
+        fixture = new InventoryReadTestPlugin(MockBukkit.mock());
     }
 
     @AfterEach
     void stopServer() {
-        MockBukkit.unmock();
+        try {
+            if (fixture != null) {
+                fixture.close();
+            }
+        } finally {
+            MockBukkit.unmock();
+        }
     }
 
     @Test
