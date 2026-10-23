@@ -34,6 +34,9 @@ class JavaOnlyReleaseScope(unittest.TestCase):
         self.assertIn('Release $TAG already exists at identical source', self.text)
         self.assertIn('if [[ "$ASSET_COUNT" -ne 3 ]]; then', self.text)
         self.assertNotIn('OPTIONAL_', self.text)
+        java_pack_gate = (ROOT / 'scripts/verify_release_resource_pack.py').read_text(encoding='utf-8')
+        self.assertIn('release layout requires three Java assets', java_pack_gate)
+        self.assertIn('if [[ "$ASSET_COUNT" -ne 3 ]]', java_pack_gate)
 
 
 if __name__ == "__main__":
