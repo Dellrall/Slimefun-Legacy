@@ -116,8 +116,14 @@ jobs:
               "strict_status": report["strict_validation"],
               "strict_error": report.get("strict_error")
           }, indent=2))
-          if report["strict_validation"] != "PASS":
-              raise SystemExit("Public Bedrock ZIP differs from approved complete-pack structural contract. See retained comparison evidence.")
+          # The existing v1.0.3 production verifier MUST still reject the changed
+          # layout. This read-only audit records that expected rejection separately
+          # from the new pack's structural inspection. It does not approve carry-forward.
+          if report["strict_validation"] != "FAIL" or not report.get("strict_error", "").startswith(
+              "ValueError: Unexpected files in the pinned Bedrock drop-in ZIP"
+          ):
+              raise SystemExit("Unexpected historical validation result: " + repr(report.get("strict_error")))
+          print("EXPECTED_V1_0_3_REJECTION: current experimental pack requires independent source acceptance.")
           PY
 
       - name: Inspect all custom mappings and nested pack manifests without modifying them
@@ -208,6 +214,107 @@ jobs:
                             "errors": result["errors"]}, indent=2)[:17000])
           PY
 
+      - name: Verify exact public v1.0.4 layout and six pilot textures (not client certification)
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          from io import BytesIO
+          from collections import Counter
+          import hashlib,json
+          work=Path('build/bedrock-asset-audit')
+          report=json.loads((work/'comparison.json').read_text())
+          detail=json.loads((work/'deep-inspection.json').read_text())
+          assert report['strict_validation']=='FAIL'
+          assert report['strict_error'].startswith('ValueError: Unexpected files in the pinned Bedrock drop-in ZIP')
+          assert report['source']['files']==28 and report['public']['files']==29
+          assert report['mapping_count']==25
+          assert {k:len(v) for k,v in report['member_diff'].items()}=={'unchanged':19,'changed':6,'removed':3,'added':4}
+          assert not detail['errors'] and not detail['identifier_duplicates']
+          pilot={
+            'custom_mappings/Albion_SFL_V2_Heads_Pilot.json':{
+              'motor':('minecraft:player_head',2200510),'input':('minecraft:player_head',2200513),
+              'output':('minecraft:player_head',2200514)},
+            'custom_mappings/Albion_SFL_V2_Scaling_Pilot.json':{
+              'ore_crusher':('minecraft:dispenser',2200028),'tin_ingot':('minecraft:iron_ingot',2200106),
+              'pressure_chamber':('minecraft:glass',2200059)},
+          }
+          pack_info={
+            'packs/SlimefunBedrockRP_1.0.4.mcpack':(
+              '8074dbb0d709dd738441c79a4033914f8b96fbfe2a9fdaef95e153526ef90ccc',
+              'f3e14cb9-aea6-58a4-bd52-1bc3c9b9084a',[1,0,4]),
+            'packs/Albion_ValhallaMMO_Bedrock_1.0.1.mcpack':(
+              'ac306c82a06b186af2754e450740f7a57459c8ba3ccc2e0f63f165c510929742',
+              '38dd6eec-1713-5df4-9e88-037b3279d6cc',[1,0,1]),
+            'packs/Albion_ValhallaMMO_Stat_Icons_1.0.0.mcpack':(
+              'cf8111461c228bb2eb37f65ee39ef201cd575268a01fce77b4b06ebce03346ea',
+              '35ecb947-e889-57f1-86b1-026bd364f549',[1,0,0]),
+          }
+          pub=work/'SlimefunLegacyRP_GEYSER-BEDROCK.zip'
+          assert pub.stat().st_size==1338619
+          assert hashlib.sha256(pub.read_bytes()).hexdigest()=='2f880ca6100837657fbc05daf3b383f2c3a5e5c0db58339087885b7ebebbf88e'
+          with ZipFile(pub) as outer:
+            paths=set(outer.namelist())
+            maps=sorted(x for x in paths if x.startswith('custom_mappings/') and x.endswith('.json'))
+            assert len(paths)==29 and len(maps)==25 and set(pilot)<=paths
+            assert {x for x in paths if x.endswith('.mcpack')}==set(pack_info)
+            formats=Counter()
+            skin_hashes=set()
+            used_cmd=set()
+            actual_pilot={}
+            icons=[]
+            for name in maps:
+              doc=json.loads(outer.read(name));formats[str(doc['format_version'])]+=1
+              if 'skulls' in doc:
+                hashes=doc['skulls']['skin_hash']
+                assert len(hashes)==(90 if 'legacy' in name else 1453)
+                assert len(hashes)==len(set(hashes)) and skin_hashes.isdisjoint(hashes)
+                skin_hashes.update(hashes)
+                continue
+              for java,rules in doc['items'].items():
+                for rule in rules:
+                  cmd=rule.get('custom_model_data')
+                  if type(cmd) is int:
+                    assert (java,cmd) not in used_cmd
+                    used_cmd.add((java,cmd))
+                  icon=(rule.get('bedrock_options') or {}).get('icon') or rule.get('icon') or rule.get('name')
+                  if icon and 'valhallammo_mappings' not in name:icons.append((name,icon))
+                  if name in pilot:
+                    assert doc['format_version']==2 and rule.get('type')=='legacy'
+                    assert rule['bedrock_identifier'].startswith('geyser_custom:')
+                    actual_pilot.setdefault(name,{})[icon]=(java,cmd)
+            assert formats=={'1':22,'2':3} and len(skin_hashes)==1543
+            assert actual_pilot==pilot
+            for name,(sha,uuid,version) in pack_info.items():
+              data=outer.read(name)
+              assert hashlib.sha256(data).hexdigest()==sha
+              with ZipFile(BytesIO(data)) as pack:
+                assert pack.testzip() is None
+                files=set(pack.namelist())
+                manifest=json.loads(pack.read(next(p for p in files if p.endswith('manifest.json'))))
+                assert manifest['header']['uuid']==uuid and manifest['header']['version']==version
+                if 'SlimefunBedrockRP' in name:
+                  base='SFB-RP/'
+                  atlas=json.loads(pack.read(base+'textures/item_texture.json'))['texture_data']
+                  assert len(atlas)==562
+                  absent=[]
+                  for source,icon in icons:
+                    assert icon in atlas, 'Missing Slimefun icon: '+icon
+                    for tex in atlas[icon]['textures']:
+                      if base+tex+'.png' not in files:absent.append((source,icon,tex))
+                  assert absent==[('custom_mappings/SF-Energy&Electricity.json','BASE',
+                                  'textures/items/armaduras/_armor/BASE')],absent
+          proof={'result':'EXPERIMENTAL_STRUCTURE_PASS_NOT_CLIENT_CERTIFIED',
+                 'history':'v1.0.3 layout correctly rejected','asset_sha256':hashlib.sha256(pub.read_bytes()).hexdigest(),
+                 'mapping_files':len(maps),'pilot_models':sum(map(len,pilot.values())),
+                 'skull_hashes':len(skin_hashes),'unresolved_texture':'BASE.png',
+                 'approved_carry_forward_tags':[],'client_visual_validation':False}
+          (work/'static-v104-experimental.json').write_text(json.dumps(proof,indent=2)+'\n')
+          print(json.dumps(proof,indent=2))
+          PY
+
       - name: Preserve exact public ZIP bytes for independently reproducible audit
         if: always()
         uses: actions/upload-artifact@v7
@@ -226,5 +333,6 @@ jobs:
             build/bedrock-asset-audit/comparison.json
             build/bedrock-asset-audit/release.json
             build/bedrock-asset-audit/deep-inspection.json
+            build/bedrock-asset-audit/static-v104-experimental.json
           retention-days: 30
           if-no-files-found: warn
