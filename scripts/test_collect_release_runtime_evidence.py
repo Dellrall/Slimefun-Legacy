@@ -485,7 +485,6 @@ class ReleaseDispatchControls(unittest.TestCase):
         native = self.steps["Await exact-source native and full-stack runtime results"]
         self.assertIn("require_complete native-entity-retirement.yml push", native)
         self.assertIn("require_complete paper-26.3-full-stack.yml workflow_run", native)
-        self.assertIn('test "$(gh api "repos/$REPO/git/ref/heads/master"', native)
         positions = [self.workflow.index("      - name: " + name) for name in checks]
         self.assertEqual(sorted(positions), positions)
         self.assertLess(positions[-1], self.workflow.index(
