@@ -15,7 +15,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_sfl_release_assets import (  # noqa: E402
-    BEDROCK_PACK, BEDROCK_PIN_PATH, BUNDLE, PACK, ROLLBACK, ROLLBACK_PIN, PolicyError, load_json,
+    BEDROCK_PACK, BEDROCK_PIN_PATH, BUNDLE, PACK, GEYSER_CARRY_PACK, ROLLBACK, ROLLBACK_PIN,
+    PolicyError, load_json,
     plan_release, verify_preserved,
 )
 
@@ -160,6 +161,49 @@ def deletions(calls: list) -> list:
 
 
 class PolicyTests(unittest.TestCase):
+    def test_opaque_geyser_zip_is_preserved_across_core_version_bumps(self):
+        for tag in ('v4.1.76', 'v4.1.77', 'v4.1.78'):
+            with self.subTest(tag=tag):
+                state = release(rollback=False)
+                state['tag_name'] = tag
+                state['id'] = 8000000 + int(tag.split('.')[-1])
+                state['assets'][0]['name'] = 'Slimefun-Legacy' + tag.removeprefix('v') + '.jar'
+                carry = asset(GEYSER_CARRY_PACK, 900000 + int(tag.split('.')[-1]),
+                              '2f880ca6100837657fbc05daf3b383f2c3a5e5c0db58339087885b7ebebbf88e', 1338619)
+                state['assets'].append(carry)
+                plan = plan_release(state)
+                self.assertEqual(carry, plan['retained'][GEYSER_CARRY_PACK])
+                self.assertEqual([], plan['remove'])
+
+    def test_opaque_geyser_zip_cannot_change_during_release_cleanup(self):
+        before = release(rollback=False)
+        before['tag_name'] = 'v4.1.77'
+        before['assets'][0]['name'] = 'Slimefun-Legacy4.1.77.jar'
+        before['assets'].append(asset(GEYSER_CARRY_PACK, 9377,
+                                     '2f880ca6100837657fbc05daf3b383f2c3a5e5c0db58339087885b7ebebbf88e',
+                                     1338619))
+        for change in ('id', 'digest', 'size', 'missing'):
+            with self.subTest(change=change):
+                after = copy.deepcopy(before)
+                if change == 'missing':
+                    after['assets'].pop()
+                elif change == 'id':
+                    after['assets'][-1]['id'] += 1
+                elif change == 'size':
+                    after['assets'][-1]['size'] += 1
+                else:
+                    after['assets'][-1]['digest'] = 'sha256:' + '0' * 64
+                with self.assertRaises(PolicyError):
+                    verify_preserved(before, after)
+
+    def test_geyser_asset_must_be_flat_and_have_valid_release_sha(self):
+        state = release(rollback=False)
+        state['assets'].append(asset(GEYSER_CARRY_PACK, 9800))
+        self.assertIn(GEYSER_CARRY_PACK, plan_release(state)['retained'])
+        state['assets'][-1]['digest'] = 'invalid'
+        with self.assertRaises(PolicyError):
+            plan_release(state)
+
     def test_observed_bedrock_origin_and_approved_successor_are_preserved(self):
         for tag in ("v4.1.75", "v4.1.76"):
             with self.subTest(tag=tag):
