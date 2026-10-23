@@ -1,0 +1,198 @@
+name: Carry unchanged Geyser companion ZIP to new Slimefun releases
+
+# This is a release-download copy only. Slimefun Legacy and its addons do not
+# implement, generate, inspect, install, or modify any Geyser/Bedrock content.
+on:
+  workflow_run:
+    workflows: ['Reproducible Release']
+    types: [completed]
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/carry-geyser-companion-release.yml'
+      - 'compatibility/geyser-companion-release.json'
+      - 'scripts/verify_geyser_companion_release.py'
+      - 'scripts/test_verify_geyser_companion_release.py'
+      - 'scripts/verify_sfl_release_assets.py'
+      - 'scripts/test_verify_sfl_release_assets.py'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/carry-geyser-companion-release.yml'
+      - 'compatibility/geyser-companion-release.json'
+      - 'scripts/verify_geyser_companion_release.py'
+      - 'scripts/test_verify_geyser_companion_release.py'
+      - 'scripts/verify_sfl_release_assets.py'
+      - 'scripts/test_verify_sfl_release_assets.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: geyser-companion-release-download-only
+  cancel-in-progress: false
+
+jobs:
+  policy-tests:
+    name: Validate pinned companion and Java-only boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test exact asset identity, cleanup preservation and core isolation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m unittest scripts.test_verify_geyser_companion_release -v
+          python3 scripts/test_verify_sfl_release_assets.py
+          python3 -m unittest scripts.test_java_only_release_scope -v
+
+  carry-forward:
+    needs: policy-tests
+    if: >-
+      github.event_name != 'pull_request' &&
+      github.event_name != 'push' &&
+      (github.event_name == 'workflow_dispatch' ||
+       (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        (github.event.workflow_run.event == 'push' ||
+         github.event.workflow_run.event == 'workflow_dispatch')))
+    name: Preserve the original download on an approved new release
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    steps:
+      - name: Check out exact release source (no runtime/plugin modifications)
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Select stable Slimefun release built by this source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == workflow_dispatch ]]; then
+            test "$GITHUB_REF" = refs/heads/master
+          fi
+          VERSION="$(sed -n 's/^projectVersion=//p' gradle.properties | head -n 1 | tr -d '\r')"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          TARGET_TAG="v$VERSION"
+          echo "TARGET_TAG=$TARGET_TAG" >> "$GITHUB_ENV"
+          if ! gh release view "$TARGET_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Target $TARGET_TAG has not been published; nothing will be copied." >> "$GITHUB_STEP_SUMMARY"
+            echo "SKIP_COPY=true" >> "$GITHUB_ENV"
+            exit 0
+          fi
+          TAG_SHA="$(git rev-list -n 1 "refs/tags/$TARGET_TAG")"
+          test -n "$TAG_SHA"
+          if [[ "$EVENT_NAME" == workflow_run ]]; then
+            test "$TAG_SHA" = "$RELEASE_SOURCE_SHA" || {
+              echo 'Reproducible release and published tag use different commits; refusing copy.' >&2
+              exit 1
+            }
+          else
+            test "$TAG_SHA" = "$(git rev-parse HEAD)" || {
+              echo 'Manual dispatch must use exactly the published release commit.' >&2
+              exit 1
+            }
+          fi
+          echo "Exact target: $TARGET_TAG at $TAG_SHA" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Check source and target release metadata against original pin
+        if: env.SKIP_COPY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p companion-release
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/v4.1.77" > companion-release/source.json
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TARGET_TAG" > companion-release/before.json
+          python3 scripts/verify_geyser_companion_release.py plan \
+            --source companion-release/source.json --before companion-release/before.json \
+            --output companion-release/plan.json
+
+      - name: Download exact v4.1.77 Geyser companion without altering its bytes
+        if: env.SKIP_COPY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release download v4.1.77 --repo "$GITHUB_REPOSITORY" \
+            --pattern 'SlimefunLegacyRP_Geyser.zip' --dir companion-release
+          test "$(stat -c '%s' companion-release/SlimefunLegacyRP_Geyser.zip)" = '1339867'
+          echo 'e11e5f8e6ede75a17421039e50178e83e11e9cf7f020e99596cfc078801b8c58  companion-release/SlimefunLegacyRP_Geyser.zip' | sha256sum -c
+
+      - name: Add only a missing download; never clobber an existing asset
+        if: env.SKIP_COPY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTION="$(jq -r .action companion-release/plan.json)"
+          test "$ACTION" = verify || test "$ACTION" = upload
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TARGET_TAG" > companion-release/pre-upload.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          def ids(filename):
+              record=json.loads(Path(filename).read_text())
+              return (record['id'], record['tag_name'], sorted(
+                  (a['id'], a['name'], a['size'], a['digest'], a['state'])
+                  for a in record['assets']))
+          if ids('companion-release/before.json') != ids('companion-release/pre-upload.json'):
+              raise SystemExit('Target release changed during validation; refusing upload')
+          PY
+          if [[ "$ACTION" == upload ]]; then
+            gh release upload "$TARGET_TAG" companion-release/SlimefunLegacyRP_Geyser.zip \
+              --repo "$GITHUB_REPOSITORY"
+          else
+            echo 'Pinned Geyser download already present; preserving its asset identity.'
+          fi
+
+      - name: Re-download and verify the unchanged companion on target release
+        if: env.SKIP_COPY != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TARGET_TAG" > companion-release/after.json
+          python3 scripts/verify_geyser_companion_release.py verify \
+            --source companion-release/source.json --before companion-release/before.json \
+            --after companion-release/after.json --output companion-release/verification.json
+          mkdir -p companion-release/readback
+          gh release download "$TARGET_TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern 'SlimefunLegacyRP_Geyser.zip' --dir companion-release/readback
+          cmp companion-release/SlimefunLegacyRP_Geyser.zip \
+              companion-release/readback/SlimefunLegacyRP_Geyser.zip
+          echo 'e11e5f8e6ede75a17421039e50178e83e11e9cf7f020e99596cfc078801b8c58  companion-release/readback/SlimefunLegacyRP_Geyser.zip' | sha256sum -c
+          {
+            echo 'Geyser installs and manages this companion; Slimefun does not process its contents.'
+            echo "Retained exact SlimefunLegacyRP_Geyser.zip on $TARGET_TAG"
+            echo 'Source: v4.1.77; SHA-256: e11e5f8e6ede75a17421039e50178e83e11e9cf7f020e99596cfc078801b8c58'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Keep copy/verification receipts (not the companion itself)
+        if: always() && env.SKIP_COPY != 'true'
+        uses: actions/upload-artifact@v7
+        with:
+          name: geyser-companion-carry-forward-receipt
+          path: |
+            companion-release/plan.json
+            companion-release/verification.json
+          if-no-files-found: warn
+          retention-days: 14
