@@ -383,7 +383,7 @@ class ReleaseDispatchControls(unittest.TestCase):
             "Verify Slimefun Legacy invariants", "First clean release build", "Second clean release build",
             "Require byte-for-byte reproducibility", "Require exact-source validated canonical addon bundle",
             "Require runtime evidence for the exact release files", "Require pinned official resource pack",
-            "Require pinned optional Bedrock resource pack",
+            "Carry forward latest published Geyser ZIP unchanged",
         ]
         for publish in ("", False, True):
             for name in checks:
