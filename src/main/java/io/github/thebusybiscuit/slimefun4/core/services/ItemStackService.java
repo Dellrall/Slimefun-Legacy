@@ -175,19 +175,26 @@ public final class ItemStackService {
             return false;
         }
 
-        boolean hasVirtualItems = false;
+        // Recipe-output preflight must model actual physical capacity when
+        // addons repeat a slot or supply an oversized combined output. Dough's
+        // vanilla fast path is retained for ordinary distinct-slot recipes.
+        boolean requiresSnapshot = hasRepeatedSlots(slots);
         for (ItemStack item : items) {
-            if (item != null && isVirtualItem(item)) {
-                hasVirtualItems = true;
+            if (item != null
+                    && (isVirtualItem(item)
+                            || (!item.getType().isAir()
+                                    && item.getAmount()
+                                            > Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())))) {
+                requiresSnapshot = true;
                 break;
             }
         }
 
-        if (!hasVirtualItems) {
-            hasVirtualItems = hasVirtualItemsInSlots(inventory, slots);
+        if (!requiresSnapshot) {
+            requiresSnapshot = hasVirtualItemsInSlots(inventory, slots);
         }
 
-        if (!hasVirtualItems) {
+        if (!requiresSnapshot) {
             return InvUtils.fitAll(inventory, items, slots);
         }
 
@@ -403,6 +410,32 @@ public final class ItemStackService {
         }
 
         return handler;
+    }
+
+    /**
+     * Repeated output slots describe only one physical capacity. The common
+     * 18/54-slot layouts are checked without allocating collections.
+     */
+    private static boolean hasRepeatedSlots(int[] slots) {
+        long seen = 0L;
+        for (int i = 0; i < slots.length; i++) {
+            int slot = slots[i];
+            if (slot >= Long.SIZE) {
+                for (int earlier = 0; earlier < i; earlier++) {
+                    if (slots[earlier] == slot) {
+                        return true;
+                    }
+                }
+            } else {
+                // Negative selectors are rejected by hasValidSlotSelection.
+                long bit = 1L << slot;
+                if ((seen & bit) != 0L) {
+                    return true;
+                }
+                seen |= bit;
+            }
+        }
+        return false;
     }
 
     /**
