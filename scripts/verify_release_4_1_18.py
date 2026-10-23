@@ -75,7 +75,14 @@ require("EnchantmentMachineRuntime.consumeOneEach" in disenchanter, "Auto Disenc
 require("menu.replaceExistingItem(itemSlot, null)" not in disenchanter, "Auto Disenchanter still moves cancelled inputs")
 
 require("# Slimefun Legacy 4.1.18" in changelog, "4.1.18 changelog section is missing")
-require(bool(current_version) and f"Slimefun Legacy {current_version} is tested primarily" in readme, "README current version was not updated")
+# Candidates should not claim completed validation before their exact-source CI passes.
+# Both release states must still advertise the exact version from gradle.properties.
+readme_statuses = ("is tested primarily", "is undergoing exact-source validation primarily")
+require(
+    bool(current_version)
+    and any(f"Slimefun Legacy {current_version} {status}" in readme for status in readme_statuses),
+    "README current version was not updated",
+)
 
 for name, text in (
     ("guide", guide),
