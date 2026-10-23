@@ -205,6 +205,13 @@ public final class ItemStackService {
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
         Validate.notNull(item, "The item cannot be null");
 
+        // Match fits/fitAll: a malformed output slot list must not partially
+        // insert items into valid slots while silently ignoring invalid ones.
+        // Return the entire remainder without mutating either the input or inventory.
+        if (!hasValidSlotSelection(inventory.getSize(), slots)) {
+            return item.clone();
+        }
+
         boolean hasVirtualItems = hasVirtualItemsInSlots(inventory, slots);
 
         if (!hasVirtualItems && !isVirtualItem(item) && SlimefunItem.getByItem(item) == null && slots.length == 0) {
