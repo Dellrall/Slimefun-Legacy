@@ -12,6 +12,7 @@ import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.M
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import io.github.thebusybiscuit.slimefun4.utils.SlimefunUtils;
 import io.github.thebusybiscuit.slimefun4.utils.itemstack.ItemStackWrapper;
+import java.util.Arrays;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import me.mrCookieSlime.CSCoreLibPlugin.general.Inventory.ChestMenu;
@@ -123,6 +124,9 @@ public class DirtyChestMenu extends ChestMenu {
             return false;
         }
 
+        // Repeated declarations can refer to the same physical slot. Capacity
+        // must count it once even when addon-provided selectors repeat it.
+        int[] distinctSlots = distinctPhysicalSlots(slots);
         var virtualItems = Slimefun.getItemStackService();
         var isSfItem = SlimefunItem.getByItem(item) != null || virtualItems.isVirtualItem(item);
 
@@ -133,7 +137,7 @@ public class DirtyChestMenu extends ChestMenu {
         var wrapper = ItemStackWrapper.wrap(item);
         var remain = item.getAmount();
 
-        for (int slot : slots) {
+        for (int slot : distinctSlots) {
             // A small optimization for empty slots
             var slotItem = getItemInSlot(slot);
             if (slotItem == null || slotItem.getType().isAir()) {
@@ -184,7 +188,7 @@ public class DirtyChestMenu extends ChestMenu {
         boolean result = false;
 
         if (!isSfItem) {
-            result = virtualItems.fits(toInventory(), item, InventoryContext.MENU_FIT, slots);
+            result = virtualItems.fits(toInventory(), item, InventoryContext.MENU_FIT, distinctSlots);
         }
 
         return result;
@@ -277,6 +281,29 @@ public class DirtyChestMenu extends ChestMenu {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Keep each physical slot only once for capacity checks, preserving the
+     * first-occurrence order. The common 18/54-slot menus need no allocation
+     * when the selector is already unique.
+     */
+    private static int[] distinctPhysicalSlots(int[] slots) {
+        long visited = 0L;
+        for (int slot : slots) {
+            // Bukkit menus normally contain at most 54 slots. Still support
+            // nonstandard larger inventories without overflowing a bit mask.
+            if (slot >= Long.SIZE) {
+                return Arrays.stream(slots).distinct().toArray();
+            }
+
+            long bit = 1L << slot;
+            if ((visited & bit) != 0L) {
+                return Arrays.stream(slots).distinct().toArray();
+            }
+            visited |= bit;
+        }
+        return slots;
     }
 
     /**
