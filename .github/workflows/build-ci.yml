@@ -42,6 +42,8 @@ jobs:
         run: |
           python3 -m unittest scripts/test_release_runtime_evidence.py scripts/test_release_full_stack_evidence.py scripts/test_collect_release_runtime_evidence.py -v
           python3 -O -m unittest scripts/test_release_runtime_evidence.py scripts/test_release_full_stack_evidence.py scripts/test_collect_release_runtime_evidence.py -v
+      - name: Verify Java-only core release scope
+        run: python3 -m unittest scripts.test_java_only_release_scope -v
       - name: Build
         run: |
           set -euo pipefail

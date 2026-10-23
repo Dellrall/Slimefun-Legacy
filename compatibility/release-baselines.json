@@ -2,16 +2,16 @@
   "schema": 1,
   "project": "Slimefun Legacy",
   "candidate": {
-    "version": "4.1.76"
+    "version": "4.1.77"
   },
   "previous_stable": {
-    "version": "4.1.75",
+    "version": "4.1.76",
     "source": {
       "mode": "git-ref",
-      "ref": "7f702e3565a381aeeefd99555f2c8fe818858e9c"
+      "ref": "9075ea852095b28543aaa1456bc2576778cb4c4d"
     },
     "release_blocking": true,
-    "purpose": "Primary regression baseline: exact published Slimefun Legacy 4.1.75 source. Required addon regressions against that release block candidate 4.1.76. This retains the atomic backpack saves released in 4.1.75 while coordinating JustEnoughGuide startup dependency resilience. The 4.1.15 historical floor remains advisory; older saved item formats remain supported."
+    "purpose": "Primary regression baseline: exact v4.1.76 published source/tag (9075ea8). Required addon regressions against the published 4.1.76 release block candidate 4.1.77. This carries forward the backpack/Folia stability fixes in 4.1.76 and validates the current Cargo frequency-parser reliability change without a data migration. The 4.1.15 historical floor remains advisory and older saved item formats remain supported."
   },
   "legacy_floor": {
     "version": "4.1.15",
