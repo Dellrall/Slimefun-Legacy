@@ -155,8 +155,14 @@ jobs:
                               for java_item, rules in parsed.get("items", {}).items():
                                   if isinstance(rules, list):
                                       for rule in rules:
-                                          if isinstance(rule, dict) and isinstance(rule.get("bedrock_identifier"), str):
-                                              identifiers[rule["bedrock_identifier"]].append(name + ":" + java_item)
+                                          if not isinstance(rule, dict):
+                                              continue
+                                          custom_identifier = rule.get("bedrock_identifier")
+                                          if not isinstance(custom_identifier, str) and isinstance(rule.get("name"), str):
+                                              legacy = rule["name"]
+                                              custom_identifier = legacy if ":" in legacy else "geyser_custom:" + legacy
+                                          if isinstance(custom_identifier, str):
+                                              identifiers[custom_identifier].append(name + ":" + java_item)
                               result["mapping_files"].append(info)
                               if "Pilot" in name:
                                   print("PILOT MAP:", json.dumps(info, sort_keys=True))
