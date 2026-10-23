@@ -101,4 +101,5 @@ class ReleaseWorkflowPolicyTests(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    # verify_legacy.py passes the repository root as a positional argument.
+    unittest.main(argv=[sys.argv[0]])
