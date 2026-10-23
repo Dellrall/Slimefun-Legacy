@@ -5,15 +5,15 @@
   "addons": {
     "networks": {
       "repository": "wickidcow/SF_NetworksExp",
-      "source": "d41d362c8b71073dca41abc24f6ef6a5a8688fff",
-      "tree": "3a3348663755c0536ff838ebf977cc4c7d00955a",
+      "source": "9bf9f48b49dbedbf9e617ca840d9ccd57cf0c717",
+      "tree": "4845dcab4bc7c50dab9e38c6c66c7ae564defe6f",
       "plugin": "Networks",
-      "version": "1.0.60",
-      "jar": "build/libs/SF_Networks1.0.60.jar",
+      "version": "1.0.61",
+      "jar": "build/libs/SF_Networks1.0.61.jar",
       "published_artifact": {
-        "url": "https://github.com/wickidcow/SF_NetworksExp/releases/download/v1.0.60/SF_Networks1.0.60.jar",
-        "bytes": 1681029,
-        "sha256": "e355ce958bd1e3d3c8ddd65d7f56dbd2b8d4c605ca6b0f1025a34e65c6a808b2"
+        "url": "https://github.com/wickidcow/SF_NetworksExp/releases/download/v1.0.61/SF_Networks1.0.61.jar",
+        "bytes": 1680856,
+        "sha256": "760d8941ee3e332342a06939d78fad0af4fff072bd16157eae8d0ce46366db2b"
       }
     },
     "ie2": {
