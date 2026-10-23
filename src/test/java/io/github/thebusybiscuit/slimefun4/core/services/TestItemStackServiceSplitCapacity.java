@@ -51,6 +51,8 @@ class TestItemStackServiceSplitCapacity {
         assertTrue(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT, 0, 1));
         assertTrue(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT, 0, 0, 1, 0));
         assertTrue(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT));
+        assertTrue(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertFalse(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 0));
         assertArrayEquals(before, inventory.getContents(), "Capacity checks must not change inventory contents");
         assertEquals(2, output.getAmount(), "Capacity checks must not alter the source stack");
 

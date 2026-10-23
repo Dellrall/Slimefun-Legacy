@@ -186,20 +186,40 @@ public final class ItemStackService {
             return false;
         }
 
-        boolean hasVirtualItems = false;
+        // Recipe-output preflight must model actual physical capacity when
+        // addons repeat a slot or supply an oversized combined output. Dough's
+        // vanilla fast path is retained for ordinary distinct-slot recipes.
+        boolean requiresSnapshot = hasRepeatedSlots(slots);
         for (ItemStack item : items) {
-            if (item != null && isVirtualItem(item)) {
-                hasVirtualItems = true;
+            if (item != null
+                    && (isVirtualItem(item)
+                            || (!item.getType().isAir()
+                                    && item.getAmount()
+                                            > Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())))) {
+                requiresSnapshot = true;
                 break;
             }
         }
 
-        if (!hasVirtualItems) {
-            hasVirtualItems = hasVirtualItemsInSlots(inventory, slots);
+        if (!requiresSnapshot) {
+            requiresSnapshot = hasVirtualItemsInSlots(inventory, slots);
         }
 
-        if (!hasVirtualItems) {
-            return InvUtils.fitAll(inventory, items, slots);
+        if (!requiresSnapshot) {
+            if (InvUtils.fitAll(inventory, items, slots)) {
+                return true;
+            }
+
+            // Dough may reject an output that cannot fit into one slot, even
+            // when several partly filled stacks can accept the full amount.
+            // Keep vanilla inventory-type admission checks on this fallback.
+            for (ItemStack result : items) {
+                if (result != null
+                        && !result.getType().isAir()
+                        && !InvUtils.isItemAllowed(result.getType(), inventory.getType())) {
+                    return false;
+                }
+            }
         }
 
         ItemStack[] contents = Arrays.stream(inventory.getContents())
@@ -414,6 +434,32 @@ public final class ItemStackService {
         }
 
         return handler;
+    }
+
+    /**
+     * Repeated output slots describe only one physical capacity. The common
+     * 18/54-slot layouts are checked without allocating collections.
+     */
+    private static boolean hasRepeatedSlots(int[] slots) {
+        long seen = 0L;
+        for (int i = 0; i < slots.length; i++) {
+            int slot = slots[i];
+            if (slot >= Long.SIZE) {
+                for (int earlier = 0; earlier < i; earlier++) {
+                    if (slots[earlier] == slot) {
+                        return true;
+                    }
+                }
+            } else {
+                // Negative selectors are rejected by hasValidSlotSelection.
+                long bit = 1L << slot;
+                if ((seen & bit) != 0L) {
+                    return true;
+                }
+                seen |= bit;
+            }
+        }
+        return false;
     }
 
     /**
