@@ -8,12 +8,16 @@ on:
       - 'scripts/verify_sfl_release_assets.py'
       - 'scripts/test_verify_sfl_release_assets.py'
       - 'compatibility/bedrock-resource-pack-release.json'
+      - 'compatibility/geyser-companion-release.json'
+      - 'scripts/verify_geyser_companion_release.py'
   pull_request:
     paths:
       - '.github/workflows/cleanup-sfl-release-assets.yml'
       - 'scripts/verify_sfl_release_assets.py'
       - 'scripts/test_verify_sfl_release_assets.py'
       - 'compatibility/bedrock-resource-pack-release.json'
+      - 'compatibility/geyser-companion-release.json'
+      - 'scripts/verify_geyser_companion_release.py'
   workflow_run:
     workflows: ['Build SF Addons 1.21.11-26.3 Bundle']
     types: [completed]
@@ -83,7 +87,8 @@ jobs:
             echo
             echo '- Exact tag-matching core JAR and canonical addon bundle are required.'
             echo '- The Java resource pack, pinned optional Bedrock pack and pinned r136 rollback are preserved.'
-            echo '- Bedrock bytes and approved release tags must match the reviewed carry-forward pin.'
+            echo '- Historical experimental packs retain only their previously approved release tags.'
+            echo '- The exact pinned v4.1.77 Geyser companion ZIP is retained on future releases as a download only.'
             echo '- Unknown assets fail preflight before deletion; no blanket extra-asset exception.'
             echo '- Retained IDs, sizes and API digests must match before and after cleanup.'
             echo '- Only the established obsolete-asset families may be removed.'
