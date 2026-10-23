@@ -67,7 +67,7 @@ jobs:
                       raise ValueError(f"symlink member in {path}")
                   return ({name: sha(z.read(name)) for name in names if not name.endswith("/")},
                           {name: len(z.read(name)) for name in names if not name.endswith("/")},
-                          {name: info.compress_type for info in z.infolist() if not info.is_dir()})
+                          {info.filename: info.compress_type for info in z.infolist() if not info.is_dir()})
           old_sha, old_size, old_method = inspect(old)
           new_sha, new_size, new_method = inspect(live)
           new_pin = copy.deepcopy(original_pin)
