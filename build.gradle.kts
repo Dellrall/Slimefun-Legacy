@@ -82,7 +82,14 @@ tasks.withType<AbstractArchiveTask>().configureEach {
 repositories {
     mavenCentral()
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots")
-    maven("https://repo.papermc.io/repository/maven-public/")
+    // Dynamic Paper API versions must query the PaperMC repository only.
+    // Unrelated Maven repositories (notably PlaceholderAPI mirrors) may return
+    // 5xx for Paper metadata and otherwise fail an unrelated Java-only build.
+    val paperMcRepository = maven("https://repo.papermc.io/repository/maven-public/")
+    exclusiveContent {
+        forRepository(paperMcRepository)
+        filter { includeGroup("io.papermc.paper") }
+    }
     maven("https://maven.norain.city/snapshots")
     maven("https://jitpack.io")
     maven("https://maven.enginehub.org/repo/")
