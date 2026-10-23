@@ -14,6 +14,7 @@ Slimefun Legacy turns a normal Minecraft server into a modpack-like experience w
 [![Language](https://img.shields.io/badge/Player%20language-English-brightgreen)](#english-first-and-recovery)
 [![Servers](https://img.shields.io/bstats/servers/32960?label=servers)](https://bstats.org/plugin/bukkit/Slimefun%20Legacy/32960)
 [![Players](https://img.shields.io/bstats/players/32960?label=players)](https://bstats.org/plugin/bukkit/Slimefun%20Legacy/32960)
+
 [Download](https://github.com/wickidcow/Slimefun-Legacy/releases) ·
 [Wiki](https://github.com/wickidcow/Slimefun-Legacy/wiki) ·
 [Addons](docs/ADDONS.md) ·
