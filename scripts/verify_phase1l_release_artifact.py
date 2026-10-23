@@ -256,9 +256,9 @@ def main() -> int:
         "- the release workflow performs two independent clean builds of the exact source commit\n"
         "- build and configuration caches are disabled for the reproducibility comparison\n"
         "- release workflow requires byte-for-byte and SHA-256 equality\n"
-        "- explicit non-publishing dispatch validates reproducible release candidates without uploading asset\n"
-        "- publishing requires an exact master source with successful native and full-stack gate\n"
-        "- immutable Java core, addon ZIP and Java pack bytes are verified by remote digest and downloa\n"
+        "- explicit non-publishing dispatch validates reproducible release candidates without uploading assets\n"
+        "- publishing requires an exact master source with successful native and full-stack gates\n"
+        "- immutable Java core, addon ZIP and Java pack bytes are verified by remote digest and download\n"
         f"- {previous_version} is the pinned release-blocking previous-stable baseline\n"
         "- Phase 1L Part 2 itself does not change Cargo/Energy, database, storage-schema or saved-world semantics\n"
         f"- active release gameplay behavior changed is explicitly declared as {str(gameplay_changed).lower()}\n",
