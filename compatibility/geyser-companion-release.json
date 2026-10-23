@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "repository": "wickidcow/Slimefun-Legacy",
+  "source_release_tag": "v4.1.77",
+  "source_release_id": 421464301,
+  "source_asset_id": 669444618,
+  "asset_name": "SlimefunLegacyRP_Geyser.zip",
+  "size_bytes": 1339867,
+  "sha256": "e11e5f8e6ede75a17421039e50178e83e11e9cf7f020e99596cfc078801b8c58",
+  "mode": "opaque-release-companion",
+  "note": "Copy exact v4.1.77 release asset bytes to later Slimefun Legacy release downloads; Geyser owns installation and all runtime compatibility. Do not inspect or modify pack internals."
+}
