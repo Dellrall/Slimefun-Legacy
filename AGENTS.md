@@ -34,7 +34,7 @@ Never commit server data, credentials, or publishing secrets. Maven publishing r
 
 GuGu (`SlimefunGuguProject/Slimefun4`) is the sole active upstream for future Slimefun maintenance. Do not restore United, Slimefun5, Slimefun4Core or Original Slimefun as ongoing polling, source-probe or feature-intake targets. Retain historical API/data readers, addon declaration identifiers, source attribution and dated evidence. See [ADR 0003](docs/adr/0003-gugu-only-upstream-maintenance.md).
 
-Slimefun Legacy 4.1.76 and the coordinated r149 45-addon bundle are published. Slimefun Legacy 4.1.77 is a Java-only core maintenance candidate; release only after the exact-core reproducible build, canonical addon and Paper/Purpur/native storage gates pass. Bedrock is exclusively the server's Geyser responsibility: do not build, copy, validate, repackage or publish Geyser/Bedrock assets in Slimefun Legacy or its addons. Do not reuse older CI receipts for the new release commit.
+Slimefun Legacy 4.1.76 and the coordinated r149 45-addon bundle are published. Slimefun Legacy 4.1.77 is a Java-only core maintenance release line; publish it only after the exact-core reproducible build, canonical addon and Paper/Purpur/native storage gates pass. Bedrock is exclusively the server's Geyser responsibility: do not build, copy, validate, repackage or publish Geyser/Bedrock assets in Slimefun Legacy or its addons. Do not reuse older CI receipts for the new release commit.
 
 Minecraft 1.21.11 is the minimum supported version. Prioritize Paper and Purpur; retain Leaf and Folia support with explicit scheduler/region-safety validation. Do not confuse the minimum server version with the age of world data that must remain readable.
 
