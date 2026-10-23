@@ -1,7 +1,10 @@
 package io.github.thebusybiscuit.slimefun4.core.services;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.InventoryContext;
@@ -41,6 +44,27 @@ class TestItemStackServiceSlotBounds {
         assertFalse(ItemStackService.hasValidSlotSelection(54, 18, 54));
         assertFalse(ItemStackService.hasValidSlotSelection(54, -1, 0));
         assertFalse(ItemStackService.hasValidSlotSelection(-1));
+    }
+
+    @Test
+    void invalidInsertionSlotListsReturnTheCompleteStackWithoutMutation() {
+        Inventory inventory = Bukkit.createInventory(null, 18);
+        ItemStack existing = new ItemStack(Material.DIAMOND, 7);
+        inventory.setItem(0, existing.clone());
+        ItemStack[] before = inventory.getContents();
+        ItemStack output = new ItemStack(Material.STONE, 9);
+        ItemStackService service = new ItemStackService();
+
+        for (int[] slots : new int[][] {{18}, {-1}, {0, 18}, {17, 53}, {-1, 17}}) {
+            ItemStack remainder = service.addItem(inventory, output, InventoryContext.MACHINE_OUTPUT, slots);
+            assertNotNull(remainder, "Invalid slot selection must return the full remainder");
+            assertNotSame(output, remainder, "The remainder must not alias the caller's input");
+            assertEquals(output, remainder, "The entire output must remain available");
+            assertArrayEquals(before, inventory.getContents(), "Invalid slots must not partially mutate an inventory");
+        }
+
+        assertEquals(9, output.getAmount(), "The caller's stack must not be modified");
+        assertEquals(existing, inventory.getItem(0), "Existing contents must remain unchanged");
     }
 
     @Test
