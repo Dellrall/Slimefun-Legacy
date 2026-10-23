@@ -120,6 +120,88 @@ jobs:
               raise SystemExit("Public Bedrock ZIP differs from approved complete-pack structural contract. See retained comparison evidence.")
           PY
 
+      - name: Inspect all custom mappings and nested pack manifests without modifying them
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from collections import Counter, defaultdict
+          from io import BytesIO
+          from pathlib import Path
+          import json, zipfile
+          work = Path("build/bedrock-asset-audit")
+          live = work / "SlimefunLegacyRP_GEYSER-BEDROCK.zip"
+          if not live.is_file():
+              print("No public archive was downloaded; inspect release download step.")
+              raise SystemExit(0)
+          result = {"public_archive": live.name, "mapping_files": [],
+                    "nested_packs": [], "identifier_duplicates": [], "errors": []}
+          identifiers = defaultdict(list)
+          try:
+              with zipfile.ZipFile(live) as outer:
+                  names = sorted(outer.namelist())
+                  for name in names:
+                      if name.startswith("custom_mappings/") and name.endswith(".json"):
+                          try:
+                              raw = outer.read(name)
+                              parsed = json.loads(raw)
+                              info = {"name": name, "bytes": len(raw),
+                                      "format": parsed.get("format_version"),
+                                      "keys": sorted(parsed),
+                                      "items": len(parsed.get("items", {})) if isinstance(parsed.get("items"), dict) else None,
+                                      "skull_hashes": len(parsed.get("skulls", {}).get("skin_hash", []))
+                                        if isinstance(parsed.get("skulls"), dict) else None}
+                              for java_item, rules in parsed.get("items", {}).items():
+                                  if isinstance(rules, list):
+                                      for rule in rules:
+                                          if isinstance(rule, dict) and isinstance(rule.get("bedrock_identifier"), str):
+                                              identifiers[rule["bedrock_identifier"]].append(name + ":" + java_item)
+                              result["mapping_files"].append(info)
+                              if "Pilot" in name:
+                                  print("PILOT MAP:", json.dumps(info, sort_keys=True))
+                                  print("PILOT SAMPLE:", json.dumps(parsed, ensure_ascii=False)[:900])
+                          except Exception as e:
+                              result["errors"].append("Mapping JSON " + name + ": " + str(e))
+                      if name.endswith(".mcpack"):
+                          pack_info = {"name": name}
+                          try:
+                              with zipfile.ZipFile(BytesIO(outer.read(name))) as pack:
+                                  bad = pack.testzip()
+                                  if bad is not None:
+                                      raise ValueError("Bad member CRC: " + bad)
+                                  members = pack.namelist()
+                                  manifest_names = [x for x in members if x.endswith("manifest.json")]
+                                  pack_info.update({"files": len(members),
+                                      "textures": sum(x.endswith(".png") for x in members),
+                                      "manifest_paths": manifest_names})
+                                  for manifest_path in manifest_names:
+                                      data = json.loads(pack.read(manifest_path))
+                                      pack_info["manifest"] = {"format_version": data.get("format_version"),
+                                          "header": {"uuid": data.get("header", {}).get("uuid"),
+                                                     "version": data.get("header", {}).get("version"),
+                                                     "name": data.get("header", {}).get("name")},
+                                          "modules": [{"type": x.get("type"), "uuid": x.get("uuid"), "version": x.get("version")}
+                                                      for x in data.get("modules", []) if isinstance(x, dict)]}
+                                  if not manifest_names:
+                                      result["errors"].append("Missing pack manifest: " + name)
+                          except Exception as e:
+                              result["errors"].append("Nested pack " + name + ": " + str(e))
+                          result["nested_packs"].append(pack_info)
+                  result["identifier_duplicates"] = [
+                      {"identifier": key, "uses": locations}
+                      for key, locations in sorted(identifiers.items()) if len(set(locations)) > 1
+                  ][:30]
+          except Exception as e:
+              result["errors"].append("Top-level inspection: " + str(e))
+          target = work / "deep-inspection.json"
+          target.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps({"mapping_count": len(result["mapping_files"]),
+                            "packs": result["nested_packs"],
+                            "duplicate_bedrock_identifiers": result["identifier_duplicates"][:12],
+                            "errors": result["errors"]}, indent=2)[:17000])
+          PY
+
       - name: Preserve full read-only comparison and release input metadata
         if: always()
         uses: actions/upload-artifact@v7
@@ -128,5 +210,6 @@ jobs:
           path: |
             build/bedrock-asset-audit/comparison.json
             build/bedrock-asset-audit/release.json
+            build/bedrock-asset-audit/deep-inspection.json
           retention-days: 30
           if-no-files-found: warn
