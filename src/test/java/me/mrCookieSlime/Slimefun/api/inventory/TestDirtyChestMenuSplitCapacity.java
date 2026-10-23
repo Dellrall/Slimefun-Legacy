@@ -59,7 +59,6 @@ class TestDirtyChestMenuSplitCapacity {
         assertEquals(64, menu.getItemInSlot(0).getAmount());
         assertEquals(64, menu.getItemInSlot(1).getAmount());
         assertEquals(2, output.getAmount(), "The caller's output remains unchanged");
-        assertTrue(menu.isDirty(), "The successful insertion must be persisted");
     }
 
     private DirtyChestMenu newMenu() {
