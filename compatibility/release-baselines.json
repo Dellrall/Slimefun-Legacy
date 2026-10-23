@@ -2,16 +2,16 @@
   "schema": 1,
   "project": "Slimefun Legacy",
   "candidate": {
-    "version": "4.1.77"
+    "version": "4.1.78"
   },
   "previous_stable": {
-    "version": "4.1.76",
+    "version": "4.1.77",
     "source": {
       "mode": "git-ref",
-      "ref": "9075ea852095b28543aaa1456bc2576778cb4c4d"
+      "ref": "a8b62908e6fb8fd949f585faa7de30e863c6deaa"
     },
     "release_blocking": true,
-    "purpose": "Primary regression baseline: exact v4.1.76 published source/tag (9075ea8). Required addon regressions against the published 4.1.76 release block candidate 4.1.77. This carries forward the backpack/Folia stability fixes in 4.1.76 and validates the current Cargo frequency-parser reliability change without a data migration. The 4.1.15 historical floor remains advisory and older saved item formats remain supported."
+    "purpose": "Primary regression baseline: exact published Slimefun Legacy v4.1.77 source/tag (a8b6290). Required addon regressions against the previous Java core release block candidate 4.1.78. This validates repository-scoped Paper, mcMMO and Orebfuscator dependency resolution plus fail-closed physical output-slot capacity checks without changing persisted data. The 4.1.15 historical floor remains advisory and older saved item formats remain supported."
   },
   "legacy_floor": {
     "version": "4.1.15",

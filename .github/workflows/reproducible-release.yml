@@ -335,7 +335,7 @@ jobs:
           test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
           test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq .object.sha)"
           if [[ "$GITHUB_EVENT_NAME" == push ]]; then
-            test "$LEGACY_ARTIFACT_VERSION" = 4.1.77
+            test "$LEGACY_ARTIFACT_VERSION" = 4.1.78
           fi
           test -s "$JAR" && test -s "$BUNDLE" && test -s "$RESOURCE_PACK"
           test -s "$NOTES_FILE"
