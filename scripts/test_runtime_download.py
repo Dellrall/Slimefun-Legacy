@@ -3,6 +3,7 @@
 from __future__ import annotations
 import http.server
 import pathlib
+import socket
 import subprocess
 import sys
 import tempfile
@@ -16,6 +17,10 @@ SCRIPT = ROOT / 'scripts/runtime_download.sh'
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         self.server.requests.append((self.path, self.headers.get('User-Agent')))
+        if self.path == '/reset-once' and sum(p == '/reset-once' for p, _ in self.server.requests) == 1:
+            self.connection.shutdown(socket.SHUT_RDWR)
+            self.connection.close()
+            return
         sequence = self.server.responses
         code, data = sequence.pop(0) if len(sequence) > 1 else sequence[0]
         self.send_response(code)
@@ -66,6 +71,14 @@ class DownloadTest(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(b'{"ok":true}', result.stdout)
         self.assertEqual(2, len(self.server.requests))
+
+    def test_connection_reset_retries_the_same_runtime_without_leaking_partial_data(self):
+        self.target.write_bytes(b'previous verified JAR')
+        result = self.fetch(output=True, path='/reset-once')
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(b'{"build":132}\n', self.target.read_bytes())
+        self.assertEqual(['/reset-once', '/reset-once'], [p for p, _ in self.server.requests])
+        self.assertEqual([], list(self.target.parent.glob('*.partial.*')))
 
     def test_429_then_success_uses_same_resource(self):
         self.server.responses = [(429, b'too many requests'), (200, b'correct bytes')]

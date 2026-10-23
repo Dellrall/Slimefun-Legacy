@@ -484,15 +484,25 @@ class ReleaseDispatchControls(unittest.TestCase):
         self.assertIn('test "$GITHUB_REF" = refs/heads/master', publish_step)
         self.assertIn('test "$GITHUB_SHA" = "$(gh api', publish_step)
         for name in mutation_steps:
+            step = self.steps[name]
+            self.assertIn('RELEASE_APPROVED: ${{ inputs.publish }}', step)
+            self.assertIn('test "$GITHUB_EVENT_NAME" = workflow_dispatch', step)
+            self.assertIn('test "$RELEASE_APPROVED" = true', step)
+            self.assertIn('test "$GITHUB_REF" = refs/heads/master', step)
+        # Even a fully green master push must never publish or edit release assets.
+        # A manual dispatch must opt in explicitly and target the current master.
+        for name in mutation_steps:
             for event in ("workflow_dispatch", "push", "pull_request", "schedule"):
                 for publish in ("", False, True, "false", "true"):
                     for outcome in ("", None, "success", "failure", "cancelled", "skipped"):
                         for ref in ("refs/heads/master", "refs/heads/feature"):
                             with self.subTest(step=name, event=event, publish=publish,
                                               outcome=outcome, ref=ref):
-                                expected = outcome == "success" and (
-                                    (event == "push" and ref == "refs/heads/master") or
-                                    (event == "workflow_dispatch" and publish is True)
+                                expected = (
+                                    outcome == "success"
+                                    and event == "workflow_dispatch"
+                                    and publish is True
+                                    and ref == "refs/heads/master"
                                 )
                                 self.assertEqual(
                                     expected,

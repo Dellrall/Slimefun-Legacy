@@ -17,15 +17,32 @@ runtime_download() (
     trap 'rm -f -- "$temporary"' EXIT
     # Always download to a file. Retried error bodies must not contaminate JSON
     # on stdout, and a failed transfer must never replace a known-good artifact.
-    curl --fail --location --silent --show-error \
-        --retry 4 --retry-delay 2 --retry-max-time 120 \
-        --connect-timeout 15 --max-time 180 \
-        --proto '=http,https' --proto-redir '=https' \
-        -H "User-Agent: ${agent}" --output "$temporary" "$url" || {
-            local status=$?
+    # curl's normal retry list excludes some transient TLS/connection resets.
+    # Retry only transport errors here; do not retry 403/404 or change the URL.
+    local attempt status
+    for attempt in 1 2 3; do
+        : > "$temporary"
+        if curl --fail --location --silent --show-error \
+            --retry 4 --retry-delay 2 --retry-max-time 120 \
+            --connect-timeout 15 --max-time 180 \
+            --proto '=http,https' --proto-redir '=https' \
+            -H "User-Agent: ${agent}" --output "$temporary" "$url"; then
+            break
+        else
+            status=$?
+            case "$status" in
+                35|52|56)
+                    if (( attempt < 3 )); then
+                        echo "Transient runtime connection error (curl ${status}); retrying same URL (${attempt}/3)." >&2
+                        sleep 2
+                        continue
+                    fi
+                    ;;
+            esac
             echo "Runtime download failed after bounded retries (curl exit ${status}); no result was published." >&2
             return "$status"
-        }
+        fi
+    done
     if [[ ! -s "$temporary" ]]; then
         echo 'Runtime download was empty; no result was published.' >&2
         return 1
