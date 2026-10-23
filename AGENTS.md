@@ -45,3 +45,11 @@ Follow [the storage audit and execution order](docs/modernization-storage-audit.
 Implementation priority is Slimefun Legacy core, Networks, InfinityExpansion2, Supreme, FinalTECH, then the remaining maintained addons. FinalTECH is reauthorized; do not carry forward the earlier hold. Preserve established recipes, outputs, speeds, energy costs, ingredient staging and transfer order while removing redundant work. Rebar and Pylon remain outside this workstream. See the [September 29 checkpoint](docs/modernization-checkpoint-2026-09-29.md) for real validation evidence and pinned Gugu/United serialization findings.
 
 Existing-item compatibility is a primary release requirement: items, backpacks and machine data created by older plugin versions must remain readable and usable in the updated builds when the corresponding item/addon is present. The Minecraft 1.21.11 runtime floor is not permission to remove old saved-item formats. Do not replace player items with new templates, reset identities or silently erase an unreadable record. Follow the [existing-item compatibility contract](docs/old-item-compatibility-contract.md).
+
+## Geyser Resource Pack Ownership
+
+Bedrock compatibility is managed **exclusively by the server's Geyser addon**, never by Slimefun Legacy or its maintained addons. Do not implement Bedrock item mappings, textures, conversion rules, runtime hooks, or compatibility fixes in Slimefun core/addon code. Do not run Bedrock pack-content audits as a core release gate.
+
+On **every Slimefun Legacy core version bump**, attach the most recent previously published optional `SlimefunLegacyRP_GEYSER-BEDROCK.zip` to the new GitHub release **without repacking, regenerating, inspecting, or modifying its contents**. Copy only the existing release asset; verify the source and target file sizes and SHA-256 hashes match. The `scripts/carry_forward_geyser_release_asset.py` and `reproducible-release.yml` workflow own this immutable asset transfer. Keep the pack optional, separate from Slimefun's Java resource pack and 45-addon JAR bundle, and keep actual Bedrock behavior entirely in Geyser.
+
+Do not block unrelated Slimefun core/addon builds because an old Geyser pack-content provenance pin differs. Exact Geyser release-asset identity is sufficient for carry-forward; it is not a claim about client-side Bedrock rendering or pack correctness.
