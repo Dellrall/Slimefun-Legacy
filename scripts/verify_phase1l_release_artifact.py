@@ -199,8 +199,15 @@ def main() -> int:
             "bundle_core_commit = manifest.get('core_source_commit')",
             "if bundle_core_commit != release_core_commit:",
             "Mark candidate validation complete",
-            "if: github.event_name != 'workflow_dispatch'",
-            "if: github.event_name == 'workflow_dispatch'",
+            "if: github.event_name == 'workflow_dispatch' && inputs.publish != true",
+            "Await exact-source native and full-stack runtime results",
+            "require_complete native-entity-retirement.yml push",
+            "require_complete paper-26.3-full-stack.yml workflow_run",
+            "steps.runtime_evidence.outcome == 'success'",
+            "Publish exact validated Java-only core release",
+            'gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK"',
+            "Published Java release digest mismatch",
+            "Published Java release bytes changed",
             "Candidate validation completed without publishing a GitHub Release.",
             "Upload raw reproducible JAR artifact",
             "archive: false",
@@ -249,8 +256,9 @@ def main() -> int:
         "- the release workflow performs two independent clean builds of the exact source commit\n"
         "- build and configuration caches are disabled for the reproducibility comparison\n"
         "- release workflow requires byte-for-byte and SHA-256 equality\n"
-        "- master version bumps run reproducible candidate validation without publishing a GitHub Release\n"
-        "- release publication requires an explicit workflow_dispatch on the exact validated commit\n"
+        "- explicit non-publishing dispatch validates reproducible release candidates without uploading assets\\n"
+        "- publishing requires an exact master source with successful native and full-stack gates\\n"
+        "- immutable Java core, addon ZIP and Java pack bytes are verified by remote digest and download\\n"
         f"- {previous_version} is the pinned release-blocking previous-stable baseline\n"
         "- Phase 1L Part 2 itself does not change Cargo/Energy, database, storage-schema or saved-world semantics\n"
         f"- active release gameplay behavior changed is explicitly declared as {str(gameplay_changed).lower()}\n",
