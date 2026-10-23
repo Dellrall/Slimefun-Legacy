@@ -15,7 +15,8 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from verify_sfl_release_assets import (  # noqa: E402
-    BEDROCK_PACK, BEDROCK_PIN_PATH, BUNDLE, PACK, ROLLBACK, ROLLBACK_PIN, PolicyError, load_json,
+    BEDROCK_PACK, BEDROCK_PIN_PATH, GEYSER_COMPANION, GEYSER_COMPANION_PIN_PATH, BUNDLE, PACK,
+    ROLLBACK, ROLLBACK_PIN, PolicyError, load_json,
     plan_release, verify_preserved,
 )
 
@@ -61,6 +62,18 @@ def bedrock_release(tag: str = "v4.1.75") -> dict:
                                   "60fb9fcfe19e7e5644ff7202fd83bcd2b73b9f7685f3a57797d73877153c014c", 2390264)),
         ],
     }
+    return state
+
+
+def geyser_release(tag: str = "v4.1.77") -> dict:
+    state = {"id": 421464301 if tag == "v4.1.77" else 550000000,
+             "tag_name": tag, "draft": False, "prerelease": False, "immutable": False,
+             "assets": [asset(f"Slimefun-Legacy{tag[1:]}.jar", 551),
+                        asset(BUNDLE, 552), asset(PACK, 553)]}
+    state["assets"].append(asset(
+        GEYSER_COMPANION, 669444618 if tag == "v4.1.77" else 565,
+        digest="e11e5f8e6ede75a17421039e50178e83e11e9cf7f020e99596cfc078801b8c58",
+        size=1339867))
     return state
 
 
@@ -129,6 +142,8 @@ def exercise_shell(state: dict, *, replacement: dict | None = None, fail_delete:
         shutil.copy2(ROOT / "scripts/verify_sfl_release_assets.py", directory / "scripts")
         (directory / "compatibility").mkdir()
         shutil.copy2(BEDROCK_PIN_PATH, directory / "compatibility")
+        shutil.copy2(GEYSER_COMPANION_PIN_PATH, directory / "compatibility")
+        shutil.copy2(ROOT / "scripts/verify_geyser_companion_release.py", directory / "scripts")
         state_file = directory / "state.json"
         state_file.write_text(json.dumps(state), encoding="utf-8")
         calls_file = directory / "calls.jsonl"
@@ -160,6 +175,41 @@ def deletions(calls: list) -> list:
 
 
 class PolicyTests(unittest.TestCase):
+    def test_geyser_companion_retained_on_source_and_later_release_tags(self):
+        for tag in ("v4.1.77", "v4.1.78", "v5.0.0"):
+            with self.subTest(tag=tag):
+                state = geyser_release(tag)
+                plan = plan_release(state)
+                self.assertEqual([], plan["remove"])
+                self.assertIn(GEYSER_COMPANION, plan["retained"])
+                self.assertEqual(4, len(verify_preserved(state, state)["retained"]))
+
+    def test_geyser_companion_identity_and_bytes_are_strict(self):
+        for tag in ("v4.1.77", "v4.1.78"):
+            for field, value in (("size", 1), ("digest", "sha256:" + "0"*64),
+                                 ("id", 88)):
+                if tag == "v4.1.78" and field == "id":
+                    continue  # New copies have their own GitHub asset IDs.
+                with self.subTest(tag=tag, field=field):
+                    state = geyser_release(tag)
+                    state["assets"][-1][field] = value
+                    with self.assertRaises(PolicyError):
+                        plan_release(state)
+
+    def test_geyser_companion_cannot_be_added_to_old_release_tags(self):
+        with self.assertRaises(PolicyError):
+            plan_release(geyser_release("v4.1.76"))
+
+    def test_geyser_companion_is_preserved_while_obsolete_jar_is_removed(self):
+        state = geyser_release("v4.1.78")
+        state["assets"].append(asset("SF_Obsolete.jar", 1))
+        planned = plan_release(state)
+        self.assertEqual(["SF_Obsolete.jar"], [x["name"] for x in planned["remove"]])
+        after = copy.deepcopy(state)
+        after["assets"].pop()
+        self.assertEqual(4, len(verify_preserved(state, after)["retained"]))
+
+
     def test_observed_bedrock_origin_and_approved_successor_are_preserved(self):
         for tag in ("v4.1.75", "v4.1.76"):
             with self.subTest(tag=tag):
@@ -451,6 +501,27 @@ class PolicyTests(unittest.TestCase):
 
 
 class WorkflowShellTests(unittest.TestCase):
+    def test_source_and_future_geyser_downloads_survive_real_cleanup_script(self):
+        for tag in ("v4.1.77", "v4.1.78"):
+            with self.subTest(tag=tag):
+                state = geyser_release(tag)
+                result, after, calls = exercise_shell(state)
+                self.assertEqual(0, result.returncode, result.stderr)
+                self.assertEqual(state, after)
+                self.assertEqual([], deletions(calls))
+
+    def test_tampered_geyser_asset_blocks_all_removals(self):
+        for field, value in (("id", 88), ("size", 9), ("digest", "sha256:" + "0"*64)):
+            with self.subTest(field=field):
+                state = geyser_release()
+                state["assets"][-1][field] = value
+                state["assets"].append(asset("SF_Obsolete.jar", 1))
+                result, after, calls = exercise_shell(state)
+                self.assertNotEqual(0, result.returncode)
+                self.assertEqual(state, after)
+                self.assertEqual([], deletions(calls))
+
+
     def test_bedrock_origin_and_successor_run_without_any_deletion(self):
         for tag in ("v4.1.75", "v4.1.76"):
             with self.subTest(tag=tag):
