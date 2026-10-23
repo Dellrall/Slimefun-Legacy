@@ -276,7 +276,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p geyser-source
-          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > "$RUNNER_TEMP/geyser-releases.json"
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases?per_page=100" | jq -s 'add' > "$RUNNER_TEMP/geyser-releases.json"
           python3 scripts/carry_forward_geyser_release_asset.py select \
             --releases "$RUNNER_TEMP/geyser-releases.json" \
             --target-tag "v${LEGACY_ARTIFACT_VERSION}" \
