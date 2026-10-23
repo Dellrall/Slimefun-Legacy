@@ -16,6 +16,9 @@ from typing import Any
 
 BUNDLE = "SF_Addons_1.21.11-26.3.zip"
 PACK = "SlimefunLegacyRP.zip"
+# Opaque Geyser-managed release ZIP. Only file identity is verified here; the
+# release publisher separately checks its bytes match the selected source.
+GEYSER_CARRY_PACK = "SlimefunLegacyRP_GEYSER-BEDROCK.zip"
 BEDROCK_PACK = "SFL_GEYSER_RP_experimental_v1.0.3_complete.zip"
 BEDROCK_OVERLAY = "SFL_GEYSER_RP_experimental_v1.0.3.zip"
 BEDROCK_PIN_PATH = Path(__file__).resolve().parents[1] / "compatibility/bedrock-resource-pack-release.json"
@@ -151,6 +154,10 @@ def plan_release(release: Any, *, allow_legacy: bool = True) -> dict[str, Any]:
         if asset.get("state") != "uploaded":
             raise PolicyError(f"Asset is not fully uploaded: {name}")
         if name in {core, BUNDLE, PACK}:
+            keep[name] = retained_identity(asset)
+        elif name == GEYSER_CARRY_PACK:
+            # New version bumps retain the latest Geyser-owned ZIP unchanged.
+            # Never inspect mappings/textures or enforce an obsolete pack pin.
             keep[name] = retained_identity(asset)
         elif name in {BEDROCK_PACK, BEDROCK_OVERLAY}:
             keep[name] = retained_bedrock_identity(release, asset)
