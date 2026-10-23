@@ -82,14 +82,31 @@ tasks.withType<AbstractArchiveTask>().configureEach {
 repositories {
     mavenCentral()
     maven("https://hub.spigotmc.org/nexus/content/repositories/snapshots")
-    maven("https://repo.papermc.io/repository/maven-public/")
+    // Dynamic Paper API versions must query the PaperMC repository only.
+    // Unrelated Maven repositories (notably PlaceholderAPI mirrors) may return
+    // 5xx for Paper metadata and otherwise fail an unrelated Java-only build.
+    val paperMcRepository = maven("https://repo.papermc.io/repository/maven-public/")
+    exclusiveContent {
+        forRepositories(paperMcRepository)
+        filter { includeGroup("io.papermc.paper") }
+    }
     maven("https://maven.norain.city/snapshots")
     maven("https://jitpack.io")
     maven("https://maven.enginehub.org/repo/")
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi")
     maven("https://nexus.neetgames.com/repository/maven-public")
     maven("https://repo.walshy.dev/public")
-    maven("https://repo.codemc.io/repository/maven-public/")
+    // CodeMC publishes both the pinned mcMMO API and Orebfuscator API.
+    // Exclusive repositories cannot serve unlisted groups; keep both here
+    // or Gradle will exclude CodeMC from net.imprex:orebfuscator-api:5.3.0.
+    val codeMcRepository = maven("https://repo.codemc.io/repository/maven-public/")
+    exclusiveContent {
+        forRepositories(codeMcRepository)
+        filter {
+            includeGroup("com.gmail.nossr50.mcMMO")
+            includeGroup("net.imprex")
+        }
+    }
 }
 val supportedPaperApiVersion = libs.versions.paperApi.get()
 val selectedPaperApiVersion = providers.gradleProperty("paperApiVersion").orElse(supportedPaperApiVersion)
