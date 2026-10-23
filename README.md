@@ -22,7 +22,7 @@ Slimefun Legacy turns a normal Minecraft server into a modpack-like experience w
 [Report a Bug](https://github.com/wickidcow/Slimefun-Legacy/issues) ·
 [Release History](EVERYTHING_THAT_CHANGED.md)
 
-**Latest published release:** [Slimefun Legacy 4.1.76](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.76) (October 22, 2026). The current **r149** 45-addon ZIP includes **Networks 1.0.61**, **SlimeHUD 2.0.7** (default off; opt in and crouch to display), **MagicExpansion 1.1.17**, and **InfinityExpansion2 2.0.15**. The exact-source r149 build and four-target full-stack workflow passed; the uploader verified that only Networks changed and all other 44 addon JARs stayed byte-for-byte identical. Core 4.1.76 and both resource packs remain unchanged. [Download the verified r149 addon ZIP](https://github.com/wickidcow/Slimefun-Legacy/releases/download/v4.1.76/SF_Addons_1.21.11-26.3.zip) (SHA-256 `08e520b68a40896c09773f8b831c47130a05cb1b01e1f1ab573ca58064ad445e`). ·
+**Latest published release:** [Slimefun Legacy 4.1.77](https://github.com/wickidcow/Slimefun-Legacy/releases/tag/v4.1.77) (October 23, 2026). Its current **r150** 45-addon ZIP retains **Networks 1.0.61**, **SlimeHUD 2.0.7**, and **InfinityExpansion2 2.0.15**, and advances only **MagicExpansion to 1.1.18**. The r150 source matrix preserves the other 44 addon source selections. [Download the current addon bundle](https://github.com/wickidcow/Slimefun-Legacy/releases/download/v4.1.77/SF_Addons_1.21.11-26.3.zip) (SHA-256 `f4aa46b87563ede5c6f80eab7e03fc61d836e1e6bd13fd6636c189672026b9f2`). The released Java core JAR is [Slimefun-Legacy4.1.77.jar](https://github.com/wickidcow/Slimefun-Legacy/releases/download/v4.1.77/Slimefun-Legacy4.1.77.jar).
 [Contributing](CONTRIBUTING.md)
 
 </div>
@@ -184,7 +184,7 @@ Core diagnostics correlate unknown IDs with explicitly registered replacements a
 
 ### Release lifecycle
 
-**Publication hold:** 4.1.76 and the next addon ZIP require explicit maintainer approval after the Networks Expansion repair work is ready. Successful builds or merged changes do not authorize publication.
+**Release status:** Slimefun Legacy 4.1.76 and 4.1.77 have been published. Any subsequent core or addon release still requires successful exact-source build, compatibility, runtime and artifact-identity gates; a successful PR alone does not publish or replace an existing release.
 
 Slimefun Legacy **4.1.76** uses **published 4.1.75** source `7f702e3565a381aeeefd99555f2c8fe818858e9c` as the release-blocking compatibility baseline. Required-addon regressions against that exact release block publication. The atomic backpack save fix from #391 remains included. The historical 4.1.15 floor stays advisory, and old saved-item formats remain supported.
 
