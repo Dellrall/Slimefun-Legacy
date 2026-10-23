@@ -328,7 +328,7 @@ jobs:
           JAR="dist/${OUTPUT_NAME}"
           BUNDLE="dist/${CANONICAL_ADDON_BUNDLE}"
           RESOURCE_PACK="dist/${CANONICAL_RESOURCE_PACK}"
-          BEDROCK_PACK="dist/${OPTIONAL_BEDROCK_PACK}"
+          GEYSER_PACK="dist/${OPTIONAL_GEYSER_PACK}"
           NOTES_FILE="docs/releases/${LEGACY_ARTIFACT_VERSION}.md"
           TITLE="Slimefun Legacy ${LEGACY_ARTIFACT_VERSION}"
 
@@ -343,7 +343,14 @@ jobs:
                 exit 1
               fi
             fi
-            gh release upload "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" --repo "$GITHUB_REPOSITORY" --clobber
+            EXISTING_GEYSER_SHA="$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" \
+              --jq '.assets[] | select(.name == "SlimefunLegacyRP_GEYSER-BEDROCK.zip") | .digest')"
+            if [[ -n "$EXISTING_GEYSER_SHA" ]]; then
+              test "$EXISTING_GEYSER_SHA" = "sha256:$GEYSER_CARRY_SHA256"
+            else
+              gh release upload "$TAG" "$GEYSER_PACK" --repo "$GITHUB_REPOSITORY"
+            fi
             if [[ -f "$NOTES_FILE" ]]; then
               gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file "$NOTES_FILE"
             else
@@ -358,9 +365,9 @@ jobs:
               fi
             fi
             if [[ -f "$NOTES_FILE" ]]; then
-              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes-file "$NOTES_FILE" --title "$TITLE"
+              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$GEYSER_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes-file "$NOTES_FILE" --title "$TITLE"
             else
-              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes --title "$TITLE"
+              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$GEYSER_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes --title "$TITLE"
             fi
           fi
 
@@ -375,7 +382,7 @@ jobs:
           CORE_JAR="${OUTPUT_NAME}"
           BUNDLE="$CANONICAL_ADDON_BUNDLE"
           RESOURCE_PACK="$CANONICAL_RESOURCE_PACK"
-          BEDROCK_PACK="$OPTIONAL_BEDROCK_PACK"
+          GEYSER_PACK="$OPTIONAL_GEYSER_PACK"
 
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets-before.txt
 
@@ -392,11 +399,18 @@ jobs:
           grep -Fxq "$CORE_JAR" assets-after.txt
           grep -Fxq "$BUNDLE" assets-after.txt
           grep -Fxq "$RESOURCE_PACK" assets-after.txt
-          grep -Fxq "$BEDROCK_PACK" assets-after.txt
+          grep -Fxq "$GEYSER_PACK" assets-after.txt
 
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RUNNER_TEMP/published-bedrock-pack.json"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$BEDROCK_PACK_PIN" \
-            --target-release-json "$RUNNER_TEMP/published-bedrock-pack.json" --target-tag "$TAG"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RUNNER_TEMP/geyser-published-release.json"
+          python3 scripts/carry_forward_geyser_release_asset.py verify-published \
+            --selection "$RUNNER_TEMP/geyser-carry.json" \
+            --release-json "$RUNNER_TEMP/geyser-published-release.json"
+          mkdir -p "$RUNNER_TEMP/geyser-published-download"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --pattern "$GEYSER_PACK" --dir "$RUNNER_TEMP/geyser-published-download"
+          python3 scripts/carry_forward_geyser_release_asset.py verify \
+            --selection "$RUNNER_TEMP/geyser-carry.json" \
+            --file "$RUNNER_TEMP/geyser-published-download/$GEYSER_PACK"
 
           if grep -Eq '^SF_.*\.jar$' assets-after.txt; then
             echo 'Raw addon JARs remain on the Slimefun Legacy release.' >&2
@@ -411,7 +425,7 @@ jobs:
 
           ASSET_COUNT="$(wc -l < assets-after.txt | tr -d ' ')"
           if [[ "$ASSET_COUNT" -ne 4 ]]; then
-            echo "Expected exactly four release assets (core + canonical addon bundle + Java pack + optional Bedrock pack); found ${ASSET_COUNT}." >&2
+            echo "Expected exactly four release assets (core + canonical addon bundle + Java pack + unchanged optional Geyser ZIP); found ${ASSET_COUNT}." >&2
             cat assets-after.txt >&2
             exit 1
           fi
@@ -422,7 +436,7 @@ jobs:
             echo "- Core: ${CORE_JAR}"
             echo "- Addon bundle: ${BUNDLE}"
             echo "- Resource pack: ${RESOURCE_PACK}"
-            echo "- Optional Bedrock pack (Geyser required): ${BEDROCK_PACK}"
+            echo "- Optional unchanged Geyser ZIP (Geyser-managed): ${GEYSER_PACK}"
             echo '- Individual addon JARs: not published here'
             echo '- Obsolete SFL_Addons* bundles: removed'
             echo '- Release assets: exactly four'
