@@ -32,6 +32,8 @@ class JavaOnlyReleaseScope(unittest.TestCase):
         self.assertIn('Published Java release digest mismatch', self.text)
         self.assertIn('Published Java release bytes changed', self.text)
         self.assertIn('Release $TAG already exists at identical source', self.text)
+        self.assertIn('if [[ "$ASSET_COUNT" -ne 3 ]]; then', self.text)
+        self.assertNotIn('OPTIONAL_', self.text)
 
 
 if __name__ == "__main__":
