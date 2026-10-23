@@ -15,10 +15,6 @@ on:
       - gradle.properties
       - 'docs/releases/**'
       - '.github/workflows/reproducible-release.yml'
-      - 'compatibility/bedrock-resource-pack-release.json'
-      - 'compatibility/bedrock/**'
-      - 'scripts/verify_release_bedrock_pack.py'
-      - 'scripts/test_verify_release_bedrock_pack.py'
 
 permissions:
   contents: write
@@ -28,8 +24,6 @@ env:
   CANONICAL_ADDON_BUNDLE: SF_Addons_1.21.11-26.3.zip
   CANONICAL_RESOURCE_PACK: SlimefunLegacyRP.zip
   RESOURCE_PACK_PIN: compatibility/resource-pack-release.json
-  OPTIONAL_BEDROCK_PACK: SFL_GEYSER_RP_experimental_v1.0.3_complete.zip
-  BEDROCK_PACK_PIN: compatibility/bedrock-resource-pack-release.json
 
 concurrency:
   group: reproducible-release-${{ github.ref }}
@@ -38,7 +32,7 @@ concurrency:
 jobs:
   release-artifact:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Check out exact source
         uses: actions/checkout@v6
@@ -71,6 +65,8 @@ jobs:
 
       - name: Verify release dispatch and evidence controls
         run: python3 -m unittest scripts.test_collect_release_runtime_evidence -v
+      - name: Verify Java-only release scope
+        run: python3 -m unittest scripts.test_java_only_release_scope -v
 
       - name: First clean release build
         shell: bash
@@ -210,9 +206,40 @@ jobs:
           echo "Canonical addon bundle source: exact release commit $GITHUB_SHA (Actions run ${RUN_ID})" >> "$GITHUB_STEP_SUMMARY"
           echo "Canonical addon bundle SHA-256: ${BUNDLE_SHA}" >> "$GITHUB_STEP_SUMMARY"
 
+      - name: Await exact-source native and full-stack runtime results
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          REPO="$GITHUB_REPOSITORY"
+          require_complete() {
+            local workflow="$1" event="$2" label="$3" state=''
+            for attempt in $(seq 1 150); do
+              results="$(gh api "repos/$REPO/actions/workflows/$workflow/runs?head_sha=$GITHUB_SHA&per_page=60")"
+              state="$(printf '%s' "$results" | jq -r --arg sha "$GITHUB_SHA" --arg ev "$event" '
+                [.workflow_runs[] | select(.head_sha == $sha and .event == $ev and .head_branch == "master")]
+                | sort_by(.created_at, .id) | last | .conclusion // ""')"
+              if [[ "$state" == success ]]; then
+                echo "$label completed successfully at exact source $GITHUB_SHA"
+                return 0
+              fi
+              if [[ "$state" == failure || "$state" == cancelled || "$state" == timed_out || "$state" == action_required ]]; then
+                echo "Required $label ended $state; refusing release" >&2
+                exit 1
+              fi
+              if [[ "$attempt" == 150 ]]; then
+                echo "No successful exact-source $label runtime run; release refused" >&2
+                exit 1
+              fi
+              sleep 15
+            done
+          }
+          require_complete native-entity-retirement.yml push 'Native entity and paired-storage regression'
+          require_complete paper-26.3-full-stack.yml workflow_run 'Paper/Purpur full-stack regression'
+
       - name: Require runtime evidence for the exact release files
         id: runtime_evidence
-        if: github.event_name == 'workflow_dispatch'
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -226,7 +253,7 @@ jobs:
           echo 'Exact release files passed the native pair and full-stack evidence gates.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Preserve release runtime evidence
-        if: always() && github.event_name == 'workflow_dispatch'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: release-runtime-evidence
@@ -269,26 +296,6 @@ jobs:
             echo "Official resource pack bytes: ${PACK_SIZE}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Require pinned optional Bedrock resource pack
-        shell: bash
-        run: |
-          set -euo pipefail
-          PIN="$BEDROCK_PACK_PIN"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --target-tag "v${LEGACY_ARTIFACT_VERSION}"
-          PACK_ASSET="$(jq -r '.asset_name' "$PIN")"
-          PACK="$(jq -r '.archive_path' "$PIN")"
-          test "$PACK_ASSET" = "$OPTIONAL_BEDROCK_PACK"
-          test -f "$PACK"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --zip "$PACK"
-          cp "$PACK" "dist/$OPTIONAL_BEDROCK_PACK"
-
-          {
-            echo "Optional experimental Bedrock resource pack: ${PACK_ASSET}"
-            echo "Source: ${GITHUB_SHA}:${PACK}; complete archive and component provenance are pinned."
-            echo 'Requires Geyser and both the included packs/ and custom_mappings/ files.'
-            sha256sum "dist/$OPTIONAL_BEDROCK_PACK"
-          } >> "$GITHUB_STEP_SUMMARY"
-
       - name: Upload raw reproducible JAR artifact
         uses: actions/upload-artifact@v7
         with:
@@ -298,7 +305,7 @@ jobs:
           if-no-files-found: error
 
       - name: Mark candidate validation complete
-        if: github.event_name != 'workflow_dispatch' || inputs.publish != true
+        if: github.event_name == 'workflow_dispatch' && inputs.publish != true
         run: |
           {
             echo
@@ -307,8 +314,12 @@ jobs:
             echo "Set publish=true only when publication of this exact commit is explicitly authorized."
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Publish reproducible release assets
-        if: github.event_name == 'workflow_dispatch' && inputs.publish == true && steps.runtime_evidence.outcome == 'success'
+      - name: Publish exact validated Java-only core release
+        if: >-
+          (github.event_name == 'push' && github.ref == 'refs/heads/master' &&
+           steps.runtime_evidence.outcome == 'success') ||
+          (github.event_name == 'workflow_dispatch' && inputs.publish == true &&
+           steps.runtime_evidence.outcome == 'success')
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
@@ -318,41 +329,35 @@ jobs:
           JAR="dist/${OUTPUT_NAME}"
           BUNDLE="dist/${CANONICAL_ADDON_BUNDLE}"
           RESOURCE_PACK="dist/${CANONICAL_RESOURCE_PACK}"
-          BEDROCK_PACK="dist/${OPTIONAL_BEDROCK_PACK}"
           NOTES_FILE="docs/releases/${LEGACY_ARTIFACT_VERSION}.md"
           TITLE="Slimefun Legacy ${LEGACY_ARTIFACT_VERSION}"
-
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
-            if [[ "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
-              if [[ "$LEGACY_ARTIFACT_VERSION" == "4.1.55" && "$TAG_COMMIT" == "0b2d862a111f87b94288c51297cd3d5795eeef51" ]]; then
-                echo "Refreshing v4.1.55 assets from current master by explicit maintainer request."
-                echo "The tag remains pinned to the original 4.1.55 release commit; only release assets/notes are refreshed."
-              else
-                echo "Refusing to move existing release tag ${TAG}: ${TAG_COMMIT} != ${GITHUB_SHA}" >&2
-                exit 1
-              fi
-            fi
-            gh release upload "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --clobber
-            if [[ -f "$NOTES_FILE" ]]; then
-              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE" --notes-file "$NOTES_FILE"
-            else
-              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TITLE"
-            fi
-          else
-            if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
-              TAG_COMMIT="$(git rev-list -n 1 "$TAG")"
-              if [[ "$TAG_COMMIT" != "$GITHUB_SHA" ]]; then
-                echo "Refusing to publish release against pre-existing tag ${TAG}: ${TAG_COMMIT} != ${GITHUB_SHA}" >&2
-                exit 1
-              fi
-            fi
-            if [[ -f "$NOTES_FILE" ]]; then
-              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --notes-file "$NOTES_FILE" --title "$TITLE"
-            else
-              gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" "$BEDROCK_PACK" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes --title "$TITLE"
-            fi
+          test "$GITHUB_REF" = refs/heads/master
+          test "$GITHUB_SHA" = "$(git rev-parse HEAD)"
+          test "$GITHUB_SHA" = "$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/master" --jq .object.sha)"
+          if [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            test "$LEGACY_ARTIFACT_VERSION" = 4.1.77
           fi
+          test -s "$JAR" && test -s "$BUNDLE" && test -s "$RESOURCE_PACK"
+          test -s "$NOTES_FILE"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            TAG_SHA="$(git rev-list -n 1 "$TAG")"
+            test "$TAG_SHA" = "$GITHUB_SHA" || {
+              echo "Refusing to overwrite an existing release at another source" >&2
+              exit 1
+            }
+            echo "Release $TAG already exists at identical source; leave all asset bytes unchanged"
+            exit 0
+          fi
+          if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
+            test "$(git rev-list -n 1 "$TAG")" = "$GITHUB_SHA" || {
+              echo "Pre-existing tag has a different source" >&2
+              exit 1
+            }
+          fi
+          gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --notes-file "$NOTES_FILE" --title "$TITLE"
+          echo "Java-only $TAG release published from exact validated source $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Normalize and verify release assets
         if: github.event_name == 'workflow_dispatch' && inputs.publish == true && steps.runtime_evidence.outcome == 'success'
@@ -365,7 +370,6 @@ jobs:
           CORE_JAR="${OUTPUT_NAME}"
           BUNDLE="$CANONICAL_ADDON_BUNDLE"
           RESOURCE_PACK="$CANONICAL_RESOURCE_PACK"
-          BEDROCK_PACK="$OPTIONAL_BEDROCK_PACK"
 
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets-before.txt
 
@@ -382,11 +386,23 @@ jobs:
           grep -Fxq "$CORE_JAR" assets-after.txt
           grep -Fxq "$BUNDLE" assets-after.txt
           grep -Fxq "$RESOURCE_PACK" assets-after.txt
-          grep -Fxq "$BEDROCK_PACK" assets-after.txt
-
-          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RUNNER_TEMP/published-bedrock-pack.json"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$BEDROCK_PACK_PIN" \
-            --target-release-json "$RUNNER_TEMP/published-bedrock-pack.json" --target-tag "$TAG"
+          gh api "repos/${GITHUB_REPOSITORY}/releases/tags/${TAG}" > "$RUNNER_TEMP/published-java-assets.json"
+          for file in "$CORE_JAR" "$BUNDLE" "$RESOURCE_PACK"; do
+            local_sha="$(sha256sum "dist/$file" | awk '{print $1}')"
+            remote_sha="$(jq -r --arg name "$file" '.assets[] | select(.name == $name) | .digest' "$RUNNER_TEMP/published-java-assets.json")"
+            test "$remote_sha" = "sha256:$local_sha" || {
+              echo "Published Java release digest mismatch: $file" >&2
+              exit 1
+            }
+          done
+          mkdir -p verify-release-bytes
+          for file in "$CORE_JAR" "$BUNDLE" "$RESOURCE_PACK"; do
+            gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$file" --dir verify-release-bytes
+            cmp "dist/$file" "verify-release-bytes/$file" || {
+              echo "Published Java release bytes changed: $file" >&2
+              exit 1
+            }
+          done
 
           if grep -Eq '^SF_.*\.jar$' assets-after.txt; then
             echo 'Raw addon JARs remain on the Slimefun Legacy release.' >&2
@@ -400,8 +416,8 @@ jobs:
           fi
 
           ASSET_COUNT="$(wc -l < assets-after.txt | tr -d ' ')"
-          if [[ "$ASSET_COUNT" -ne 4 ]]; then
-            echo "Expected exactly four release assets (core + canonical addon bundle + Java pack + optional Bedrock pack); found ${ASSET_COUNT}." >&2
+          if [[ "$ASSET_COUNT" -ne 3 ]]; then
+            echo "Expected exactly three Java release assets (core + canonical addon bundle + Java pack); found ${ASSET_COUNT}." >&2
             cat assets-after.txt >&2
             exit 1
           fi
@@ -412,8 +428,7 @@ jobs:
             echo "- Core: ${CORE_JAR}"
             echo "- Addon bundle: ${BUNDLE}"
             echo "- Resource pack: ${RESOURCE_PACK}"
-            echo "- Optional Bedrock pack (Geyser required): ${BEDROCK_PACK}"
             echo '- Individual addon JARs: not published here'
             echo '- Obsolete SFL_Addons* bundles: removed'
-            echo '- Release assets: exactly four'
+            echo '- Release assets: exactly three (Java core, addons, Java pack)'
           } >> "$GITHUB_STEP_SUMMARY"
