@@ -52,7 +52,9 @@ class TestItemStackServiceSplitCapacity {
         assertTrue(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT, 0, 0, 1, 0));
         assertTrue(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT));
         assertTrue(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertTrue(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT));
         assertFalse(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 0));
+        assertFalse(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 18));
         assertArrayEquals(before, inventory.getContents(), "Capacity checks must not change inventory contents");
         assertEquals(2, output.getAmount(), "Capacity checks must not alter the source stack");
 
@@ -74,6 +76,8 @@ class TestItemStackServiceSplitCapacity {
         assertFalse(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT, 0));
         assertFalse(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT, 0, 0));
         assertFalse(service.fits(inventory, output, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertFalse(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertFalse(service.fitAll(inventory, new ItemStack[] {output}, InventoryContext.MACHINE_OUTPUT, 0, 0));
         assertArrayEquals(before, inventory.getContents(), "A failed preflight must not mutate either stack");
 
         ItemStack remainder = service.addItem(inventory, output, InventoryContext.MACHINE_OUTPUT, 0, 0);
