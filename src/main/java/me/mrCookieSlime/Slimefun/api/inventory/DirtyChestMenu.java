@@ -117,6 +117,12 @@ public class DirtyChestMenu extends ChestMenu {
     }
 
     public boolean fits(@Nonnull ItemStack item, int... slots) {
+        // A stale addon menu can declare slots past the physical inventory size.
+        // Check the entire selection before reading any slot or claiming capacity.
+        if (!hasValidSlotSelection(toInventory().getSize(), slots)) {
+            return false;
+        }
+
         var virtualItems = Slimefun.getItemStackService();
         var isSfItem = SlimefunItem.getByItem(item) != null || virtualItems.isVirtualItem(item);
 
@@ -204,6 +210,12 @@ public class DirtyChestMenu extends ChestMenu {
             throw new IllegalStateException("Cannot push item when menu is locked");
         }
 
+        // Never insert into part of a malformed slot selection. Return the
+        // complete remainder; callers can preserve/drop it without losing items.
+        if (!hasValidSlotSelection(toInventory().getSize(), slots)) {
+            return item.clone();
+        }
+
         ItemStackWrapper wrapper = null;
         int amount = item.getAmount();
         var virtualItems = Slimefun.getItemStackService();
@@ -265,6 +277,24 @@ public class DirtyChestMenu extends ChestMenu {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Validates explicit physical menu slots before reading or changing items.
+     * The empty selection is valid and retains each method's existing semantics.
+     */
+    static boolean hasValidSlotSelection(int inventorySize, int... slots) {
+        if (inventorySize < 0) {
+            return false;
+        }
+
+        for (int slot : slots) {
+            if (slot < 0 || slot >= inventorySize) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public void consumeItem(int slot) {
