@@ -14,6 +14,7 @@ import json
 import re
 import stat
 import subprocess
+import time
 import zipfile
 from datetime import datetime
 from pathlib import Path, PurePosixPath
@@ -61,15 +62,37 @@ def timestamp(value: object) -> datetime:
     return parsed
 
 
+# Only transient GitHub transport failures retry. Evidence identity, run-attempt,
+# digest and source checks remain strict, and no historical fallback is allowed.
+GH_MAX_ATTEMPTS = 4
+GH_TRANSIENT_ERROR = re.compile(
+    r"\b(?:429|500|502|503|504)\b|rate.?limit|too many requests|"
+    r"bad gateway|service unavailable|gateway timeout|connection reset|connection timed out",
+    re.IGNORECASE,
+)
+
+
 def github_bytes(endpoint: str) -> bytes:
-    try:
-        return subprocess.run(
-            ["gh", "api", "--method", "GET", endpoint], capture_output=True,
-            check=True, timeout=180,
-        ).stdout
-    except (OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as error:
-        # Do not echo authenticated command output into the release log.
-        raise RuntimeError("GitHub Actions evidence download failed") from error
+    for attempt in range(GH_MAX_ATTEMPTS):
+        try:
+            return subprocess.run(
+                ["gh", "api", "--method", "GET", endpoint], capture_output=True,
+                check=True, timeout=180,
+            ).stdout
+        except subprocess.CalledProcessError as error:
+            detail = error.stderr or b""
+            if isinstance(detail, bytes):
+                detail = detail.decode("utf-8", errors="replace")
+            if not GH_TRANSIENT_ERROR.search(detail) or attempt == GH_MAX_ATTEMPTS - 1:
+                # Avoid leaking authenticated command errors to CI logs.
+                raise RuntimeError("GitHub Actions evidence download failed") from error
+        except subprocess.TimeoutExpired as error:
+            if attempt == GH_MAX_ATTEMPTS - 1:
+                raise RuntimeError("GitHub Actions evidence download failed") from error
+        except OSError as error:
+            raise RuntimeError("GitHub Actions evidence download failed") from error
+        time.sleep(min(2 ** attempt, 4))
+    raise RuntimeError("GitHub Actions evidence download failed")
 
 
 def github_json(endpoint: str) -> dict:

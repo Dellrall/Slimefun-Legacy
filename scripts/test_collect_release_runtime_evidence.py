@@ -7,6 +7,7 @@ import io
 import json
 import re
 import stat
+import subprocess
 import tempfile
 import unittest
 import warnings
@@ -56,6 +57,50 @@ def make_zip(entries):
         for name, data in entries:
             archive.writestr(name, data)
     return output.getvalue()
+
+
+class GitHubTransportControls(unittest.TestCase):
+    def test_http_429_retry_returns_exact_bytes(self):
+        error = subprocess.CalledProcessError(
+            1, ["gh", "api"], stderr=b"HTTP 429: Too Many Requests")
+        result = subprocess.CompletedProcess(["gh", "api"], 0, stdout=b"archive")
+        with patch.object(collector.subprocess, "run", side_effect=[error, result]) as command, \
+                patch.object(collector.time, "sleep") as sleep:
+            self.assertEqual(b"archive", collector.github_bytes("repos/example/artifacts/42/zip"))
+        self.assertEqual(command.call_count, 2)
+        sleep.assert_called_once_with(1)
+
+    def test_transient_gateway_and_timeout_retry_with_backoff(self):
+        errors = [subprocess.CalledProcessError(1, ["gh", "api"], stderr=b"HTTP 502: Bad Gateway"),
+                  subprocess.TimeoutExpired(["gh", "api"], 180)]
+        ok = subprocess.CompletedProcess(["gh", "api"], 0, stdout=b"unchanged")
+        with patch.object(collector.subprocess, "run", side_effect=[*errors, ok]) as command, \
+                patch.object(collector.time, "sleep") as sleep:
+            self.assertEqual(b"unchanged", collector.github_bytes("repos/example/jobs"))
+        self.assertEqual(command.call_count, 3)
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [1, 2])
+
+    def test_403_and_404_fail_immediately_without_retry(self):
+        for error_message in (b"HTTP 403: Resource not accessible by integration",
+                              b"HTTP 404: Not Found"):
+            with self.subTest(error_message=error_message), \
+                    patch.object(collector.subprocess, "run", side_effect=subprocess.CalledProcessError(
+                        1, ["gh", "api"], stderr=error_message)) as command, \
+                    patch.object(collector.time, "sleep") as sleep:
+                with self.assertRaisesRegex(RuntimeError, "GitHub Actions evidence download failed"):
+                    collector.github_bytes("repos/example/artifacts/42/zip")
+                command.assert_called_once()
+                sleep.assert_not_called()
+
+    def test_exhausted_503_still_fails_closed(self):
+        error = subprocess.CalledProcessError(
+            1, ["gh", "api"], stderr=b"HTTP 503: Service Unavailable")
+        with patch.object(collector.subprocess, "run", side_effect=error) as command, \
+                patch.object(collector.time, "sleep") as sleep:
+            with self.assertRaisesRegex(RuntimeError, "GitHub Actions evidence download failed"):
+                collector.github_bytes("repos/example/actions/jobs")
+        self.assertEqual(command.call_count, collector.GH_MAX_ATTEMPTS)
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [1, 2, 4])
 
 
 class CollectionControls(unittest.TestCase):
