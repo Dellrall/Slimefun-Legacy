@@ -83,4 +83,19 @@ class TestItemStackServiceSlotBounds {
         assertArrayEquals(before, inventory.getContents(), "Invalid output slots may not mutate inventory");
         assertTrue(previous.equals(inventory.getItem(0)), "Preserved pre-existing item must be identical");
     }
+
+    @Test
+    void oversizedVanillaOutputUsesDistinctPhysicalSlotCapacity() {
+        Inventory inventory = Bukkit.createInventory(null, 18);
+        ItemStack oversized = new ItemStack(Material.COBBLESTONE, 65);
+        ItemStackService service = new ItemStackService();
+        ItemStack[] before = inventory.getContents();
+
+        assertFalse(service.fits(inventory, oversized, InventoryContext.MACHINE_OUTPUT, 0));
+        assertFalse(service.fits(inventory, oversized, InventoryContext.MACHINE_OUTPUT, 0, 0));
+        assertTrue(service.fits(inventory, oversized, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertTrue(service.fits(inventory, oversized, InventoryContext.MACHINE_OUTPUT, 0, 0, 1, 0));
+        assertArrayEquals(before, inventory.getContents(), "Preflight must never insert the output");
+        assertEquals(65, oversized.getAmount(), "Preflight must not change the incoming stack");
+    }
 }
