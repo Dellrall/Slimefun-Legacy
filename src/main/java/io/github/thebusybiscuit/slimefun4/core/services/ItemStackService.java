@@ -146,7 +146,14 @@ public final class ItemStackService {
             return false;
         }
 
-        if (!hasVirtualItemsInSlots(inventory, slots) && !isVirtualItem(item) && SlimefunItem.getByItem(item) == null) {
+        // Dough's fast-path capacity check assumes one source stack can occupy
+        // one physical slot. An oversized output (e.g. 65 cobblestone) must be
+        // simulated across actual slots instead of treating a single empty slot
+        // as sufficient, even when addons list that same slot more than once.
+        if (!hasVirtualItemsInSlots(inventory, slots)
+                && !isVirtualItem(item)
+                && SlimefunItem.getByItem(item) == null
+                && item.getAmount() <= Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())) {
             if (slots.length == 0) {
                 return InvUtils.fits(inventory, item);
             }
