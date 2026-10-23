@@ -14,8 +14,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from verify_geyser_companion_release import CarryForwardError, load_pin as load_geyser_pin, stable_version
+
 BUNDLE = "SF_Addons_1.21.11-26.3.zip"
 PACK = "SlimefunLegacyRP.zip"
+GEYSER_COMPANION = "SlimefunLegacyRP_Geyser.zip"
+GEYSER_COMPANION_PIN_PATH = Path(__file__).resolve().parents[1] / "compatibility/geyser-companion-release.json"
 BEDROCK_PACK = "SFL_GEYSER_RP_experimental_v1.0.3_complete.zip"
 BEDROCK_OVERLAY = "SFL_GEYSER_RP_experimental_v1.0.3.zip"
 BEDROCK_PIN_PATH = Path(__file__).resolve().parents[1] / "compatibility/bedrock-resource-pack-release.json"
@@ -122,6 +126,26 @@ def retained_bedrock_identity(release: dict[str, Any], asset: dict[str, Any]) ->
     return identity
 
 
+def retained_geyser_companion_identity(release: dict[str, Any], asset: dict[str, Any]) -> dict[str, Any]:
+    """Preserve only byte-identical v4.1.77 Geyser downloads on future releases."""
+    try:
+        pin = load_geyser_pin(GEYSER_COMPANION_PIN_PATH)
+        version = stable_version(release["tag_name"])
+        minimum = stable_version(pin["source_release_tag"])
+    except (CarryForwardError, ValueError, KeyError, OSError, TypeError) as error:
+        raise PolicyError(f"Invalid Geyser preservation pin: {error}") from error
+    if version < minimum:
+        raise PolicyError("Geyser companion approved only on v4.1.77 and later releases")
+    if release["tag_name"] == pin["source_release_tag"]:
+        if release["id"] != pin["source_release_id"] or asset["id"] != pin["source_asset_id"]:
+            raise PolicyError("Approved v4.1.77 Geyser source/asset identity changed")
+    identity = retained_identity(asset)
+    if (identity["name"] != pin["asset_name"] or identity["size"] != pin["size_bytes"]
+            or identity["digest"] != "sha256:" + pin["sha256"]):
+        raise PolicyError("Carried Geyser companion filename, size or digest changed")
+    return identity
+
+
 def plan_release(release: Any, *, allow_legacy: bool = True) -> dict[str, Any]:
     if not isinstance(release, dict) or not positive_int(release.get("id")):
         raise PolicyError("Expected a GitHub release object with a positive numeric ID")
@@ -154,6 +178,8 @@ def plan_release(release: Any, *, allow_legacy: bool = True) -> dict[str, Any]:
             keep[name] = retained_identity(asset)
         elif name in {BEDROCK_PACK, BEDROCK_OVERLAY}:
             keep[name] = retained_bedrock_identity(release, asset)
+        elif name == GEYSER_COMPANION:
+            keep[name] = retained_geyser_companion_identity(release, asset)
         elif name == ROLLBACK:
             expected = ROLLBACK_PIN
             if release["id"] != expected["release_id"] or tag != expected["tag"]:
