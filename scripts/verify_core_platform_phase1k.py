@@ -248,7 +248,14 @@ def main() -> int:
 
         readme = read(root, "README.md")
         history = read(root, "EVERYTHING_THAT_CHANGED.md")
-        req(f"Slimefun Legacy {current} is tested primarily" in readme, "README current-version support line missing", failures)
+        req(
+            any(
+                f"Slimefun Legacy {current} {status}" in readme
+                for status in ("is tested primarily", "is undergoing exact-source validation primarily")
+            ),
+            "README current-version support line missing",
+            failures,
+        )
         for token in (
             "/sf doctor dependencies",
             "Provider aliases are reported only as descriptor-level resolution",
