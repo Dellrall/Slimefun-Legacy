@@ -15,6 +15,10 @@ class JavaOnlyReleaseScope(unittest.TestCase):
     def test_no_external_platform_pack_handlers(self):
         self.assertNotRegex(self.text.lower(), r"bedrock|geyser")
         self.assertNotIn("--clobber", self.text)
+        active_verifier = (ROOT / "scripts/verify_legacy.py").read_text(encoding="utf-8")
+        self.assertIn('"test_java_only_release_scope.py"', active_verifier)
+        self.assertNotIn('"test_optional_bedrock_release_workflow.py"', active_verifier)
+        self.assertNotIn('"test_verify_release_bedrock_pack.py"', active_verifier)
 
     def test_three_java_release_assets_only(self):
         self.assertIn('gh release create "$TAG" "$JAR" "$BUNDLE" "$RESOURCE_PACK"', self.text)
