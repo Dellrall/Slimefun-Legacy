@@ -140,6 +140,12 @@ public final class ItemStackService {
 
     public boolean fits(
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
+        // Fail closed on stale or malformed addon slot layouts before Dough reads
+        // a physical slot. A smaller legacy menu must never look like available space.
+        if (!hasValidSlotSelection(inventory.getSize(), slots)) {
+            return false;
+        }
+
         if (!hasVirtualItemsInSlots(inventory, slots) && !isVirtualItem(item) && SlimefunItem.getByItem(item) == null) {
             if (slots.length == 0) {
                 return InvUtils.fits(inventory, item);
@@ -156,6 +162,12 @@ public final class ItemStackService {
 
     public boolean fitAll(
             @Nonnull Inventory inventory, @Nonnull ItemStack[] items, @Nonnull InventoryContext context, int... slots) {
+        // Both the vanilla Dough path and the virtual-item snapshot must reject
+        // an invalid configured slot, without consuming outputs or modifying state.
+        if (!hasValidSlotSelection(inventory.getSize(), slots)) {
+            return false;
+        }
+
         boolean hasVirtualItems = false;
         for (ItemStack item : items) {
             if (item != null && isVirtualItem(item)) {
@@ -377,6 +389,23 @@ public final class ItemStackService {
         }
 
         return handler;
+    }
+
+    /**
+     * An empty selection means all slots, as in Dough. An explicit selection must
+     * be valid in its entirety: silently skipping a bad output slot could allow a
+     * machine to complete without enough real physical output capacity.
+     */
+    static boolean hasValidSlotSelection(int inventorySize, int... slots) {
+        if (inventorySize < 0) {
+            return false;
+        }
+        for (int slot : slots) {
+            if (slot < 0 || slot >= inventorySize) {
+                return false;
+            }
+        }
+        return true;
     }
 
     private int[] resolveSlots(int inventorySize, int... slots) {
