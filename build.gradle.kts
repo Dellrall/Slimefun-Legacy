@@ -96,7 +96,13 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi")
     maven("https://nexus.neetgames.com/repository/maven-public")
     maven("https://repo.walshy.dev/public")
-    maven("https://repo.codemc.io/repository/maven-public/")
+    // The pinned legacy mcMMO 2.1.225 POM is published on CodeMC.
+    // Do not let the unrelated PlaceholderAPI mirror's 5xx block this API.
+    val codeMcRepository = maven("https://repo.codemc.io/repository/maven-public/")
+    exclusiveContent {
+        forRepositories(codeMcRepository)
+        filter { includeGroup("com.gmail.nossr50.mcMMO") }
+    }
 }
 val supportedPaperApiVersion = libs.versions.paperApi.get()
 val selectedPaperApiVersion = providers.gradleProperty("paperApiVersion").orElse(supportedPaperApiVersion)
