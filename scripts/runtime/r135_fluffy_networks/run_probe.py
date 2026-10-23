@@ -42,6 +42,8 @@ NETWORK_VERSIONS = {
     146: ("SF_Networks1.0.60.jar", "d41d362c8b71073dca41abc24f6ef6a5a8688fff"),
     # r147 updates SlimeHUD only; preserve the released storage pair.
     147: ("SF_Networks1.0.60.jar", "d41d362c8b71073dca41abc24f6ef6a5a8688fff"),
+    # r148 updates SlimeHUD only; retain the verified 1.0.60 storage adapter.
+    148: ("SF_Networks1.0.60.jar", "d41d362c8b71073dca41abc24f6ef6a5a8688fff"),
 }
 
 
@@ -70,7 +72,7 @@ def prepare(work: Path, bundle: Path, java: Path, runtime_core_version: str | No
         manifest = json.loads(archive.read("SF_ADDON_MANIFEST.json"))
     revision = manifest.get("bundle_revision")
     if type(revision) is not int or revision not in NETWORK_VERSIONS:
-        raise RuntimeError(f"Native conservation test requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144, r145, r146 or r147; found bundle revision {revision!r}")
+        raise RuntimeError(f"Native conservation test requires r135, r136, r137, r138, r139, r140, r141, r142, r143, r144, r145, r146, r147 or r148; found bundle revision {revision!r}")
     expected_versions = dict(EXPECTED_VERSIONS)
     expected_versions["wickidcow/SF_NetworksExp"] = NETWORK_VERSIONS[revision]
 
