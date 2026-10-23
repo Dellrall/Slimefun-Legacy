@@ -15,10 +15,8 @@ on:
       - gradle.properties
       - 'docs/releases/**'
       - '.github/workflows/reproducible-release.yml'
-      - 'compatibility/bedrock-resource-pack-release.json'
-      - 'compatibility/bedrock/**'
-      - 'scripts/verify_release_bedrock_pack.py'
-      - 'scripts/test_verify_release_bedrock_pack.py'
+      - 'scripts/carry_forward_geyser_release_asset.py'
+      - 'scripts/test_carry_forward_geyser_release_asset.py'
 
 permissions:
   contents: write
@@ -28,8 +26,7 @@ env:
   CANONICAL_ADDON_BUNDLE: SF_Addons_1.21.11-26.3.zip
   CANONICAL_RESOURCE_PACK: SlimefunLegacyRP.zip
   RESOURCE_PACK_PIN: compatibility/resource-pack-release.json
-  OPTIONAL_BEDROCK_PACK: SFL_GEYSER_RP_experimental_v1.0.3_complete.zip
-  BEDROCK_PACK_PIN: compatibility/bedrock-resource-pack-release.json
+  OPTIONAL_GEYSER_PACK: SlimefunLegacyRP_GEYSER-BEDROCK.zip
 
 concurrency:
   group: reproducible-release-${{ github.ref }}
@@ -269,24 +266,37 @@ jobs:
             echo "Official resource pack bytes: ${PACK_SIZE}"
           } >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Require pinned optional Bedrock resource pack
+      - name: Validate opaque Geyser carry-forward policy
+        run: python3 -m unittest scripts.test_carry_forward_geyser_release_asset -v
+
+      - name: Carry forward latest published Geyser ZIP unchanged
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          PIN="$BEDROCK_PACK_PIN"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --target-tag "v${LEGACY_ARTIFACT_VERSION}"
-          PACK_ASSET="$(jq -r '.asset_name' "$PIN")"
-          PACK="$(jq -r '.archive_path' "$PIN")"
-          test "$PACK_ASSET" = "$OPTIONAL_BEDROCK_PACK"
-          test -f "$PACK"
-          python3 scripts/verify_release_bedrock_pack.py . --pin "$PIN" --zip "$PACK"
-          cp "$PACK" "dist/$OPTIONAL_BEDROCK_PACK"
-
+          mkdir -p geyser-source
+          gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" > "$RUNNER_TEMP/geyser-releases.json"
+          python3 scripts/carry_forward_geyser_release_asset.py select \
+            --releases "$RUNNER_TEMP/geyser-releases.json" \
+            --target-tag "v${LEGACY_ARTIFACT_VERSION}" \
+            --output "$RUNNER_TEMP/geyser-carry.json"
+          SOURCE_TAG="$(jq -r .source_tag "$RUNNER_TEMP/geyser-carry.json")"
+          test -n "$SOURCE_TAG"
+          gh release download "$SOURCE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern "$OPTIONAL_GEYSER_PACK" \
+            --dir geyser-source
+          python3 scripts/carry_forward_geyser_release_asset.py verify \
+            --selection "$RUNNER_TEMP/geyser-carry.json" \
+            --file "geyser-source/$OPTIONAL_GEYSER_PACK"
+          cp "geyser-source/$OPTIONAL_GEYSER_PACK" "dist/$OPTIONAL_GEYSER_PACK"
+          cmp -s "geyser-source/$OPTIONAL_GEYSER_PACK" "dist/$OPTIONAL_GEYSER_PACK"
+          echo "GEYSER_CARRY_SHA256=$(jq -r .sha256 "$RUNNER_TEMP/geyser-carry.json")" >> "$GITHUB_ENV"
           {
-            echo "Optional experimental Bedrock resource pack: ${PACK_ASSET}"
-            echo "Source: ${GITHUB_SHA}:${PACK}; complete archive and component provenance are pinned."
-            echo 'Requires Geyser and both the included packs/ and custom_mappings/ files.'
-            sha256sum "dist/$OPTIONAL_BEDROCK_PACK"
+            echo "Optional Geyser archive carried unchanged from ${SOURCE_TAG}."
+            echo "SHA-256: $(jq -r .sha256 "$RUNNER_TEMP/geyser-carry.json")"
+            echo 'Geyser manages Bedrock. Slimefun does not alter, inspect or interpret these bytes.'
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload raw reproducible JAR artifact
