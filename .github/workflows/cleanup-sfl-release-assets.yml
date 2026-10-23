@@ -38,6 +38,7 @@ jobs:
         with:
           persist-credentials: false
       - run: python3 scripts/test_verify_sfl_release_assets.py
+      - run: python3 scripts/test_carry_forward_geyser_release_asset.py
 
   clean:
     name: Keep Slimefun Legacy release core-focused
