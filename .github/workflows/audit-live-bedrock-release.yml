@@ -1,0 +1,132 @@
+name: Audit live Geyser Bedrock release bytes
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/audit-live-bedrock-release.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  inspect-public-pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out pinned complete source and verifier
+        uses: actions/checkout@v6
+      - name: Verify exact GitHub release identity and fetch the LIVE published ZIP
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p build/bedrock-asset-audit
+          gh api repos/wickidcow/Slimefun-Legacy/releases/tags/v4.1.76 > build/bedrock-asset-audit/release.json
+          test "$(jq -r .tag_name build/bedrock-asset-audit/release.json)" = v4.1.76
+          jq -e '.assets[] | select(.name=="SlimefunLegacyRP_GEYSER-BEDROCK.zip" and .digest=="sha256:2f880ca6100837657fbc05daf3b383f2c3a5e5c0db58339087885b7ebebbf88e" and .size==1338619 and .state=="uploaded")' build/bedrock-asset-audit/release.json
+          gh release download v4.1.76 --repo wickidcow/Slimefun-Legacy \
+            --pattern 'SlimefunLegacyRP_GEYSER-BEDROCK.zip' \
+            --dir build/bedrock-asset-audit
+          echo '2f880ca6100837657fbc05daf3b383f2c3a5e5c0db58339087885b7ebebbf88e  build/bedrock-asset-audit/SlimefunLegacyRP_GEYSER-BEDROCK.zip' | sha256sum --check
+
+      - name: Compare every ZIP member and run existing strict Geyser pack checker
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from __future__ import annotations
+          import copy
+          import hashlib
+          import json
+          import stat
+          import sys
+          import zipfile
+          from pathlib import Path
+          sys.path.insert(0, str(Path.cwd() / "scripts"))
+          import verify_release_bedrock_pack as validator
+          work = Path("build/bedrock-asset-audit")
+          live = work / "SlimefunLegacyRP_GEYSER-BEDROCK.zip"
+          old = Path("compatibility/bedrock/SFL_GEYSER_RP_experimental_v1.0.3_complete.zip")
+          original_pin = validator.load_pin(Path("compatibility/bedrock-resource-pack-release.json"))
+          expected = "2f880ca6100837657fbc05daf3b383f2c3a5e5c0db58339087885b7ebebbf88e"
+          def sha(data):
+              return hashlib.sha256(data).hexdigest()
+          def inspect(path):
+              with zipfile.ZipFile(path) as z:
+                  names = z.namelist()
+                  if len(names) != len(set(names)):
+                      raise ValueError(f"duplicate ZIP entries in {path}")
+                  if z.testzip() is not None:
+                      raise ValueError(f"corrupted ZIP entry in {path}")
+                  if any(name.startswith("/") or "\\" in name or ".." in name.split("/")
+                         for name in names):
+                      raise ValueError(f"unsafe member path in {path}")
+                  if any(stat.S_IFMT(info.external_attr >> 16) == stat.S_IFLNK for info in z.infolist()):
+                      raise ValueError(f"symlink member in {path}")
+                  return ({name: sha(z.read(name)) for name in names if not name.endswith("/")},
+                          {name: len(z.read(name)) for name in names if not name.endswith("/")},
+                          {name: info.compress_type for info in z.infolist() if not info.is_dir()})
+          old_sha, old_size, old_method = inspect(old)
+          new_sha, new_size, new_method = inspect(live)
+          new_pin = copy.deepcopy(original_pin)
+          new_pin["sha256"] = expected
+          new_pin["size_bytes"] = 1338619
+          report = {
+              "schema": 1,
+              "source": {"path": str(old), "sha256": sha(old.read_bytes()), "files": len(old_sha)},
+              "public": {"name": live.name, "sha256": sha(live.read_bytes()), "size": live.stat().st_size,
+                         "files": len(new_sha)},
+              "member_diff": {
+                  "unchanged": sorted(x for x in old_sha if x in new_sha and old_sha[x] == new_sha[x]),
+                  "changed": sorted(x for x in old_sha if x in new_sha and old_sha[x] != new_sha[x]),
+                  "removed": sorted(set(old_sha) - set(new_sha)),
+                  "added": sorted(set(new_sha) - set(old_sha))
+              },
+              "compression": {"historical": sorted(set(old_method.values())),
+                              "public": sorted(set(new_method.values()))},
+              "mapping_count": len([x for x in new_sha if x.startswith("custom_mappings/") and x.endswith(".json")]),
+              "required_packs": {
+                  "slimefun": "packs/SlimefunBedrockRP_1.0.1.mcpack" in new_sha,
+                  "valhalla": "packs/Albion_ValhallaMMO_Bedrock_1.0.1.mcpack" in new_sha
+              },
+              "strict_validation": "NOT_RUN"
+          }
+          try:
+              validator.verify_zip(old, original_pin)
+              validator.verify_zip(live, new_pin)
+              report["strict_validation"] = "PASS"
+          except (Exception) as error:
+              report["strict_validation"] = "FAIL"
+              report["strict_error"] = f"{type(error).__name__}: {error}"
+          report_path = work / "comparison.json"
+          report_path.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+          print(json.dumps({
+              "source_sha256": report["source"]["sha256"],
+              "public_sha256": report["public"]["sha256"],
+              "total_public_files": report["public"]["files"],
+              "mapping_count": report["mapping_count"],
+              "compression": report["compression"],
+              "required_packs": report["required_packs"],
+              "diff_counts": {k: len(v) for k,v in report["member_diff"].items()},
+              "added": report["member_diff"]["added"],
+              "removed": report["member_diff"]["removed"],
+              "changed": report["member_diff"]["changed"],
+              "strict_status": report["strict_validation"],
+              "strict_error": report.get("strict_error")
+          }, indent=2))
+          if report["strict_validation"] != "PASS":
+              raise SystemExit("Public Bedrock ZIP differs from approved complete-pack structural contract. See retained comparison evidence.")
+          PY
+
+      - name: Preserve full read-only comparison and release input metadata
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: live-v4176-bedrock-comparison
+          path: |
+            build/bedrock-asset-audit/comparison.json
+            build/bedrock-asset-audit/release.json
+          retention-days: 30
+          if-no-files-found: warn
