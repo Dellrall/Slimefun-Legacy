@@ -15,8 +15,15 @@ class JavaOnlyReleaseScope(unittest.TestCase):
     def test_no_external_platform_pack_handlers(self):
         self.assertNotRegex(self.text.lower(), r"bedrock|geyser")
         self.assertNotIn("--clobber", self.text)
+        # The legacy script runner appends its source-root path as an argument.
+        # unittest.main() interprets that argument as a test selector, not a
+        # source directory. Keep this unittest in explicit module-style CI
+        # invocations so it receives no unrelated positional arguments.
         active_verifier = (ROOT / "scripts/verify_legacy.py").read_text(encoding="utf-8")
-        self.assertIn('"test_java_only_release_scope.py"', active_verifier)
+        self.assertNotIn('"test_java_only_release_scope.py",', active_verifier)
+        build_ci = (ROOT / ".github/workflows/build-ci.yml").read_text(encoding="utf-8")
+        self.assertIn("python3 -m unittest scripts.test_java_only_release_scope -v", build_ci)
+        self.assertIn("python3 -m unittest scripts.test_java_only_release_scope -v", self.text)
         self.assertNotIn('"test_optional_bedrock_release_workflow.py"', active_verifier)
         self.assertNotIn('"test_verify_release_bedrock_pack.py"', active_verifier)
 
