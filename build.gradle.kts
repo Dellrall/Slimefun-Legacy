@@ -87,7 +87,7 @@ repositories {
     // 5xx for Paper metadata and otherwise fail an unrelated Java-only build.
     val paperMcRepository = maven("https://repo.papermc.io/repository/maven-public/")
     exclusiveContent {
-        forRepository(paperMcRepository)
+        forRepositories(paperMcRepository)
         filter { includeGroup("io.papermc.paper") }
     }
     maven("https://maven.norain.city/snapshots")
