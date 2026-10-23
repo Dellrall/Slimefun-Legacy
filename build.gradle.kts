@@ -96,12 +96,16 @@ repositories {
     maven("https://repo.extendedclip.com/content/repositories/placeholderapi")
     maven("https://nexus.neetgames.com/repository/maven-public")
     maven("https://repo.walshy.dev/public")
-    // The pinned legacy mcMMO 2.1.225 POM is published on CodeMC.
-    // Do not let the unrelated PlaceholderAPI mirror's 5xx block this API.
+    // CodeMC publishes both the pinned mcMMO API and Orebfuscator API.
+    // Exclusive repositories cannot serve unlisted groups; keep both here
+    // or Gradle will exclude CodeMC from net.imprex:orebfuscator-api:5.3.0.
     val codeMcRepository = maven("https://repo.codemc.io/repository/maven-public/")
     exclusiveContent {
         forRepositories(codeMcRepository)
-        filter { includeGroup("com.gmail.nossr50.mcMMO") }
+        filter {
+            includeGroup("com.gmail.nossr50.mcMMO")
+            includeGroup("net.imprex")
+        }
     }
 }
 val supportedPaperApiVersion = libs.versions.paperApi.get()
