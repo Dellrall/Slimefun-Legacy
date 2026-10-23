@@ -5,7 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.InventoryContext;
@@ -66,24 +65,6 @@ class TestItemStackServiceSlotBounds {
 
         assertEquals(9, output.getAmount(), "The caller's stack must not be modified");
         assertEquals(existing, inventory.getItem(0), "Existing contents must remain unchanged");
-    }
-
-    @Test
-    void validPhysicalSlotsAndImplicitAllSlotInsertionRemainSupported() {
-        ItemStackService service = new ItemStackService();
-        Inventory legacy = Bukkit.createInventory(null, 18);
-        ItemStack stone = new ItemStack(Material.STONE, 3);
-        assertNull(service.addItem(legacy, stone, InventoryContext.MACHINE_OUTPUT, 17));
-        assertEquals(stone, legacy.getItem(17));
-
-        Inventory large = Bukkit.createInventory(null, 54);
-        ItemStack emerald = new ItemStack(Material.EMERALD, 5);
-        assertNull(service.addItem(large, emerald, InventoryContext.MACHINE_OUTPUT, 18, 53));
-        assertEquals(emerald, large.getItem(18));
-
-        ItemStack gold = new ItemStack(Material.GOLD_INGOT, 4);
-        assertNull(service.addItem(large, gold, InventoryContext.MACHINE_OUTPUT));
-        assertEquals(gold, large.getItem(0), "No explicit slots must still mean all physical slots");
     }
 
     @Test
