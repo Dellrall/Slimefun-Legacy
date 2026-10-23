@@ -189,7 +189,14 @@ def main() -> int:
         history = read(root, "EVERYTHING_THAT_CHANGED.md")
         readme = read(root, "README.md")
         req("# Slimefun Legacy 4.1.27 — Core Platform Phase 1I" in history, "4.1.27 history entry missing", failures)
-        req(f"Slimefun Legacy {current} is tested primarily" in readme, "README current version missing", failures)
+        req(
+            any(
+                f"Slimefun Legacy {current} {status}" in readme
+                for status in ("is tested primarily", "is undergoing exact-source validation primarily")
+            ),
+            "README current version missing",
+            failures,
+        )
     except Exception as error:
         failures.append(f"Phase 1I verifier failed to inspect repository: {error}")
 

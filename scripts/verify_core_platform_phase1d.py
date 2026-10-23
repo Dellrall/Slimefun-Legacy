@@ -179,7 +179,14 @@ def main() -> int:
         readme = read(root, "README.md")
         history = read(root, "EVERYTHING_THAT_CHANGED.md")
         require("[Release History](EVERYTHING_THAT_CHANGED.md)" in readme, "README release history link is missing", failures)
-        require("is tested primarily against" in readme, "README compatibility release text is missing", failures)
+        require(
+            any(
+                f"Slimefun Legacy {current} {status} against" in readme
+                for status in ("is tested primarily", "is undergoing exact-source validation primarily")
+            ),
+            "README compatibility release text is missing",
+            failures,
+        )
         require("# Slimefun Legacy 4.1.22 — Core Platform Phase 1D" in history, "Consolidated history must retain the Phase 1D release entry", failures)
     except (FileNotFoundError, json.JSONDecodeError, TypeError, ValueError) as error:
         failures.append(f"Phase 1D verifier could not inspect repository state: {error}")
