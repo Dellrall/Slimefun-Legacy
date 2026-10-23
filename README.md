@@ -184,7 +184,7 @@ Core diagnostics correlate unknown IDs with explicitly registered replacements a
 
 ### Release lifecycle
 
-**Publication hold:** 4.1.76 and the next addon ZIP require explicit maintainer approval after the Networks Expansion repair work is ready. Successful builds or merged changes do not authorize publication.
+**Release status:** Slimefun Legacy 4.1.76 and 4.1.77 have been published. Any subsequent core or addon release still requires successful exact-source build, compatibility, runtime and artifact-identity gates; a successful PR alone does not publish or replace an existing release.
 
 Slimefun Legacy **4.1.76** uses **published 4.1.75** source `7f702e3565a381aeeefd99555f2c8fe818858e9c` as the release-blocking compatibility baseline. Required-addon regressions against that exact release block publication. The atomic backpack save fix from #391 remains included. The historical 4.1.15 floor stays advisory, and old saved-item formats remain supported.
 
