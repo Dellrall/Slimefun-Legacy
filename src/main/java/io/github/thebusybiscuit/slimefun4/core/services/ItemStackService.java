@@ -140,7 +140,7 @@ public final class ItemStackService {
 
     public boolean fits(
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
-        // A malformed nonpositive output or AIR can never be inserted.
+        // Malformed nonpositive outputs or AIR can never be inserted.
         if (item.getAmount() <= 0 || item.getType().isAir()) {
             return false;
         }
@@ -155,22 +155,21 @@ public final class ItemStackService {
         // the whole output. For vanilla items that fit a single stack, a
         // positive answer is sufficient. A negative answer is not: multiple
         // partially filled stacks may collectively have enough free space.
-        boolean vanillaItem = !hasVirtualItemsInSlots(inventory, slots)
-                && !isVirtualItem(item)
-                && SlimefunItem.getByItem(item) == null;
-        if (vanillaItem) {
-            // Preserve Dough's inventory-type admission rules on the fallback.
-            if (!InvUtils.isItemAllowed(item.getType(), inventory.getType())) {
-                return false;
-            }
+        boolean vanillaItem = !isVirtualItem(item) && SlimefunItem.getByItem(item) == null;
+        // Existing virtual stacks must not bypass a vanilla incoming item's
+        // inventory-type restriction. Keep admission consistent with addItem.
+        if (vanillaItem && !InvUtils.isItemAllowed(item.getType(), inventory.getType())) {
+            return false;
+        }
 
-            if (item.getAmount() <= Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())) {
-                boolean fitsSingleSlot = slots.length == 0
-                        ? InvUtils.fits(inventory, item)
-                        : InvUtils.fits(inventory, ItemStackWrapper.wrap(item), slots);
-                if (fitsSingleSlot) {
-                    return true;
-                }
+        if (vanillaItem
+                && !hasVirtualItemsInSlots(inventory, slots)
+                && item.getAmount() <= Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())) {
+            boolean fitsSingleSlot = slots.length == 0
+                    ? InvUtils.fits(inventory, item)
+                    : InvUtils.fits(inventory, ItemStackWrapper.wrap(item), slots);
+            if (fitsSingleSlot) {
+                return true;
             }
         }
 
@@ -271,9 +270,8 @@ public final class ItemStackService {
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
         Validate.notNull(item, "The item cannot be null");
 
-        // Malformed addon outputs must not drain existing stacks or write
-        // invalid zero/negative item counts. Return an independent remainder
-        // before either vanilla or virtual insertion has a chance to mutate.
+        // Reject malformed outputs before vanilla or virtual item insertion
+        // can mutate inventory contents. Preserve the independent remainder.
         if (item.getAmount() <= 0 || item.getType().isAir()) {
             return item.clone();
         }
@@ -356,8 +354,14 @@ public final class ItemStackService {
                 }
 
                 int movedAmount = Math.min(amountLeft, freeSpace);
-                itemInSlot.setAmount(itemInSlot.getAmount() + movedAmount);
-                amountLeft -= movedAmount;
+                if (movedAmount > 0) {
+                    itemInSlot.setAmount(itemInSlot.getAmount() + movedAmount);
+                    // Inventory#getItem may return a detached stack. Persist
+                    // every successful vanilla merge explicitly, like inserts
+                    // into empty slots, instead of relying on aliasing.
+                    inventory.setItem(slot, itemInSlot);
+                    amountLeft -= movedAmount;
+                }
             }
 
             if (amountLeft <= 0) {
