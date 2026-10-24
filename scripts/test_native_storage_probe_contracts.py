@@ -229,7 +229,7 @@ class NativeStorageProbeContracts(unittest.TestCase):
         self.reject("addon source mismatch")
 
     def test_r151_networks_1_0_62_and_exact_source_before_native_setup(self):
-        (self.root / "gradle.properties").write_text("projectVersion=4.1.78\\n", encoding="utf-8")
+        (self.root / "gradle.properties").write_text("projectVersion=4.1.78\n", encoding="utf-8")
         self.populate(151)
         evidence = self.prepare()
         self.assertEqual(evidence["bundle_revision"], 151)
