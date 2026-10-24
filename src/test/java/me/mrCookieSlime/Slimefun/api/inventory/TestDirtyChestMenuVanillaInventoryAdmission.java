@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -99,6 +100,13 @@ class TestDirtyChestMenuVanillaInventoryAdmission {
 
     private static BlockMenu newMenu(Inventory inventory) {
         BlockMenu menu = new BlockMenu(new TestPreset(), null, inventory);
+        // ChestMenu initializes its slot list lazily. If an item is pushed
+        // before that list is sized, getItemInSlot(1) calls addItem(1, null)
+        // and silently replaces the supplied shulker inventory with a generic
+        // chest. Size the menu first, then attach the real physical inventory.
+        menu.setSize(inventory.getSize());
+        menu.setInventory(inventory);
+        assertSame(inventory, menu.toInventory(), "Test must keep the real shulker inventory");
         menu.acknowledgeChanges(menu.captureChangeSequence());
         assertFalse(menu.isDirty());
         return menu;
