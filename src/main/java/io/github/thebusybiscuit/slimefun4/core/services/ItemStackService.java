@@ -191,11 +191,16 @@ public final class ItemStackService {
         // vanilla fast path is retained for ordinary distinct-slot recipes.
         boolean requiresSnapshot = hasRepeatedSlots(slots);
         for (ItemStack item : items) {
-            if (item != null
-                    && (isVirtualItem(item)
-                            || (!item.getType().isAir()
-                                    && item.getAmount()
-                                            > Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())))) {
+            // Optional recipe outputs may be null or AIR. Dough's fitAll fast
+            // path dereferences them, while our snapshot path already skips
+            // absent outputs. Keep the ordinary non-null fast path unchanged.
+            if (item == null || item.getType().isAir()) {
+                requiresSnapshot = true;
+                break;
+            }
+
+            if (isVirtualItem(item)
+                    || item.getAmount() > Math.min(item.getMaxStackSize(), inventory.getMaxStackSize())) {
                 requiresSnapshot = true;
                 break;
             }
