@@ -284,9 +284,11 @@ public class DirtyChestMenu extends ChestMenu {
                     if (movedAmount > 0) {
                         amount -= movedAmount;
                         stack.setAmount(stack.getAmount() + movedAmount);
-                        // Unlike an empty-slot insert, merging a stack does not
-                        // call replaceExistingItem. Record this mutation so the
-                        // persisted block inventory cannot miss a cargo merge.
+                        // Legacy slot reads are not guaranteed to be live
+                        // references. Write a successful merge back explicitly,
+                        // without invoking preset callbacks that only ran for
+                        // the previous empty-slot insertion behavior.
+                        super.replaceExistingItem(slot, stack);
                         markDirty();
                     }
                 }
