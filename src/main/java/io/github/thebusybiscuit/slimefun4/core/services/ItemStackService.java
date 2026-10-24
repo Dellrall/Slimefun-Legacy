@@ -186,6 +186,20 @@ public final class ItemStackService {
             return false;
         }
 
+        // Dough's multi-result fast path does not apply its single-result
+        // inventory-type admission check. Apply the same vanilla rule before
+        // either the fast path or snapshot simulation (e.g. no nested shulkers).
+        // Keep Slimefun items and virtual handlers on their existing paths.
+        for (ItemStack item : items) {
+            if (item != null
+                    && !item.getType().isAir()
+                    && !InvUtils.isItemAllowed(item.getType(), inventory.getType())
+                    && !isVirtualItem(item)
+                    && SlimefunItem.getByItem(item) == null) {
+                return false;
+            }
+        }
+
         // Recipe-output preflight must model actual physical capacity when
         // addons repeat a slot or supply an oversized combined output. Dough's
         // vanilla fast path is retained for ordinary distinct-slot recipes.
