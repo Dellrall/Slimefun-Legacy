@@ -349,7 +349,7 @@ public class DirtyChestMenu extends ChestMenu {
 
         // Negative consumption must never increase a stack, and empty or
         // zero-amount slots must not reach Dough's non-null item consumer.
-        if (amount <= 0) {
+        if (amount <= 0 || slot < 0 || slot >= toInventory().getSize()) {
             return;
         }
 
