@@ -377,6 +377,13 @@ public class DirtyChestMenu extends ChestMenu {
             replaceExistingItem(slot, result.item());
         } else {
             ItemUtils.consumeItem(item, amount, replaceConsumables);
+            // A legacy menu can return a detached ItemStack from a slot read.
+            // Persist the consumed result explicitly instead of assuming the
+            // mutated Java object remains aliased to the physical inventory.
+            // Use the parent writer to preserve the existing no-callback
+            // behavior of vanilla item consumption.
+            super.replaceExistingItem(
+                    slot, item.getAmount() > 0 && !item.getType().isAir() ? item : null);
         }
 
         markDirty();
