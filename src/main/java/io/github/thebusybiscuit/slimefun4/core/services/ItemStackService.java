@@ -288,7 +288,11 @@ public final class ItemStackService {
                 .map(stack -> stack == null ? null : stack.clone())
                 .toArray(ItemStack[]::new);
         int amountLeft = insertIntoSnapshot(contents, inventory.getMaxStackSize(), item, context, slots);
-        inventory.setContents(contents);
+        // Snapshot checks can reject the entire stack. Do not replace every
+        // live slot with cloned contents when nothing actually moved.
+        if (amountLeft < item.getAmount()) {
+            inventory.setContents(contents);
+        }
 
         if (amountLeft <= 0) {
             return null;
