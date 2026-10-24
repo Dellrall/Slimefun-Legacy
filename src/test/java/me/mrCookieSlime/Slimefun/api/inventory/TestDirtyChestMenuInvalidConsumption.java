@@ -55,6 +55,23 @@ class TestDirtyChestMenuInvalidConsumption {
     }
 
     @Test
+    void outOfBoundsSlotConsumptionFailsClosedWithoutDirtyingTheMenu() {
+        DirtyChestMenu menu = newMenu();
+        menu.replaceExistingItem(0, new ItemStack(Material.COBBLESTONE, 5));
+        menu.acknowledgeChanges(menu.captureChangeSequence());
+        long before = menu.captureChangeSequence();
+
+        assertDoesNotThrow(() -> menu.consumeItem(-1));
+        assertDoesNotThrow(() -> menu.consumeItem(18, 1));
+        assertDoesNotThrow(() -> menu.consumeItem(54, 5, true));
+
+        assertEquals(5, menu.getItemInSlot(0).getAmount());
+        assertEquals(before, menu.captureChangeSequence());
+        assertFalse(menu.isDirty());
+        assertEquals(18, menu.toInventory().getSize());
+    }
+
+    @Test
     void negativeOrZeroConsumptionDoesNotIncreaseItemsOrDirtyTheMenu() {
         DirtyChestMenu menu = newMenu();
         menu.replaceExistingItem(0, new ItemStack(Material.COBBLESTONE, 5));
