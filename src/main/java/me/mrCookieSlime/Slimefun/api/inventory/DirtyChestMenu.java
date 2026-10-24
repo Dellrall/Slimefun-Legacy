@@ -347,7 +347,17 @@ public class DirtyChestMenu extends ChestMenu {
             throw new IllegalStateException("Cannot consume item when menu is locked");
         }
 
+        // Negative consumption must never increase a stack, and empty or
+        // zero-amount slots must not reach Dough's non-null item consumer.
+        if (amount <= 0 || slot < 0 || slot >= toInventory().getSize()) {
+            return;
+        }
+
         ItemStack item = getItemInSlot(slot);
+        if (item == null || item.getType().isAir() || item.getAmount() <= 0) {
+            return;
+        }
+
         var virtualItems = Slimefun.getItemStackService();
         var result = virtualItems.consume(item, amount, replaceConsumables, ConsumeContext.MENU_CONSUME);
         if (result.handled()) {
