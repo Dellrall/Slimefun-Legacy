@@ -108,6 +108,23 @@ jobs:
         run: chmod +x gradlew
       - name: Build previous stable baseline JAR
         run: |
+          # Keep historical source untouched while isolating Paper metadata
+          # from unrelated Maven mirrors that may return transient 5xx errors.
+          BASELINE_INIT_DIR="${GRADLE_USER_HOME:-$HOME/.gradle}/init.d"
+          mkdir -p "$BASELINE_INIT_DIR"
+          cat > "$BASELINE_INIT_DIR/slimefun-baseline-paper-metadata.gradle" <<'GRADLE'
+          import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+          gradle.beforeProject { project ->
+              project.repositories.all { repository ->
+                  if (repository instanceof MavenArtifactRepository
+                          && repository.url.host != 'repo.papermc.io') {
+                      repository.content {
+                          excludeGroup('io.papermc.paper')
+                      }
+                  }
+              }
+          }
+          GRADLE
           echo "Building Slimefun Legacy ${{ needs.prepare-release-baselines.outputs.previous_version }} as the release-blocking baseline"
           ./gradlew spotlessApply --no-daemon
           ./gradlew clean build --no-daemon
