@@ -140,6 +140,11 @@ public final class ItemStackService {
 
     public boolean fits(
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
+        // Malformed nonpositive outputs or AIR can never be inserted.
+        if (item.getAmount() <= 0 || item.getType().isAir()) {
+            return false;
+        }
+
         // Fail closed on stale or malformed addon slot layouts before Dough reads
         // a physical slot. A smaller legacy menu must never look like available space.
         if (!hasValidSlotSelection(inventory.getSize(), slots)) {
@@ -190,8 +195,12 @@ public final class ItemStackService {
         // either the fast path or snapshot simulation (e.g. no nested shulkers).
         // Keep Slimefun items and virtual handlers on their existing paths.
         for (ItemStack item : items) {
+            if (item != null && !item.getType().isAir() && item.getAmount() < 0) {
+                return false;
+            }
             if (item != null
                     && !item.getType().isAir()
+                    && item.getAmount() > 0
                     && !InvUtils.isItemAllowed(item.getType(), inventory.getType())
                     && !isVirtualItem(item)
                     && SlimefunItem.getByItem(item) == null) {
@@ -204,10 +213,10 @@ public final class ItemStackService {
         // vanilla fast path is retained for ordinary distinct-slot recipes.
         boolean requiresSnapshot = hasRepeatedSlots(slots);
         for (ItemStack item : items) {
-            // Optional recipe outputs may be null or AIR. Dough's fitAll fast
-            // path dereferences them, while our snapshot path already skips
-            // absent outputs. Keep the ordinary non-null fast path unchanged.
-            if (item == null || item.getType().isAir()) {
+            // Optional recipe outputs can be null, AIR or zero-size placeholders.
+            // Route them through the no-op-aware simulation, never Dough's
+            // single-result fast path. Negative counts were rejected above.
+            if (item == null || item.getType().isAir() || item.getAmount() == 0) {
                 requiresSnapshot = true;
                 break;
             }
@@ -245,7 +254,7 @@ public final class ItemStackService {
                 .toArray(ItemStack[]::new);
 
         for (ItemStack item : items) {
-            if (item == null || item.getType().isAir()) {
+            if (item == null || item.getType().isAir() || item.getAmount() == 0) {
                 continue;
             }
 
@@ -260,6 +269,12 @@ public final class ItemStackService {
     public @Nullable ItemStack addItem(
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
         Validate.notNull(item, "The item cannot be null");
+
+        // Reject malformed outputs before vanilla or virtual item insertion
+        // can mutate inventory contents. Preserve the independent remainder.
+        if (item.getAmount() <= 0 || item.getType().isAir()) {
+            return item.clone();
+        }
 
         // Match fits/fitAll: a malformed output slot list must not partially
         // insert items into valid slots while silently ignoring invalid ones.
