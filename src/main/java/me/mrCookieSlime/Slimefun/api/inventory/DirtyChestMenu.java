@@ -361,18 +361,21 @@ public class DirtyChestMenu extends ChestMenu {
         var virtualItems = Slimefun.getItemStackService();
         var result = virtualItems.consume(item, amount, replaceConsumables, ConsumeContext.MENU_CONSUME);
         if (result.handled()) {
+            // The normal replacement path already marks the menu dirty.
+            // Avoid reporting a second logical mutation for one virtual
+            // consumption, which would inflate persistence change counters.
             replaceExistingItem(slot, result.item());
-        } else {
-            ItemUtils.consumeItem(item, amount, replaceConsumables);
-            // A legacy menu can return a detached ItemStack from a slot read.
-            // Persist the consumed result explicitly instead of assuming the
-            // mutated Java object remains aliased to the physical inventory.
-            // Use the parent writer to preserve the existing no-callback
-            // behavior of vanilla item consumption.
-            super.replaceExistingItem(
-                    slot, item.getAmount() > 0 && !item.getType().isAir() ? item : null);
+            return;
         }
 
+        ItemUtils.consumeItem(item, amount, replaceConsumables);
+        // A legacy menu can return a detached ItemStack from a slot read.
+        // Persist the consumed result explicitly instead of assuming the
+        // mutated Java object remains aliased to the physical inventory.
+        // Use the parent writer to preserve the existing no-callback
+        // behavior of vanilla item consumption.
+        super.replaceExistingItem(
+                slot, item.getAmount() > 0 && !item.getType().isAir() ? item : null);
         markDirty();
     }
 
