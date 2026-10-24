@@ -51,14 +51,20 @@ class PerformanceSummary {
     public void send(@Nonnull PerformanceInspector sender) {
         sender.sendMessage("");
         sender.sendMessage(legacy(Component.text("===== Slimefun Performance Profiler =====", NamedTextColor.GREEN)));
-        sender.sendMessage(legacy(Component.text("Total tick time: ", NamedTextColor.GOLD)
+        // These are accumulated Slimefun callback timings from one requested
+        // profiler sample, not the server's total MSPT or tick duration.
+        sender.sendMessage(legacy(Component.text("Total sampled ticker work: ", NamedTextColor.GOLD)
                 .append(Component.text(NumberUtils.getAsMillis(totalElapsedTime), NamedTextColor.YELLOW))));
-        sender.sendMessage(legacy(Component.text("Ticker runtime: ", NamedTextColor.GOLD)
+        // The configured ticker cadence counts Minecraft ticks. Its seconds
+        // equivalent assumes 20 TPS and is not the measured sample duration.
+        sender.sendMessage(legacy(Component.text("Ticker interval: ", NamedTextColor.GOLD)
                 .append(Component.text(
-                        NumberUtils.roundDecimalNumber(tickRate / 20.0) + "s (" + tickRate + " ticks)",
+                        tickRate + " ticks (" + NumberUtils.roundDecimalNumber(tickRate / 20.0) + "s at 20 TPS)",
                         NamedTextColor.YELLOW))));
         sender.sendMessage(legacy(Component.text("Performance rating: ", NamedTextColor.GOLD)
                 .append(getPerformanceRating())));
+        sender.sendMessage(legacy(Component.text(
+                "Sampled Slimefun work only; not full-server MSPT or TPS.", NamedTextColor.GRAY)));
         sender.sendMessage("");
 
         summarizeTimings(totalTickedBlocks, "block", sender, items, profiler::getBlocksOfId, entry -> {
