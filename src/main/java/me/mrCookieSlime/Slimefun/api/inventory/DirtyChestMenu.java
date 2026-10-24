@@ -129,6 +129,13 @@ public class DirtyChestMenu extends ChestMenu {
             return false;
         }
 
+        // Mirror ItemStackService: a vanilla material disallowed by the
+        // inventory type must not be counted as available space. In
+        // particular, a shulker box cannot be nested inside another one.
+        if (!Slimefun.getItemStackService().acceptsInventoryType(toInventory(), item)) {
+            return false;
+        }
+
         // Repeated declarations can refer to the same physical slot. Capacity
         // must count it once even when addon-provided selectors repeat it.
         int[] distinctSlots = distinctPhysicalSlots(slots);
@@ -234,6 +241,13 @@ public class DirtyChestMenu extends ChestMenu {
         ItemStackWrapper wrapper = null;
         int amount = item.getAmount();
         var virtualItems = Slimefun.getItemStackService();
+
+        // Keep actual legacy Cargo insertion consistent with fits() and the
+        // modern ItemStackService admission path. Return a full independent
+        // remainder without touching the inventory or dirty sequence.
+        if (!virtualItems.acceptsInventoryType(toInventory(), item)) {
+            return item.clone();
+        }
 
         for (int slot : slots) {
             if (amount <= 0) {
