@@ -262,6 +262,13 @@ public final class ItemStackService {
             @Nonnull Inventory inventory, @Nonnull ItemStack item, @Nonnull InventoryContext context, int... slots) {
         Validate.notNull(item, "The item cannot be null");
 
+        // Malformed addon outputs must not drain existing stacks or write
+        // invalid zero/negative item counts. Return an independent remainder
+        // before either vanilla or virtual insertion has a chance to mutate.
+        if (item.getAmount() <= 0 || item.getType().isAir()) {
+            return item.clone();
+        }
+
         // Match fits/fitAll: a malformed output slot list must not partially
         // insert items into valid slots while silently ignoring invalid ones.
         // Return the entire remainder without mutating either the input or inventory.
