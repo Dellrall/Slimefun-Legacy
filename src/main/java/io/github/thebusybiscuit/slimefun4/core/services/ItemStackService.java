@@ -119,6 +119,20 @@ public final class ItemStackService {
         return allows(item, context) != AdmissionResult.DENY;
     }
 
+    /**
+     * Preserves the vanilla inventory-type restrictions without changing the
+     * existing Slimefun and virtual-item admission rules. The inexpensive
+     * vanilla material check runs first, so ordinary Cargo insertions do not
+     * perform an additional item metadata lookup.
+     *
+     * @return whether this item is permitted by the destination inventory type
+     */
+    public boolean acceptsInventoryType(@Nonnull Inventory inventory, @Nonnull ItemStack item) {
+        return InvUtils.isItemAllowed(item.getType(), inventory.getType())
+                || SlimefunItem.getByItem(item) != null
+                || isVirtualItem(item);
+    }
+
     public @Nonnull ItemResult consume(
             @Nullable ItemStack item, int amount, boolean replaceConsumables, @Nonnull ConsumeContext context) {
         VirtualItemHandler handler = resolveHandler(item);
