@@ -44,6 +44,8 @@ class TestItemStackServiceVanillaContainerAdmission {
         ItemStack[] before = inventory.getContents();
         ItemStackService service = new ItemStackService();
 
+        assertFalse(service.acceptsInventoryType(inventory, nested));
+        assertTrue(service.acceptsInventoryType(inventory, diamond));
         assertFalse(service.fits(inventory, nested, InventoryContext.MACHINE_OUTPUT, 0));
         assertFalse(service.fitAll(inventory, new ItemStack[] {nested}, InventoryContext.MACHINE_OUTPUT, 0));
         assertFalse(service.fitAll(inventory, new ItemStack[] {nested, diamond},
