@@ -270,8 +270,16 @@ public final class ItemStackService {
         }
 
         boolean hasVirtualItems = hasVirtualItemsInSlots(inventory, slots);
+        boolean vanillaItem = !isVirtualItem(item) && SlimefunItem.getByItem(item) == null;
 
-        if (!hasVirtualItems && !isVirtualItem(item) && SlimefunItem.getByItem(item) == null && slots.length == 0) {
+        // A vanilla output rejected by fits/fitAll must also be rejected on
+        // actual insertion. In particular, never insert nested shulker boxes
+        // through either the default or explicit-slot inventory path.
+        if (vanillaItem && !InvUtils.isItemAllowed(item.getType(), inventory.getType())) {
+            return item.clone();
+        }
+
+        if (!hasVirtualItems && vanillaItem && slots.length == 0) {
             Map<Integer, ItemStack> leftovers = inventory.addItem(item.clone());
             if (leftovers.isEmpty()) {
                 return null;
@@ -280,7 +288,7 @@ public final class ItemStackService {
             return leftovers.values().iterator().next();
         }
 
-        if (!hasVirtualItems && !isVirtualItem(item) && SlimefunItem.getByItem(item) == null && slots.length > 0) {
+        if (!hasVirtualItems && vanillaItem && slots.length > 0) {
             return addItemDirectly(inventory, item, context, slots);
         }
 
