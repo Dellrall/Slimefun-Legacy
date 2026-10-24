@@ -1,6 +1,7 @@
 package me.mrCookieSlime.Slimefun.api.inventory;
 
 import city.norain.slimefun4.utils.InventoryUtil;
+import io.github.bakedlibs.dough.inventory.InvUtils;
 import io.github.bakedlibs.dough.items.CustomItemStack;
 import io.github.bakedlibs.dough.items.ItemUtils;
 import io.github.thebusybiscuit.slimefun4.api.annotations.SlimefunAPI;
@@ -129,6 +130,13 @@ public class DirtyChestMenu extends ChestMenu {
             return false;
         }
 
+        // Mirror ItemStackService: a vanilla material disallowed by the
+        // inventory type must not be counted as available space. In
+        // particular, a shulker box cannot be nested inside another one.
+        if (isDisallowedVanillaItem(item, toInventory())) {
+            return false;
+        }
+
         // Repeated declarations can refer to the same physical slot. Capacity
         // must count it once even when addon-provided selectors repeat it.
         int[] distinctSlots = distinctPhysicalSlots(slots);
@@ -235,6 +243,13 @@ public class DirtyChestMenu extends ChestMenu {
         int amount = item.getAmount();
         var virtualItems = Slimefun.getItemStackService();
 
+        // Keep actual legacy Cargo insertion consistent with fits() and the
+        // modern ItemStackService admission path. Return a full independent
+        // remainder without touching the inventory or dirty sequence.
+        if (isDisallowedVanillaItem(item, toInventory())) {
+            return item.clone();
+        }
+
         for (int slot : slots) {
             if (amount <= 0) {
                 break;
@@ -300,6 +315,18 @@ public class DirtyChestMenu extends ChestMenu {
         } else {
             return null;
         }
+    }
+
+    /**
+     * Preserve the historical Slimefun/virtual-item admission behavior while
+     * enforcing ordinary vanilla inventory restrictions. Check the inexpensive
+     * material/inventory rule first; only inspect custom item metadata when a
+     * material is actually restricted in this destination type.
+     */
+    private static boolean isDisallowedVanillaItem(@Nonnull ItemStack item, @Nonnull Inventory inventory) {
+        return !InvUtils.isItemAllowed(item.getType(), inventory.getType())
+                && SlimefunItem.getByItem(item) == null
+                && !Slimefun.getItemStackService().isVirtualItem(item);
     }
 
     /**
