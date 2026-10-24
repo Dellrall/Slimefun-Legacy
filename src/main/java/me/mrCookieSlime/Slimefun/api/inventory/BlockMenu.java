@@ -71,6 +71,14 @@ public class BlockMenu extends DirtyChestMenu {
     public BlockMenu(BlockMenuPreset preset, Location l, Inventory inv) {
         super(preset);
         this.location = l;
+        if (inv != null) {
+            // A pre-supplied inventory must remain the physical backing store.
+            // ChestMenu's lazy first slot lookup can otherwise call addItem()
+            // and reset(false), silently replacing it with an empty chest.
+            // Reserve the slot list without creating another Bukkit inventory
+            // or dispatching overridable reset() in this constructor.
+            prepareExternalInventorySlots(inv.getSize());
+        }
         this.inventory = inv;
     }
 
