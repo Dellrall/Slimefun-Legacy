@@ -102,17 +102,22 @@ class TestDirtyChestMenuVirtualConsumptionSequence {
 
     @Test
     void fullVirtualConsumptionClearsSlotAndRecordsOneChange() {
-        DirtyChestMenu menu = newMenu(new TestPreset());
+        TestPreset preset = new TestPreset();
+        DirtyChestMenu menu = newMenu(preset);
         menu.replaceExistingItem(0, virtualStack(1));
         menu.acknowledgeChanges(menu.captureChangeSequence());
         long before = menu.captureChangeSequence();
+        int callbacks = preset.changeCalls;
 
         menu.consumeItem(0, 1);
 
         assertNull(menu.toInventory().getItem(0));
         assertEquals(1, consumeCalls.get());
+        assertEquals(callbacks + 1, preset.changeCalls, "Full removal keeps the preset callback");
         assertEquals(before + 1, menu.captureChangeSequence());
         assertEquals(1, menu.getUnsavedChanges());
+        menu.acknowledgeChanges(menu.captureChangeSequence());
+        assertFalse(menu.isDirty());
     }
 
     @Test
