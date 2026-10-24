@@ -4,14 +4,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import com.xzavier0722.mc.plugin.slimefun4.storage.controller.InventoryReadTestPlugin;
 import me.mrCookieSlime.Slimefun.api.item_transport.ItemTransportFlow;
+import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.block.Block;
 import org.bukkit.entity.Player;
+import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.junit.jupiter.api.AfterEach;
@@ -80,16 +80,16 @@ class TestBlockMenuExternalInventoryIdentity {
 
     @Test
     void fiveSlotExternalInventoryRetainsPhysicalBoundsAndIdentity() {
-        Inventory hopperLike = mock(Inventory.class);
+        Inventory hopperLike = Bukkit.createInventory(null, InventoryType.HOPPER);
         ItemStack stored = new ItemStack(Material.IRON_INGOT, 2);
-        when(hopperLike.getSize()).thenReturn(5);
-        when(hopperLike.getItem(4)).thenReturn(stored);
+        hopperLike.setItem(4, stored);
 
         BlockMenu menu = new BlockMenu(new TestPreset(), null, hopperLike);
 
+        assertEquals(5, hopperLike.getSize());
         assertEquals(9, menu.getSize(), "Legacy GUI rounds logical size up to nine");
         assertSame(hopperLike, menu.toInventory());
-        assertSame(stored, menu.getItemInSlot(4));
+        assertEquals(stored, menu.getItemInSlot(4));
         assertSame(hopperLike, menu.toInventory());
     }
 
