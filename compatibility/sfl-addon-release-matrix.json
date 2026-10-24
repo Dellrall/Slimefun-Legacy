@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "bundle_revision": 150,
+  "bundle_revision": 151,
   "bundle_name": "SF_Addons_1.21.11-26.3.zip",
   "artifact_naming": {
     "format": "SF_<AddonName><Version>.jar",
@@ -161,7 +161,7 @@
     {
       "repository": "wickidcow/SF_HotbarPets",
       "slug": "hotbarpets",
-      "source_commit": "ac1e2213686a83acd52d82c01434ab12b48e64f3"
+      "source_commit": "e50c64641f961bf5da14ca839b435fdefa39b4db"
     },
     {
       "repository": "wickidcow/SF_IDreamOfEasy",
@@ -172,7 +172,7 @@
       "repository": "wickidcow/SF_InfinityExpansion2",
       "slug": "infinityexpansion2",
       "artifact_base": "InfinityExpansion",
-      "source_commit": "168815bb99e5701d3680095a9eb9170d83a19740"
+      "source_commit": "db3f8a900a0801bcca180f7aa89e331792c55383"
     },
     {
       "repository": "wickidcow/SF_LiteXpansion",
@@ -214,7 +214,7 @@
       "repository": "wickidcow/SF_NetworksExp",
       "slug": "networksexp",
       "artifact_base": "Networks",
-      "source_commit": "9bf9f48b49dbedbf9e617ca840d9ccd57cf0c717"
+      "source_commit": "6304622c8772f51b199e32b9cab5b84f0d48a753"
     },
     {
       "repository": "wickidcow/SF_RelicsOfCthonia",
