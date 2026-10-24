@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.xzavier0722.mc.plugin.slimefun4.storage.controller.InventoryReadTestPlugin;
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.InventoryContext;
@@ -87,6 +89,46 @@ class TestItemStackServiceInvalidIncomingAmounts {
             assertEquals(air, rest);
             assertArrayEquals(before, inventory.getContents());
         }
+    }
+
+    @Test
+    void malformedCountsCannotPassCapacityChecks() {
+        Inventory inventory = Bukkit.createInventory(null, 18);
+        inventory.setItem(0, new ItemStack(Material.DIAMOND, 64));
+        ItemStack[] before = inventory.getContents();
+        ItemStack negative = new ItemStack(Material.STONE, 1);
+        negative.setAmount(-3);
+        ItemStack zero = new ItemStack(Material.STONE, 1);
+        zero.setAmount(0);
+        ItemStack positive = new ItemStack(Material.STONE, 2);
+        ItemStackService service = new ItemStackService();
+
+        assertFalse(service.fits(inventory, negative, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertFalse(service.fitAll(
+                inventory, new ItemStack[] {negative}, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertFalse(service.fitAll(
+                inventory, new ItemStack[] {positive, negative}, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertFalse(service.fits(inventory, zero, InventoryContext.MACHINE_OUTPUT, 1));
+        assertFalse(service.fits(inventory, new ItemStack(Material.AIR), InventoryContext.MACHINE_OUTPUT, 1));
+        assertArrayEquals(before, inventory.getContents(), "No preflight may alter any slot");
+    }
+
+    @Test
+    void zeroAmountRecipePlaceholdersAreIgnoredWithoutGhostContents() {
+        Inventory inventory = Bukkit.createInventory(null, 18);
+        inventory.setItem(0, new ItemStack(Material.DIAMOND, 64));
+        ItemStack[] before = inventory.getContents();
+        ItemStack zero = new ItemStack(Material.STONE, 1);
+        zero.setAmount(0);
+        ItemStack valid = new ItemStack(Material.STONE, 2);
+        ItemStackService service = new ItemStackService();
+
+        assertTrue(service.fitAll(inventory, new ItemStack[] {zero}, InventoryContext.MACHINE_OUTPUT, 0));
+        assertFalse(
+                service.fitAll(inventory, new ItemStack[] {zero, valid}, InventoryContext.MACHINE_OUTPUT, 0));
+        assertTrue(
+                service.fitAll(inventory, new ItemStack[] {zero, valid}, InventoryContext.MACHINE_OUTPUT, 0, 1));
+        assertArrayEquals(before, inventory.getContents(), "No-op outputs must not create ghost stacks");
     }
 
     @Test
