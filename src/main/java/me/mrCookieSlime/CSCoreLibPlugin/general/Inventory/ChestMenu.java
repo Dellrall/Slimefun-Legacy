@@ -3,6 +3,7 @@ package me.mrCookieSlime.CSCoreLibPlugin.general.Inventory;
 import city.norain.slimefun4.holder.SlimefunInventoryHolder;
 import city.norain.slimefun4.utils.InventoryUtil;
 import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItemStack;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -251,6 +252,29 @@ public class ChestMenu extends SlimefunInventoryHolder {
 
     public boolean contains(@Nonnull Player viewer) {
         return viewers.contains(viewer.getUniqueId());
+    }
+
+    /**
+     * Reserves the legacy menu's logical slot list before adopting an
+     * externally owned Bukkit inventory. Unlike setSize(), this must never
+     * reset or replace the supplied inventory, or invoke a subclass's
+     * overridable reset() while its constructor is still running.
+     *
+     * <p>ChestMenu exposes a logical multiple-of-nine menu size (at most 54)
+     * even for special inventories such as 5-slot hoppers. Physical slot
+     * bounds continue to be enforced by the backing Inventory.</p>
+     */
+    protected final void prepareExternalInventorySlots(int backingSize) {
+        if (backingSize <= 0) {
+            return;
+        }
+
+        int bounded = Math.min(54, backingSize);
+        int logicalSize = Math.max(9, ((bounded + 8) / 9) * 9);
+        if (items.size() < logicalSize) {
+            items.addAll(Collections.nCopies(logicalSize - items.size(), null));
+        }
+        size = logicalSize;
     }
 
     private void setup() {
