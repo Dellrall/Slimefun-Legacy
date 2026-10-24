@@ -118,6 +118,11 @@ public class DirtyChestMenu extends ChestMenu {
     }
 
     public boolean fits(@Nonnull ItemStack item, int... slots) {
+        // Empty, AIR, and negative-size outputs cannot occupy a physical slot.
+        if (item.getAmount() <= 0 || item.getType().isAir()) {
+            return false;
+        }
+
         // A stale addon menu can declare slots past the physical inventory size.
         // Check the entire selection before reading any slot or claiming capacity.
         if (!hasValidSlotSelection(toInventory().getSize(), slots)) {
@@ -206,12 +211,18 @@ public class DirtyChestMenu extends ChestMenu {
      * or null when everything had fit
      */
     @Nullable public ItemStack pushItem(ItemStack item, int... slots) {
-        if (item == null || item.getType() == Material.AIR) {
+        if (item == null || item.getType().isAir()) {
             throw new IllegalArgumentException("Cannot push null or AIR");
         }
 
         if (locked()) {
             throw new IllegalStateException("Cannot push item when menu is locked");
+        }
+
+        // Invalid output sizes are not successful inserts. Return the complete
+        // independent remainder without modifying the menu or its dirty state.
+        if (item.getAmount() <= 0) {
+            return item.clone();
         }
 
         // Never insert into part of a malformed slot selection. Return the
