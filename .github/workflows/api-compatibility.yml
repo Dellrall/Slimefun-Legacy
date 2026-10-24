@@ -44,6 +44,24 @@ jobs:
       - name: Build previous stable API baseline
         working-directory: build/api-baseline-source
         run: |
+          # The historical release does not isolate dynamic Paper API metadata.
+          # Restrict only that dependency group to PaperMC without modifying
+          # the historical source tree or its resulting Java API surface.
+          BASELINE_INIT_DIR="${GRADLE_USER_HOME:-$HOME/.gradle}/init.d"
+          mkdir -p "$BASELINE_INIT_DIR"
+          cat > "$BASELINE_INIT_DIR/slimefun-baseline-paper-metadata.gradle" <<'GRADLE'
+          import org.gradle.api.artifacts.repositories.MavenArtifactRepository
+          gradle.beforeProject { project ->
+              project.repositories.all { repository ->
+                  if (repository instanceof MavenArtifactRepository
+                          && repository.url.host != 'repo.papermc.io') {
+                      repository.content {
+                          excludeGroup('io.papermc.paper')
+                      }
+                  }
+              }
+          }
+          GRADLE
           chmod +x gradlew
           echo "Building Slimefun Legacy ${{ steps.baseline.outputs.previous_version }} as the API baseline"
           ./gradlew spotlessApply --no-daemon
