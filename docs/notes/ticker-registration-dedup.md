@@ -32,8 +32,15 @@ correctness issue that can make such a base worse:
   universal UUIDs at the same location remain distinct in the data model.
 - Avoid allocating a new concurrent set for a chunk that is already
   registered. Only genuine additions invalidate the ticker snapshot.
-- Existing machine removal, chunk unload, migrations and ticker
-  scheduler ownership continue using their original code paths.
+- Machine removal is now keyed by the stored integer block position rather
+  than a `Location.equals` comparison that also includes offsets and yaw/pitch.
+  This prevents ghost callbacks when addons pass a centered or rotated
+  location to `disableTicker`.
+- Location/UUID removal only marks the expensive global ticker snapshot dirty
+  **if an actual registration or empty chunk entry was removed**. Repeated
+  attempts to remove an absent machine never trigger a full snapshot copy.
+- Existing machine data, inventory contents, energy, chunk unload, migrations
+  and scheduler ownership continue using the original code paths.
 
 No saved item, block, menu, PDC, database record or machine recipe format
 is changed, and no ticker is disabled or removed intentionally. On the next
@@ -50,6 +57,10 @@ The new MockBukkit unit suite verifies:
 - Distinct world positions, normal vs universal blocks and different
   universal UUIDs remain distinct.
 - Unregistering/re-registering a location does not retain stale callbacks.
+- Repeated unknown-location and unknown-UUID removals do not dirty
+  the cached global snapshot, while an actual removal still invalidates it.
+- Block-center locations with nonzero yaw/pitch successfully remove the
+  original registered ticker instead of leaving a stale callback.
 - Idempotent registrations do not dirty the global cached ticker snapshot;
   a new, distinct machine does.
 
