@@ -239,16 +239,16 @@ jobs:
                   'slug': addon.get('slug') or repository.split('/', 1)[1].lower(),
                   'tier': addon.get('tier', 'required') if pull_request_mode else 'maintained-release',
               }
-              if repository == 'wickidcow/SF_BuildingStaff' and pull_request_mode:
-                  # Diagnostic PR #474 must compile the same unreleased source
-                  # that its r151 candidate ZIP packages, never floating master.
+              if repository in ('wickidcow/SF_BuildingStaff', 'wickidcow/SF_NetworksExp') and pull_request_mode:
+                  # Diagnostic PR #474 must compile the same unpublished Networks
+                  # and BuildingStaff sources the r151 ZIP packages, never floating master.
                   matches = [pin for pin in release.get('addons', [])
                              if pin.get('repository') == repository]
                   if len(matches) != 1:
-                      raise SystemExit('Missing exact BuildingStaff diagnostic source pin')
+                      raise SystemExit('Missing exact maintained diagnostic source pin')
                   pin = matches[0].get('source_commit', '')
                   if re.fullmatch(r'[0-9a-f]{40}', pin) is None:
-                      raise SystemExit('Invalid BuildingStaff diagnostic source pin')
+                      raise SystemExit('Invalid maintained diagnostic source pin')
                   row['source_commit'] = pin
               include.append(row)
 
@@ -305,17 +305,17 @@ jobs:
           set -euo pipefail
           git clone --depth 1 "https://github.com/${ADDON_REPOSITORY}.git" addon
           if [[ -n "$ADDON_SOURCE_COMMIT" ]]; then
-            if [[ "$GITHUB_EVENT_NAME" != "pull_request" || "$ADDON_REPOSITORY" != "wickidcow/SF_BuildingStaff" ]]; then
-              echo "Refusing unreviewed source override outside the BuildingStaff diagnostic PR" >&2
+            if [[ "$GITHUB_EVENT_NAME" != "pull_request" || ( "$ADDON_REPOSITORY" != "wickidcow/SF_BuildingStaff" && "$ADDON_REPOSITORY" != "wickidcow/SF_NetworksExp" ) ]]; then
+              echo "Refusing unreviewed source override outside the maintained diagnostic PR" >&2
               exit 1
             fi
             git -C addon fetch --no-tags --depth 1 origin "$ADDON_SOURCE_COMMIT"
             git -C addon checkout --detach "$ADDON_SOURCE_COMMIT"
             if [[ "$(git -C addon rev-parse HEAD)" != "$ADDON_SOURCE_COMMIT" ]]; then
-              echo "BuildingStaff diagnostic checkout/source mismatch" >&2
+              echo "Maintained diagnostic checkout/source mismatch" >&2
               exit 1
             fi
-            echo "Exact unreleased BuildingStaff source checked out: $ADDON_SOURCE_COMMIT"
+            echo "Exact unpublished maintained source checked out: $ADDON_REPOSITORY@$ADDON_SOURCE_COMMIT"
           fi
       - name: Install BuildingStaff optional compile-only provider API
         if: matrix.repository == 'wickidcow/SF_BuildingStaff'
