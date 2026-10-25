@@ -47,11 +47,12 @@ class TestAntiDupeVanillaRecipeMatching {
 
     @Test
     void plainVanillaStarMatchesBeforeAndAfterBetterAntiDupeMarksIt() {
-        ItemStack candidate = new ItemStack(Material.NETHER_STAR, 3);
         ItemStack recipeStar = new ItemStack(Material.NETHER_STAR);
+        assertTrue(matches(new ItemStack(Material.NETHER_STAR, 3), recipeStar));
 
-        assertTrue(matches(candidate, recipeStar));
-
+        // MockBukkit treats PDC-only metadata as absent. A real Paper stack
+        // reports it as metadata, so force that native comparator path here.
+        ItemStack candidate = metadataAwareStar(3);
         ItemMeta meta = candidate.getItemMeta();
         meta.getPersistentDataContainer().set(OWNER, PersistentDataType.STRING, "player-owner-uuid");
         candidate.setItemMeta(meta);
@@ -69,22 +70,32 @@ class TestAntiDupeVanillaRecipeMatching {
         ItemStack marked = markedStar();
         ItemStack recipeStar = new ItemStack(Material.NETHER_STAR);
 
+        // MockBukkit's ItemFactory does not count a PDC-only ItemMeta as
+        // present. Bootstrap the immutable wrapper with a temporary name
+        // so the cached native hasItemMeta bit is true, then remove only
+        // that test-only name from the wrapper's cached metadata. On a real
+        // Paper server the anti-dupe marker sets the bit itself.
+        ItemMeta setup = marked.getItemMeta();
+        setup.displayName(Component.text("test-only metadata bootstrap"));
+        marked.setItemMeta(setup);
+        ItemStackWrapper wrapped = ItemStackWrapper.wrap(marked);
+        assertTrue(wrapped.hasItemMeta(), "Fixture must traverse the metadata-aware recipe branch");
+        wrapped.getItemMeta().displayName(null);
+
         // This is the exact ItemStackService route used by
         // AContainer#findNextRecipe, including its immutable ItemStackWrapper.
         assertTrue(new ItemStackService().isSimilar(
-                ItemStackWrapper.wrap(marked), recipeStar, MatchContext.RECIPE_INPUT, true, true));
+                wrapped, recipeStar, MatchContext.RECIPE_INPUT, true, true));
 
-        ItemMeta additionalData = marked.getItemMeta();
-        additionalData.getPersistentDataContainer().set(
+        wrapped.getItemMeta().getPersistentDataContainer().set(
                 FOREIGN_ITEM_ID, PersistentDataType.STRING, "other-item");
-        marked.setItemMeta(additionalData);
         assertFalse(new ItemStackService().isSimilar(
-                ItemStackWrapper.wrap(marked), recipeStar, MatchContext.RECIPE_INPUT, true, true));
+                wrapped, recipeStar, MatchContext.RECIPE_INPUT, true, true));
     }
 
     @Test
     void anyPersistentValueTypeForTheSameOwnerKeyIsOnlyComparisonMetadata() {
-        ItemStack candidate = new ItemStack(Material.NETHER_STAR);
+        ItemStack candidate = metadataAwareStar(1);
         ItemMeta meta = candidate.getItemMeta();
         meta.getPersistentDataContainer().set(OWNER, PersistentDataType.INTEGER, 42);
         candidate.setItemMeta(meta);
@@ -118,7 +129,7 @@ class TestAntiDupeVanillaRecipeMatching {
 
     @Test
     void arbitraryForeignPdcMarkersAreNotIgnored() {
-        ItemStack candidate = new ItemStack(Material.NETHER_STAR);
+        ItemStack candidate = metadataAwareStar(1);
         ItemMeta meta = candidate.getItemMeta();
         meta.getPersistentDataContainer().set(FOREIGN_ITEM_ID, PersistentDataType.STRING, "custom");
         candidate.setItemMeta(meta);
@@ -153,11 +164,25 @@ class TestAntiDupeVanillaRecipeMatching {
     }
 
     private static ItemStack markedStar() {
-        ItemStack star = new ItemStack(Material.NETHER_STAR);
+        ItemStack star = metadataAwareStar(1);
         ItemMeta meta = star.getItemMeta();
         meta.getPersistentDataContainer().set(OWNER, PersistentDataType.STRING, "owner");
         star.setItemMeta(meta);
         return star;
+    }
+
+    /**
+     * MockBukkit's ItemStack#hasItemMeta excludes items whose only extra data
+     * is PDC. Real Paper does not. Force the production branch in these
+     * focused comparisons while keeping genuine ItemMeta instances.
+     */
+    private static ItemStack metadataAwareStar(int amount) {
+        return new ItemStack(Material.NETHER_STAR, amount) {
+            @Override
+            public boolean hasItemMeta() {
+                return true;
+            }
+        };
     }
 
     private static boolean matches(ItemStack candidate, ItemStack expectedVanillaRecipeIngredient) {
