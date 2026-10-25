@@ -668,6 +668,25 @@ jobs:
               'compatibility': source['compatibility'],
               'addons': records,
           }
+          previews = [row for row in records if 'unpublished_pr_preview' in row]
+          if previews:
+              if os.environ.get('GITHUB_EVENT_NAME') != 'pull_request':
+                  raise SystemExit('Unpublished addon previews cannot enter a release bundle')
+              for row in previews:
+                  proof = row['unpublished_pr_preview']
+                  candidate = Path('collected/jars') / row['jar']
+                  if (proof.get('mode') != 'unpublished-pr-preview'
+                      or proof.get('eligible_for_release') is not False
+                      or proof.get('event') != 'pull_request'
+                      or proof.get('source') != row['commit']
+                      or proof.get('repository') != row['repository']
+                      or proof.get('sha256') != row['sha256']
+                      or proof.get('version') != row['version']
+                      or proof.get('bytes') != candidate.stat().st_size):
+                      raise SystemExit('Invalid final unpublished-addon preview receipt')
+              out['build_mode'] = 'unpublished-pr-preview'
+              out['eligible_for_release'] = False
+              out['unpublished_addons'] = [row['repository'] for row in previews]
           Path('bundle/SF_ADDON_MANIFEST.json').write_text(json.dumps(out, indent=2) + '\n', encoding='utf-8')
           PY
           cat > bundle/COMPATIBILITY.txt <<EOF
@@ -698,9 +717,25 @@ jobs:
           / Slimefun Legacy candidate stack. Distributable JARs keep their intended baseline
           bytecode; DracFun Reborn is separately validated on Java 25 / Paper 26.3, then rebuilt
           as Java-21 bytecode against the 1.21.11 baseline for universal deployment.
-          Networks and InfinityExpansion2 use their checksum-pinned published universal JARs;
-          their newer-API compile probe outputs are not distributed.
+          Networks and InfinityExpansion2 carry exact-source proof in SF_ADDON_MANIFEST.json.
+          Published builds use checksum-pinned universal JARs; PR-only CI previews may
+          contain source-locked unpublished candidates with release-ineligible receipts.
+          A green CI preview is NOT proof that an official addon release was published.
           EOF
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = json.loads(Path('bundle/SF_ADDON_MANIFEST.json').read_text(encoding='utf-8'))
+          if manifest.get('build_mode') == 'unpublished-pr-preview':
+              names = ', '.join(manifest['unpublished_addons'])
+              notice = (
+                  'WARNING: CI-ONLY UNPUBLISHED ADDON PREVIEW — NOT A RELEASE.\n'
+                  'Contains unapproved source-locked addon JARs: ' + names + '\n'
+                  'Do not distribute, publish or install this as an official release.\n\n'
+              )
+              file = Path('bundle/COMPATIBILITY.txt')
+              file.write_text(notice + file.read_text(encoding='utf-8'), encoding='utf-8')
+          PY
           (cd bundle && sha256sum *.jar | sort > SHA256SUMS.txt)
           (cd bundle && zip -9 -q "../${BUNDLE_NAME}" ./*)
           unzip -tqq "$BUNDLE_NAME"
