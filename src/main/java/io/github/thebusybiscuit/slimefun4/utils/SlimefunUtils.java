@@ -441,7 +441,7 @@ public final class SlimefunUtils {
                     // when BetterAntiDupe attaches only antidupepro:adp_owner.
                     // Do not ignore other plugin identity keys, Slimefun IDs,
                     // enchantments, lore, custom model data or names.
-                    return hasOnlyBetterAntiDupeOwnerMarker(itemMeta);
+                    return hasOnlyBetterAntiDupeOwnerMarker(item.getType(), itemMeta);
                 }
             }
 
@@ -455,7 +455,7 @@ public final class SlimefunUtils {
      * annotation when it is the sole difference from a plain vanilla stack.
      * Never modify the live inventory item or strip the marker from it.
      */
-    private static boolean hasOnlyBetterAntiDupeOwnerMarker(@Nonnull ItemMeta itemMeta) {
+    private static boolean hasOnlyBetterAntiDupeOwnerMarker(@Nonnull Material material, @Nonnull ItemMeta itemMeta) {
         PersistentDataContainer pdc = itemMeta.getPersistentDataContainer();
         if (pdc.getKeys().size() != 1 || !pdc.has(BETTER_ANTIDUPE_OWNER_KEY)) {
             return false;
@@ -474,7 +474,13 @@ public final class SlimefunUtils {
 
         ItemMeta withoutOwner = itemMeta.clone();
         withoutOwner.getPersistentDataContainer().remove(BETTER_ANTIDUPE_OWNER_KEY);
-        return Bukkit.getItemFactory().equals(withoutOwner, null);
+
+        // Compare with a fresh default meta for the same material instead of
+        // null: some Bukkit test factories consider every nonnull ItemMeta
+        // unequal to null even when the meta has no remaining components.
+        // Both production Paper and MockBukkit can compare real Meta objects.
+        return Bukkit.getItemFactory()
+                .equals(withoutOwner, Bukkit.getItemFactory().getItemMeta(material));
     }
 
     private static @Nonnull Optional<DistinctiveItem> getDistinctiveItem(@Nonnull String id) {
