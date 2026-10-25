@@ -875,6 +875,7 @@ public class TickerTask implements Runnable {
             } else {
                 newValue.add(tickPosition);
             }
+            chunkTickerBudgetSnapshots.remove(chunk);
             tickingLocationsSnapshotDirty = true;
         }
     }
@@ -903,6 +904,7 @@ public class TickerTask implements Runnable {
                     tickingLocations.remove(chunk);
                 }
             }
+            chunkTickerBudgetSnapshots.remove(chunk);
             tickingLocationsSnapshotDirty = true;
         }
     }
@@ -939,7 +941,11 @@ public class TickerTask implements Runnable {
             }
             for (ChunkPosition emptyChunk : emptyChunks) {
                 tickingLocations.remove(emptyChunk);
+                chunkTickerBudgetSnapshots.remove(emptyChunk);
             }
+            // Universal migrations/removals can change the ticker set in
+            // any nonempty chunk. Rebuild affected fairness snapshots.
+            chunkTickerBudgetSnapshots.clear();
             tickingLocationsSnapshotDirty = true;
         }
     }
