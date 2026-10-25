@@ -4,6 +4,10 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.xzavier0722.mc.plugin.slimefun4.storage.controller.InventoryReadTestPlugin;
+import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.MatchContext;
+import io.github.thebusybiscuit.slimefun4.core.services.ItemStackService;
+import io.github.thebusybiscuit.slimefun4.utils.itemstack.ItemStackWrapper;
 import net.kyori.adventure.text.Component;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -23,14 +27,22 @@ class TestAntiDupeVanillaRecipeMatching {
     private static final NamespacedKey FOREIGN_ITEM_ID = new NamespacedKey("some_plugin", "special_item");
     private static final NamespacedKey SLIMEFUN_ITEM_ID = new NamespacedKey("slimefun", "id");
 
+    private InventoryReadTestPlugin fixture;
+
     @BeforeEach
     void startServer() {
-        MockBukkit.mock();
+        fixture = new InventoryReadTestPlugin(MockBukkit.mock());
     }
 
     @AfterEach
     void stopServer() {
-        MockBukkit.unmock();
+        try {
+            if (fixture != null) {
+                fixture.close();
+            }
+        } finally {
+            MockBukkit.unmock();
+        }
     }
 
     @Test
@@ -50,6 +62,24 @@ class TestAntiDupeVanillaRecipeMatching {
                 candidate.getItemMeta().getPersistentDataContainer().get(OWNER, PersistentDataType.STRING),
                 "Recipe comparison must not remove, rewrite or mutate the anti-dupe ownership marker");
         assertEquals(3, candidate.getAmount(), "Recipe comparison must not consume the input");
+    }
+
+    @Test
+    void aContainerRecipeInputMatchingAcceptsTheMarkedStarAsWell() {
+        ItemStack marked = markedStar();
+        ItemStack recipeStar = new ItemStack(Material.NETHER_STAR);
+
+        // This is the exact ItemStackService route used by
+        // AContainer#findNextRecipe, including its immutable ItemStackWrapper.
+        assertTrue(new ItemStackService().isSimilar(
+                ItemStackWrapper.wrap(marked), recipeStar, MatchContext.RECIPE_INPUT, true, true));
+
+        ItemMeta additionalData = marked.getItemMeta();
+        additionalData.getPersistentDataContainer().set(
+                FOREIGN_ITEM_ID, PersistentDataType.STRING, "other-item");
+        marked.setItemMeta(additionalData);
+        assertFalse(new ItemStackService().isSimilar(
+                ItemStackWrapper.wrap(marked), recipeStar, MatchContext.RECIPE_INPUT, true, true));
     }
 
     @Test
