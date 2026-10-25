@@ -262,6 +262,10 @@ public class TickerTask implements Runnable {
                         tickLocation(tickers, location, position, regionOwned);
                     }
                 }
+            } else {
+                // No work is possible for an unloaded chunk. Discard cached
+                // rotation state rather than retaining it indefinitely.
+                chunkTickerBudgetSnapshots.remove(chunk);
             }
         } catch (ArrayIndexOutOfBoundsException | NumberFormatException exception) {
             Slimefun.logger()
