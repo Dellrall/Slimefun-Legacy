@@ -461,6 +461,17 @@ public final class SlimefunUtils {
             return false;
         }
 
+        // Defensive checks in addition to the item-factory empty-meta
+        // comparison: never allow a renamed, enchanted, lore-bearing or
+        // modeled item merely because a fork's ItemFactory treats the
+        // remaining metadata as "empty".
+        if (itemMeta.hasDisplayName()
+                || itemMeta.hasLore()
+                || itemMeta.hasEnchants()
+                || itemMeta.hasCustomModelDataComponent()) {
+            return false;
+        }
+
         ItemMeta withoutOwner = itemMeta.clone();
         withoutOwner.getPersistentDataContainer().remove(BETTER_ANTIDUPE_OWNER_KEY);
         return Bukkit.getItemFactory().equals(withoutOwner, null);
