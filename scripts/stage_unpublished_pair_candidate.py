@@ -69,8 +69,11 @@ def preview_mode(
     require(re.search(r"^api-version:\s*['\"]?1\.21(?:\.11)?['\"]?\s*$",
                       descriptor, re.MULTILINE) is not None,
             "Candidate JAR does not retain the supported API floor")
-    require(re.search(r"^folia-supported:\s*true\s*$",
-                      descriptor, re.MULTILINE | re.IGNORECASE) is None,
+    # Any YAML Folia declaration (including quoted booleans and aliases) is
+    # outside this pre-release compatibility review. Do not accidentally
+    # accept a supported=true claim just because it is not a bare "true".
+    require(re.search(r"^[ \\t]*folia-supported[ \\t]*:", descriptor,
+                      re.MULTILINE | re.IGNORECASE) is None,
             "Unaccepted Folia compatibility declaration")
 
     return "unpublished-pr-preview", {
