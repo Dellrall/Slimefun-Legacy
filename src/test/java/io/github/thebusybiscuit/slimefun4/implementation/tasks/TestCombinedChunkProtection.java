@@ -2,17 +2,21 @@ package io.github.thebusybiscuit.slimefun4.implementation.tasks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.thebusybiscuit.slimefun4.core.limiting.ChunkMachineLimitPolicy;
 import io.github.thebusybiscuit.slimefun4.core.ticker.FairTickerBatch;
 import io.github.thebusybiscuit.slimefun4.core.ticker.TickLocation;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import org.bukkit.Location;
 import org.bukkit.World;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,6 +41,22 @@ class TestCombinedChunkProtection {
     @AfterEach
     void stopServer() {
         MockBukkit.unmock();
+    }
+
+    @Test
+    void packagedConfigurationKeepsBothSafeguardsOffUntilAdminOptIn() throws Exception {
+        try (InputStream input = TestCombinedChunkProtection.class.getClassLoader()
+                .getResourceAsStream("config.yml")) {
+            assertNotNull(input, "The packaged Slimefun config.yml must be readable");
+            YamlConfiguration cfg = YamlConfiguration.loadConfiguration(
+                    new InputStreamReader(input, StandardCharsets.UTF_8));
+
+            assertFalse(cfg.getBoolean("machine-limiter.enabled"));
+            assertEquals(256, cfg.getInt("machine-limiter.max-ticking-machines-per-chunk"));
+            assertFalse(cfg.getBoolean("machine-limiter.allow-bypass-permission"));
+            assertFalse(cfg.getBoolean("stability.chunk-ticker-budget.enabled"));
+            assertEquals(512, cfg.getInt("stability.chunk-ticker-budget.max-tickers-per-chunk-per-cycle"));
+        }
     }
 
     @Test
