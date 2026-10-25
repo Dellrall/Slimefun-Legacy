@@ -18,7 +18,21 @@ public final class FairTickerBatch<T> {
     private int cursor;
 
     public FairTickerBatch(Collection<? extends T> entries) {
+        this(entries, 0);
+    }
+
+    /**
+     * Starts near an earlier cursor after the registered ticker set changes.
+     * Topology changes therefore do not repeatedly reset every overloaded
+     * chunk to machine number one and starve later registrations.
+     */
+    public FairTickerBatch(Collection<? extends T> entries, int initialCursor) {
         this.entries = List.copyOf(entries);
+        this.cursor = this.entries.isEmpty() ? 0 : Math.floorMod(initialCursor, this.entries.size());
+    }
+
+    public synchronized int nextCursor() {
+        return cursor;
     }
 
     /**
