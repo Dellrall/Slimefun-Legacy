@@ -35,7 +35,7 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
                   api="1.21", bytecode=65, folia=False):
         descriptor = f"name: {plugin}\nversion: {version}\napi-version: '{api}'\n"
         if folia:
-            descriptor += "folia-supported: true\n"
+            descriptor += "folia-supported: " + (folia if isinstance(folia, str) else "true") + "\n"
         with zipfile.ZipFile(self.jar, "w") as archive:
             archive.writestr("plugin.yml", descriptor)
             archive.writestr("com/example/Addon.class",
@@ -108,6 +108,13 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
         self.write_jar(folia=True)
         with self.assertRaisesRegex(RuntimeError, "Folia"):
             self.preview()
+
+    def test_folia_yaml_boolean_variants_cannot_claim_unreviewed_support(self):
+        for declaration in ("true", "'true'", '"TRUE"', "yes", "true # enabled", "false"):
+            with self.subTest(declaration=declaration):
+                self.write_jar(folia=declaration)
+                with self.assertRaisesRegex(RuntimeError, "Folia"):
+                    self.preview()
 
     def test_bytecode_above_java21_is_rejected(self):
         self.write_jar(bytecode=69)
