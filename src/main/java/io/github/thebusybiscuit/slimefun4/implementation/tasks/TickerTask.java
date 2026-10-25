@@ -12,6 +12,7 @@ import io.github.thebusybiscuit.slimefun4.core.services.scheduling.TaskHandle;
 import io.github.thebusybiscuit.slimefun4.core.services.stability.MachineCircuitBreaker;
 import io.github.thebusybiscuit.slimefun4.core.services.stability.MachineFailureSnapshot;
 import io.github.thebusybiscuit.slimefun4.core.services.stability.MachineFailureTracker;
+import io.github.thebusybiscuit.slimefun4.core.ticker.ChunkTickerBudgetPolicy;
 import io.github.thebusybiscuit.slimefun4.core.ticker.FairTickerBatch;
 import io.github.thebusybiscuit.slimefun4.core.ticker.TickLocation;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
@@ -50,7 +51,6 @@ import org.bukkit.Location;
 public class TickerTask implements Runnable {
 
     private static final int DEFAULT_CIRCUIT_FAILURE_THRESHOLD = 4;
-    private static final int DEFAULT_CHUNK_TICKER_BUDGET = 512;
     private static final int PROFILER_TELEMETRY_INTERVAL_SERVER_TICKS = 20 * 60;
 
     /**
@@ -299,7 +299,7 @@ public class TickerTask implements Runnable {
         }
 
         int configured = Slimefun.getCfg().getInt("stability.chunk-ticker-budget.max-tickers-per-chunk-per-cycle");
-        int maximum = configured > 0 ? configured : DEFAULT_CHUNK_TICKER_BUDGET;
+        int maximum = ChunkTickerBudgetPolicy.effectiveLimit(configured);
         if (locations.size() <= maximum) {
             chunkTickerBudgetSnapshots.remove(chunk);
             return locations;
