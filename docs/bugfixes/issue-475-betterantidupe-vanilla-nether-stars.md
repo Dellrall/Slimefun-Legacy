@@ -24,27 +24,34 @@ and player-visible descriptions did not establish the problem.
 
 ## Safe fix
 
-For a vanilla recipe template that has no metadata, the comparator now
-accepts a candidate only if:
+**Only** `ItemStackService.isSimilar(... MatchContext.RECIPE_INPUT ...)`
+accepts a marked item when the recipe expects a *plain vanilla Nether Star*:
 
-1. It has **exactly one** PDC key, named `antidupepro:adp_owner`.
-2. After removing that key **on a clone of ItemMeta**, Bukkit's item
-   factory regards the remaining metadata as empty/default.
-3. Material and required stack amount still satisfy the original recipe.
+1. The candidate and plain recipe template are both `NETHER_STAR`, with
+   the correct ingredient quantity.
+2. The candidate has **exactly one** PDC key, `antidupepro:adp_owner`,
+   and is not a `SlimefunItemStack`.
+3. After removing the key **from cloned ItemMeta**, the remainder equals
+   a freshly created default `NETHER_STAR` meta via Bukkit's ItemFactory.
+4. Names, custom models, enchantments, lore and any additional PDC keys
+   block the exception, even when a server's ItemFactory normalizes them.
 
-This is not a general-purpose stripping of foreign PDC or Slimefun IDs.
-Renames, custom model data, enchantments, lore, additional PDC keys (even
-other anti-dupe keys) and Slimefun-specific IDs continue to block plain
-vanilla matching. The live input item and its anti-dupe ownership metadata
-are not changed by recipe **comparison**; normal recipe processing still
-uses the machine's existing consumption logic.
+**General SlimefunUtils comparisons, Cargo/Networks stack merging and
+auto-crafter predicate comparisons remain strict.** Ignoring ownership
+markers outside the recipe-input context could merge another player's
+marked item with an unmarked stack and destroy anti-dupe provenance.
+This change deliberately does not weaken those paths.
+
+The live input and its anti-dupe marker are unchanged by recipe
+comparison; normal processing still uses the machine's existing
+consumption and item-persistence logic.
 
 ## Required validation
 
 The new MockBukkit tests cover ordinary Nether Stars before/after marking,
 multiple PDC value types, stack amounts, material identity, metadata
-preservation, marked custom items, extra keys, names, lore, enchantments
-and custom models. Verify the exact-head Java 21 core build, Paper/Purpur
+preservation, marked custom items, extra keys, names, lore, enchantments,
+custom models, and strict general/Cargo/auto-crafter comparisons. Verify the exact-head Java 21 core build, Paper/Purpur
 1.21.11 and 26.3 API/runtime checks, then run the reported live reproduction
 with a genuinely BetterAntiDupe-marked Nether Star and both Heated Pressure
 Chamber tiers. Make sure the Nether Star's anti-dupe marker remains intact
