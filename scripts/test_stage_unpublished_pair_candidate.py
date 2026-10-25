@@ -23,7 +23,7 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
         self.write_jar()
         self.lock = {"addons": {
             "ie2": {"repository": self.REPO, "source": self.OLD_SOURCE,
-                    "plugin": "InfinityExpansion", "version": "2.0.15"},
+                    "plugin": "InfinityExpansion2", "version": "2.0.15"},
             "networks": {"repository": "wickidcow/SF_NetworksExp", "source": "c" * 40,
                          "plugin": "Networks", "version": "1.0.61"},
         }}
@@ -31,7 +31,7 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
             {"repository": self.REPO, "slug": self.SLUG, "source_commit": self.NEW_SOURCE}
         ]}
 
-    def write_jar(self, *, plugin="InfinityExpansion", version="2.0.16",
+    def write_jar(self, *, plugin="InfinityExpansion2", version="2.0.16",
                   api="1.21", bytecode=65, folia=False):
         descriptor = f"name: {plugin}\nversion: {version}\napi-version: '{api}'\n"
         if folia:
@@ -54,7 +54,7 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
         self.assertFalse(proof["eligible_for_release"])
         self.assertEqual(self.NEW_SOURCE, proof["source"])
         self.assertEqual(self.REPO, proof["repository"])
-        self.assertEqual("InfinityExpansion", proof["plugin"])
+        self.assertEqual("InfinityExpansion2", proof["plugin"])
         self.assertEqual("2.0.16", proof["version"])
         self.assertEqual(self.jar.stat().st_size, proof["bytes"])
         self.assertEqual(hashlib.sha256(self.jar.read_bytes()).hexdigest(), proof["sha256"])
