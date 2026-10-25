@@ -839,13 +839,17 @@ public class TickerTask implements Runnable {
             Set<TickLocation> locations = tickingLocations.get(chunk);
 
             if (locations != null) {
-                locations.removeIf(tk -> l.equals(tk.getLocation()));
-
+                // A ticker registration owns a *block position*, not a Bukkit
+                // Location's exact doubles/yaw/pitch. Chunk loaders and addons
+                // sometimes provide block centers or rotated Locations.
+                boolean changed = locations.removeIf(tk -> position.equals(tk.getPosition()));
                 if (locations.isEmpty()) {
-                    tickingLocations.remove(chunk);
+                    changed |= tickingLocations.remove(chunk, locations);
+                }
+                if (changed) {
+                    tickingLocationsSnapshotDirty = true;
                 }
             }
-            tickingLocationsSnapshotDirty = true;
         }
     }
 
@@ -864,9 +868,10 @@ public class TickerTask implements Runnable {
 
         synchronized (tickingLocations) {
             Set<ChunkPosition> emptyChunks = new HashSet<>();
+            boolean changed = false;
             for (Map.Entry<ChunkPosition, Set<TickLocation>> entry : tickingLocations.entrySet()) {
                 Set<TickLocation> locations = entry.getValue();
-                locations.removeIf(tk -> {
+                boolean removed = locations.removeIf(tk -> {
                     if (!uuid.equals(tk.getUuid())) {
                         return false;
                     }
@@ -874,15 +879,18 @@ public class TickerTask implements Runnable {
                     clearTickerRuntimeState(tk.getPosition());
                     return true;
                 });
+                changed |= removed;
 
                 if (locations.isEmpty()) {
                     emptyChunks.add(entry.getKey());
                 }
             }
             for (ChunkPosition emptyChunk : emptyChunks) {
-                tickingLocations.remove(emptyChunk);
+                changed |= tickingLocations.remove(emptyChunk) != null;
             }
-            tickingLocationsSnapshotDirty = true;
+            if (changed) {
+                tickingLocationsSnapshotDirty = true;
+            }
         }
     }
 
