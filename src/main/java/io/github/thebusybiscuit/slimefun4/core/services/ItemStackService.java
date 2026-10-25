@@ -4,6 +4,7 @@ import io.github.bakedlibs.dough.inventory.InvUtils;
 import io.github.bakedlibs.dough.items.ItemUtils;
 import io.github.thebusybiscuit.slimefun4.api.items.ItemHandler;
 import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItem;
+import io.github.thebusybiscuit.slimefun4.api.items.SlimefunItemStack;
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler;
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.AdmissionResult;
 import io.github.thebusybiscuit.slimefun4.api.items.virtual.VirtualItemHandler.ComparisonResult;
@@ -21,10 +22,23 @@ import java.util.function.Predicate;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import org.apache.commons.lang.Validate;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataContainer;
 
 public final class ItemStackService {
+
+    /**
+     * BetterAntiDupe adds an invisible owner tag to valuable vanilla items.
+     * This marker is ignored only for the affected vanilla Nether Star
+     * recipe input, never for generic stacking, Cargo or Slimefun item IDs.
+     */
+    private static final NamespacedKey BETTER_ANTIDUPE_OWNER =
+            new NamespacedKey("antidupepro", "adp_owner");
 
     public boolean isVirtualItem(@Nullable ItemStack item) {
         return resolveHandler(item) != null;
@@ -75,7 +89,58 @@ public final class ItemStackService {
             return false;
         }
 
+        // #475: the Heated Pressure Chamber's vanilla NETHER_STAR ingredient
+        // must still match when BetterAntiDupe adds ONLY its owner marker.
+        // Restrict this compatibility exception to recipe inputs so marked
+        // items cannot silently merge with unmarked items in Cargo/Networks.
+        if (context == MatchContext.RECIPE_INPUT
+                && isUnmodifiedAntiDupeOwnedNetherStar(left, right, checkAmount)) {
+            return true;
+        }
+
         return SlimefunUtils.isItemSimilarWithoutVirtualItems(left, right, checkLore, checkAmount);
+    }
+
+    /**
+     * Evaluates metadata on clones for comparison only. The live ingredient's
+     * PDC ownership key is never removed, even during matching failures.
+     */
+    private static boolean isUnmodifiedAntiDupeOwnedNetherStar(
+            @Nullable ItemStack candidate, @Nullable ItemStack recipeIngredient, boolean checkAmount) {
+        if (recipeIngredient == null
+                || recipeIngredient.getType() != Material.NETHER_STAR
+                || recipeIngredient.hasItemMeta()
+                || candidate == null
+                || candidate instanceof SlimefunItemStack
+                || candidate.getType() != Material.NETHER_STAR
+                || checkAmount && candidate.getAmount() < recipeIngredient.getAmount()
+                || !candidate.hasItemMeta()) {
+            return false;
+        }
+
+        ItemMeta metadata = candidate.getItemMeta();
+        if (metadata == null) {
+            return false;
+        }
+
+        PersistentDataContainer pdc = metadata.getPersistentDataContainer();
+        // Test for the known key first: the vast majority of recipe items
+        // have no BetterAntiDupe ownership tag, so avoid allocating getKeys().
+        if (!pdc.has(BETTER_ANTIDUPE_OWNER) || pdc.getKeys().size() != 1) {
+            return false;
+        }
+
+        if (metadata.hasDisplayName()
+                || metadata.hasLore()
+                || metadata.hasEnchants()
+                || metadata.hasCustomModelDataComponent()) {
+            return false;
+        }
+
+        ItemMeta cleaned = metadata.clone();
+        cleaned.getPersistentDataContainer().remove(BETTER_ANTIDUPE_OWNER);
+        return Bukkit.getItemFactory()
+                .equals(cleaned, Bukkit.getItemFactory().getItemMeta(Material.NETHER_STAR));
     }
 
     public boolean matchesPredicate(
