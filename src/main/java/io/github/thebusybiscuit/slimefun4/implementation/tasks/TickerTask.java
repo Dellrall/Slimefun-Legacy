@@ -262,6 +262,11 @@ public class TickerTask implements Runnable {
                         tickLocation(tickers, location, position, regionOwned);
                     }
                 }
+            } else {
+                // No work is possible for an unloaded chunk. Drop any cached
+                // bounded snapshot/cursor so a heavily traveled server does
+                // not retain old runtime budgets for unloaded factories.
+                chunkTickerBudgetSnapshots.remove(chunk);
             }
         } catch (ArrayIndexOutOfBoundsException | NumberFormatException exception) {
             Slimefun.logger()
