@@ -72,7 +72,7 @@ def preview_mode(
     # Any YAML Folia declaration (including quoted booleans and aliases) is
     # outside this pre-release compatibility review. Do not accidentally
     # accept a supported=true claim just because it is not a bare "true".
-    require(re.search(r"^[ \\t]*folia-supported[ \\t]*:", descriptor,
+    require(re.search(r"^[ \t]*folia-supported[ \t]*:", descriptor,
                       re.MULTILINE | re.IGNORECASE) is None,
             "Unaccepted Folia compatibility declaration")
 
