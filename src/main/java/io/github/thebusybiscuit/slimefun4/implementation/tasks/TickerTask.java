@@ -306,7 +306,9 @@ public class TickerTask implements Runnable {
         ChunkTickerBudgetSnapshot snapshot = chunkTickerBudgetSnapshots.compute(chunk, (key, existing) ->
                 existing != null && existing.source() == locations
                         ? existing
-                        : new ChunkTickerBudgetSnapshot(locations, new FairTickerBatch<>(locations)));
+                        : new ChunkTickerBudgetSnapshot(locations,
+                                new FairTickerBatch<>(locations,
+                                        existing == null ? 0 : existing.window().nextCursor())));
         return snapshot.window().next(maximum);
     }
 
@@ -875,7 +877,8 @@ public class TickerTask implements Runnable {
             } else {
                 newValue.add(tickPosition);
             }
-            chunkTickerBudgetSnapshots.remove(chunk);
+            // Preserve the current fairness cursor while the registry snapshot
+            // rebuilds; the next tick will pick up near the previous location.
             tickingLocationsSnapshotDirty = true;
         }
     }
@@ -902,9 +905,9 @@ public class TickerTask implements Runnable {
 
                 if (locations.isEmpty()) {
                     tickingLocations.remove(chunk);
+                    chunkTickerBudgetSnapshots.remove(chunk);
                 }
             }
-            chunkTickerBudgetSnapshots.remove(chunk);
             tickingLocationsSnapshotDirty = true;
         }
     }
@@ -943,9 +946,7 @@ public class TickerTask implements Runnable {
                 tickingLocations.remove(emptyChunk);
                 chunkTickerBudgetSnapshots.remove(emptyChunk);
             }
-            // Universal migrations/removals can change the ticker set in
-            // any nonempty chunk. Rebuild affected fairness snapshots.
-            chunkTickerBudgetSnapshots.clear();
+            // Nonempty chunks retain their cursor index as snapshot sets change.
             tickingLocationsSnapshotDirty = true;
         }
     }
