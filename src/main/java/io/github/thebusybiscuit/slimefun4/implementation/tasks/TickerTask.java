@@ -897,14 +897,18 @@ public class TickerTask implements Runnable {
             Set<TickLocation> locations = tickingLocations.get(chunk);
 
             if (locations != null) {
-                locations.removeIf(tk -> l.equals(tk.getLocation()));
-
-                if (locations.isEmpty()) {
-                    tickingLocations.remove(chunk);
+                // Identify registered machines by integer block position.
+                // A different block-center offset, yaw or pitch must not
+                // leave a ghost ticker or force pointless snapshot work.
+                boolean changed = locations.removeIf(tk -> position.equals(tk.getPosition()));
+                if (locations.isEmpty() && tickingLocations.remove(chunk, locations)) {
                     chunkTickerBudgetSnapshots.remove(chunk);
+                    changed = true;
+                }
+                if (changed) {
+                    tickingLocationsSnapshotDirty = true;
                 }
             }
-            tickingLocationsSnapshotDirty = true;
         }
     }
 
@@ -923,9 +927,10 @@ public class TickerTask implements Runnable {
 
         synchronized (tickingLocations) {
             Set<ChunkPosition> emptyChunks = new HashSet<>();
+            boolean changed = false;
             for (Map.Entry<ChunkPosition, Set<TickLocation>> entry : tickingLocations.entrySet()) {
                 Set<TickLocation> locations = entry.getValue();
-                locations.removeIf(tk -> {
+                changed |= locations.removeIf(tk -> {
                     if (!uuid.equals(tk.getUuid())) {
                         return false;
                     }
@@ -939,11 +944,16 @@ public class TickerTask implements Runnable {
                 }
             }
             for (ChunkPosition emptyChunk : emptyChunks) {
-                tickingLocations.remove(emptyChunk);
-                chunkTickerBudgetSnapshots.remove(emptyChunk);
+                if (tickingLocations.remove(emptyChunk) != null) {
+                    chunkTickerBudgetSnapshots.remove(emptyChunk);
+                    changed = true;
+                }
             }
-            // Nonempty chunks retain their cursor index as snapshot sets change.
-            tickingLocationsSnapshotDirty = true;
+            // An unknown UUID must not rebuild a 13,000-machine global
+            // snapshot or reset runtime fairness windows.
+            if (changed) {
+                tickingLocationsSnapshotDirty = true;
+            }
         }
     }
 
