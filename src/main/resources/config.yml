@@ -125,6 +125,15 @@ stability:
   machine-circuit-breaker-cooldown-seconds: 300
   machine-circuit-breaker-failure-threshold: 4
   ticker-lifecycle-log-cooldown-seconds: 60
+  # Emergency backpressure for already overloaded machine chunks.
+  # Disabled by default: enabling it processes only a rotating, fair subset
+  # of registered tickers per 0.5-second Slimefun cycle in each loaded chunk.
+  # It intentionally reduces machine/transport throughput but never deletes
+  # or pauses any stored machine permanently; every ticker gets another turn.
+  # This is a callback COUNT limit, not a hard millisecond watchdog.
+  chunk-ticker-budget:
+    enabled: false
+    max-tickers-per-chunk-per-cycle: 512
   # Optional external adapters (for example Rebar/Pylon) are isolated independently from Slimefun core.
   external-integration-failure-threshold: 3
   external-integration-cooldown-seconds: 120
