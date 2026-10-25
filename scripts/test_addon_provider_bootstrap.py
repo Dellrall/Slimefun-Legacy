@@ -18,6 +18,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / '.github/workflows/paper-26.3-addon-compile.yml'
 STAFF = 'wickidcow/SF_BuildingStaff'
+STAFF_PREVIEW_SOURCE = '9706b4ee3c170fd65066e92a3ececd6b71f6c144'
 
 
 class AddonProviderBootstrapTest(unittest.TestCase):
@@ -70,13 +71,25 @@ class AddonProviderBootstrapTest(unittest.TestCase):
             {'repository': 'wickidcow/SF_DynaTech', 'enabled': True, 'tier': 'required'},
             {'repository': 'wickidcow/SF_Disabled', 'enabled': False, 'tier': 'required'},
             {'repository': STAFF, 'enabled': True, 'tier': 'optional'},
-        ], [{'repository': STAFF, 'slug': 'buildingstaff'}])
+        ], [{'repository': STAFF, 'slug': 'buildingstaff', 'source_commit': STAFF_PREVIEW_SOURCE}])
         self.assertEqual({'wickidcow/SF_DynaTech', STAFF}, {row['repository'] for row in rows})
+        self.assertEqual(STAFF_PREVIEW_SOURCE, next(row for row in rows if row['repository'] == STAFF)['source_commit'])
 
     def test_provider_already_required_is_not_duplicated(self):
         rows = self.generate('pull_request', [{'repository': STAFF, 'enabled': True, 'tier': 'required'}],
-                             [{'repository': STAFF, 'slug': 'buildingstaff'}])
+                             [{'repository': STAFF, 'slug': 'buildingstaff', 'source_commit': STAFF_PREVIEW_SOURCE}])
         self.assertEqual([STAFF], [row['repository'] for row in rows])
+        self.assertEqual(STAFF_PREVIEW_SOURCE, rows[0]['source_commit'])
+
+    def test_buildingstaff_preview_requires_exact_branch_source(self):
+        # The tested BuildingStaff may not silently float to default-branch
+        # source while the r151 preview ZIP builds a different commit.
+        self.assertIn("ADDON_SOURCE_COMMIT: ${{ matrix.source_commit || '' }}", self.workflow)
+        self.assertIn('git -C addon checkout --detach "$ADDON_SOURCE_COMMIT"', self.workflow)
+        self.assertIn('git -C addon rev-parse HEAD', self.workflow)
+        self.assertIn('GITHUB_EVENT_NAME', self.workflow)
+        self.assertIn('"wickidcow/SF_BuildingStaff"', self.workflow)
+        self.assertIn('row[\'source_commit\'] = pin', self.workflow)
 
     def test_unbundled_provider_is_not_invented(self):
         rows = self.generate('pull_request', [{'repository': 'wickidcow/SF_DynaTech', 'enabled': True, 'tier': 'required'}], [])
