@@ -43,6 +43,20 @@ stability:
 - Unloaded chunks release cached rotation snapshots instead of retaining
   unnecessary Java state indefinitely.
 
+## Operator diagnostics
+
+The existing `/sf chunkinfo top` command reports whether **new-machine
+placement admission** and **existing-machine runtime throttling** are enabled,
+with their separate configured limits. `/sf chunkinfo` for a loaded chunk
+also reports the number of ticker callbacks selected each Slimefun cycle and
+an estimated number of cycles to visit all registered machine identities.
+
+These status fields come from the same pure `ChunkTickerBudgetPolicy` as the
+TickerTask runtime selection. A zero, negative or missing cap safely defaults
+to 512 callbacks; rotation estimation uses overflow-safe ceiling division.
+The report is observational only, does not force-load chunks, and does not
+claim a specific TPS/MSPT gain or exact elapsed-time completion.
+
 ## Integration tests
 
 `TestCombinedChunkProtection` uses MockBukkit to register one physical
