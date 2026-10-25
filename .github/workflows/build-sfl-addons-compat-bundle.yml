@@ -529,7 +529,7 @@ jobs:
               # published artifact and has not passed live visual verification.
               # Keep the override isolated on this draft test branch and
               # fail closed on any push, release or unreviewed source.
-              expected_source = '2ec81e5764ab87bec4c2993980b24228cd16f78f'
+              expected_source = 'b6d0ff960e9a2bd2d9ef59f955117497052232f0'
               if (os.environ.get('GITHUB_EVENT_NAME') != 'pull_request'
                   or repo != 'wickidcow/SF_BuildingStaff'
                   or record['commit'] != expected_source
