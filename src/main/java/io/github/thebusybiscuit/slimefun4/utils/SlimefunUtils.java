@@ -34,7 +34,6 @@ import javax.annotation.ParametersAreNonnullByDefault;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.apache.commons.lang.Validate;
-import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
@@ -60,14 +59,6 @@ import org.bukkit.persistence.PersistentDataType;
 public final class SlimefunUtils {
 
     private static final String NO_PICKUP_KEY = "no_pickup";
-
-    /**
-     * BetterAntiDupe stores an ownership marker on otherwise plain vanilla
-     * items. This single known marker must not turn a Nether Star into a
-     * different recipe ingredient, but no other custom metadata is ignored.
-     */
-    private static final NamespacedKey BETTER_ANTIDUPE_OWNER_KEY =
-            new NamespacedKey("antidupepro", "adp_owner");
     private static final String SOULBOUND_LORE = LegacyComponentSerializer.legacySection()
             .serialize(LegacyComponentSerializer.legacyAmpersand().deserialize("&7Soulbound"));
 
@@ -437,50 +428,13 @@ public final class SlimefunUtils {
                         return equalsItemMeta(itemMeta, possibleSfItemMeta, checkLore, checkCustomModelData);
                     }
                 } else {
-                    // #475: an otherwise vanilla Nether Star becomes uncraftable
-                    // when BetterAntiDupe attaches only antidupepro:adp_owner.
-                    // Do not ignore other plugin identity keys, Slimefun IDs,
-                    // enchantments, lore, custom model data or names.
-                    return hasOnlyBetterAntiDupeOwnerMarker(item.getType(), itemMeta);
+                    return false;
                 }
             }
 
         } else {
             return !sfitem.hasItemMeta();
         }
-    }
-
-    /**
-     * Treat the exact BetterAntiDupe owner tag as a recipe-comparison-only
-     * annotation when it is the sole difference from a plain vanilla stack.
-     * Never modify the live inventory item or strip the marker from it.
-     */
-    private static boolean hasOnlyBetterAntiDupeOwnerMarker(@Nonnull Material material, @Nonnull ItemMeta itemMeta) {
-        PersistentDataContainer pdc = itemMeta.getPersistentDataContainer();
-        if (pdc.getKeys().size() != 1 || !pdc.has(BETTER_ANTIDUPE_OWNER_KEY)) {
-            return false;
-        }
-
-        // Defensive checks in addition to the item-factory empty-meta
-        // comparison: never allow a renamed, enchanted, lore-bearing or
-        // modeled item merely because a fork's ItemFactory treats the
-        // remaining metadata as "empty".
-        if (itemMeta.hasDisplayName()
-                || itemMeta.hasLore()
-                || itemMeta.hasEnchants()
-                || itemMeta.hasCustomModelDataComponent()) {
-            return false;
-        }
-
-        ItemMeta withoutOwner = itemMeta.clone();
-        withoutOwner.getPersistentDataContainer().remove(BETTER_ANTIDUPE_OWNER_KEY);
-
-        // Compare with a fresh default meta for the same material instead of
-        // null: some Bukkit test factories consider every nonnull ItemMeta
-        // unequal to null even when the meta has no remaining components.
-        // Both production Paper and MockBukkit can compare real Meta objects.
-        return Bukkit.getItemFactory()
-                .equals(withoutOwner, Bukkit.getItemFactory().getItemMeta(material));
     }
 
     private static @Nonnull Optional<DistinctiveItem> getDistinctiveItem(@Nonnull String id) {
