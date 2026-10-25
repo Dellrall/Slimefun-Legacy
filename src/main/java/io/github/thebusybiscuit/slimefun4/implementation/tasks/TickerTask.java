@@ -805,25 +805,19 @@ public class TickerTask implements Runnable {
                     ? new TickLocation(new BlockPosition(l))
                     : new TickLocation(new BlockPosition(l), uuid);
 
-            /*
-              Note that all the values in #tickingLocations must be thread-safe.
-              Thus, the choice is between the CHM KeySet or a synchronized set.
-              The CHM KeySet was chosen since it at least permits multiple concurrent
-              reads without blocking.
-            */
-            Set<TickLocation> newValue = ConcurrentHashMap.newKeySet();
-            Set<TickLocation> oldValue = tickingLocations.putIfAbsent(chunk, newValue);
-
-            /**
-             * This is faster than doing computeIfAbsent(...)
-             * on a ConcurrentHashMap because it won't block the Thread for too long
-             */
-            if (oldValue != null) {
-                oldValue.add(tickPosition);
-            } else {
-                newValue.add(tickPosition);
+            // Look up the already registered chunk first. Repeated addon or
+            // chunk-load registrations should not allocate a new concurrent
+            // set, duplicate the ticker, or rebuild the whole ticker snapshot.
+            Set<TickLocation> locations = tickingLocations.get(chunk);
+            if (locations == null) {
+                Set<TickLocation> created = ConcurrentHashMap.newKeySet();
+                Set<TickLocation> previous = tickingLocations.putIfAbsent(chunk, created);
+                locations = previous != null ? previous : created;
             }
-            tickingLocationsSnapshotDirty = true;
+
+            if (locations.add(tickPosition)) {
+                tickingLocationsSnapshotDirty = true;
+            }
         }
     }
 
