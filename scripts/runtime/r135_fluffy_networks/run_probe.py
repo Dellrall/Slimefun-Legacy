@@ -49,7 +49,7 @@ NETWORK_VERSIONS = {
     # r150 changes only MagicExpansion; keep exact published Networks 1.0.61.
     150: ("SF_Networks1.0.61.jar", "9bf9f48b49dbedbf9e617ca840d9ccd57cf0c717"),
     # Diagnostic r151 integrates tested 1.0.62 transfer and Auto Crafter dirty-write fixes.
-    151: ("SF_Networks1.0.62.jar", "5f1e92b62c4ee799e53635af870857bf85d9a086"),
+    151: ("SF_Networks1.0.62.jar", "288640e6dbf907a6ba238d98af206aab2d56f92b"),
 }
 
 
