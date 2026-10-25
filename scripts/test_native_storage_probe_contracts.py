@@ -67,7 +67,7 @@ class NativeStorageProbeContracts(unittest.TestCase):
             if revision == 140 else
             ("SF_Networks1.0.59.jar", "560d590095206a8159d82c70e7cabe6d16aaa0d8")
             if revision in (141, 142) else
-            ("SF_Networks1.0.62.jar", "6304622c8772f51b199e32b9cab5b84f0d48a753")
+            ("SF_Networks1.0.62.jar", "5f1e92b62c4ee799e53635af870857bf85d9a086")
             if revision == 151 else
             ("SF_Networks1.0.61.jar", "9bf9f48b49dbedbf9e617ca840d9ccd57cf0c717")
             if revision in (149, 150) else
