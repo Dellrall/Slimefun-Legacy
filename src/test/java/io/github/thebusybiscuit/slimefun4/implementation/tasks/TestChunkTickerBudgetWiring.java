@@ -8,6 +8,7 @@ import io.github.bakedlibs.dough.blocks.ChunkPosition;
 import io.github.thebusybiscuit.slimefun4.core.ticker.TickLocation;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import java.lang.reflect.Method;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -89,6 +90,49 @@ class TestChunkTickerBudgetWiring {
         assertEquals(3, registered.size());
         assertEquals(registered, collectCycles(task, chunk, registered, 3));
 
+        Slimefun.getCfg().setValue("stability.chunk-ticker-budget.enabled", false);
+        assertSame(registered, select(task, chunk, registered));
+    }
+
+    @Test
+    void existingIndustrialChunkOf7454MachinesIsServedFairlyInFourCycles() throws Exception {
+        World world = server.addSimpleWorld("dense-industrial");
+        TickerTask task = new TickerTask();
+        ChunkPosition chunk = new ChunkPosition(world, -333, -348);
+
+        // Recreate the registration density in the reported industrial
+        // hotspot, with a separate stable block position for every machine.
+        // No actual block, inventory or addon ticker callback is created.
+        for (int i = 0; i < 7_454; i++) {
+            int x = -5328 + i % 16;
+            int z = -5568 + (i / 16) % 16;
+            int y = -64 + i / 256;
+            task.enableTicker(new Location(world, x, y, z));
+        }
+
+        Set<TickLocation> registered = locations(task, chunk);
+        assertEquals(7_454, registered.size(), "This fixture must represent unique industrial machines");
+        Slimefun.getCfg().setValue("stability.chunk-ticker-budget.max-tickers-per-chunk-per-cycle", 2048);
+        Slimefun.getCfg().setValue("stability.chunk-ticker-budget.enabled", true);
+
+        Map<TickLocation, Integer> visits = new HashMap<>();
+        for (int cycle = 0; cycle < 4; cycle++) {
+            int selections = 0;
+            for (TickLocation location : select(task, chunk, registered)) {
+                visits.merge(location, 1, Integer::sum);
+                selections++;
+            }
+            assertEquals(2048, selections, "A busy chunk cannot exceed its per-cycle callback quota");
+        }
+
+        assertEquals(7_454, visits.size(), "Every machine must receive at least one callback window");
+        for (int served : visits.values()) {
+            org.junit.jupiter.api.Assertions.assertTrue(
+                    served == 1 || served == 2, "No machine may starve or run three times in four cycles");
+        }
+
+        // Turning the governor off immediately restores the unfiltered
+        // registrations without modifying their inventories or identities.
         Slimefun.getCfg().setValue("stability.chunk-ticker-budget.enabled", false);
         assertSame(registered, select(task, chunk, registered));
     }
