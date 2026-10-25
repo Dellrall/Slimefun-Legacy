@@ -68,6 +68,21 @@ networks:
   enable-visualizer: true
   delete-excess-items: false
 
+# HeadLimiter-style protection against extremely dense machine chunks.
+# DISABLED by default: enabling this only refuses NEW player placements.
+# Existing machines, inventories, network connections and tickers are not modified.
+# The count includes ticking machines from Slimefun and compatible addons
+# (Networks, Supreme, InfinityExpansion2, etc.), including UniversalBlock tickers.
+# Slimefun cables, passive storage, decorative blocks and vanilla blocks are not counted.
+machine-limiter:
+  enabled: false
+  # Maximum registered ticking Slimefun machines in any single 16x16 chunk.
+  # Set this to suit your server; the invalid/unset value fallback is 256.
+  max-ticking-machines-per-chunk: 256
+  # Optional permission: slimefun.machine-limiter.bypass (OP by default).
+  # Leave false to enforce the limit even for operators.
+  allow-bypass-permission: false
+
 talismans:
   use-actionbar: true
 
