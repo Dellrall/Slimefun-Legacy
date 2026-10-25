@@ -58,8 +58,9 @@ jobs:
       paper_api: ${{ steps.paper.outputs.paper_api }}
     steps:
       - uses: actions/checkout@v6
-      - name: Verify published pair staging rejection controls
-        run: python3 -m unittest scripts/test_stage_published_pair.py -v
+      - name: Verify published and unpublished pair staging rejection controls
+        run: |
+          python3 -m unittest scripts/test_stage_published_pair.py scripts/test_stage_unpublished_pair_candidate.py -v
       - name: Validate manifest and create matrix
         id: matrix
         shell: bash
@@ -426,11 +427,27 @@ jobs:
           if [[ "$ADDON_SLUG" == 'networksexp' || "$ADDON_SLUG" == 'infinityexpansion2' ]]; then
             PAIR_KEY=networks
             if [[ "$ADDON_SLUG" == 'infinityexpansion2' ]]; then PAIR_KEY=ie2; fi
-            # Keep the 26.3 compile evidence, but distribute the released universal bytes.
-            python3 tools/scripts/stage_published_pair.py --addon "$PAIR_KEY" \
-              --source "$(git -C addon rev-parse HEAD)" --repository "$ADDON_REPOSITORY" \
-              --output "published/$PAIR_KEY.jar" --report "staged/evidence/$ADDON_SLUG-published.json"
-            SELECTED="published/$PAIR_KEY.jar"
+            SOURCE_SHA="$(git -C addon rev-parse HEAD)"
+            # The historical published pair stays immutable. Only a PR can
+            # separately preview a manifest-pinned, not-yet-published addon JAR.
+            # A push/master/release build with different source still fails closed.
+            PAIR_MODE="$(python3 tools/scripts/stage_unpublished_pair_candidate.py \
+              --manifest tools/compatibility/sfl-addon-release-matrix.json \
+              --addon "$ADDON_SLUG" --repository "$ADDON_REPOSITORY" \
+              --source "$SOURCE_SHA" --event "$GITHUB_EVENT_NAME" \
+              --jar "$SELECTED" \
+              --report "staged/evidence/$ADDON_SLUG-unpublished-preview.json")"
+            if [[ "$PAIR_MODE" == 'published' ]]; then
+              python3 tools/scripts/stage_published_pair.py --addon "$PAIR_KEY" \
+                --source "$SOURCE_SHA" --repository "$ADDON_REPOSITORY" \
+                --output "published/$PAIR_KEY.jar" --report "staged/evidence/$ADDON_SLUG-published.json"
+              SELECTED="published/$PAIR_KEY.jar"
+            elif [[ "$PAIR_MODE" == 'unpublished-pr-preview' ]]; then
+              echo "CI-only unpublished pair preview for $ADDON_REPOSITORY@$SOURCE_SHA"
+            else
+              echo "Unexpected pair stage mode: $PAIR_MODE" >&2
+              exit 1
+            fi
           fi
           export SELECTED
           export ADDON_REPOSITORY ADDON_SLUG ARTIFACT_BASE PAPER_API_VERSION
@@ -489,7 +506,24 @@ jobs:
               'secondary_platforms': [] if slug in ('networksexp', 'infinityexpansion2') else ['Folia', 'Leaf'],
           }
           if slug in ('networksexp', 'infinityexpansion2'):
-              record['published_artifact'] = json.loads(Path(f'staged/evidence/{slug}-published.json').read_text())
+              published = Path(f'staged/evidence/{slug}-published.json')
+              preview = Path(f'staged/evidence/{slug}-unpublished-preview.json')
+              if published.is_file() and not preview.exists():
+                  record['published_artifact'] = json.loads(published.read_text(encoding='utf-8'))
+              elif preview.is_file() and not published.exists():
+                  proof = json.loads(preview.read_text(encoding='utf-8'))
+                  if (os.environ.get('GITHUB_EVENT_NAME') != 'pull_request'
+                      or proof.get('mode') != 'unpublished-pr-preview'
+                      or proof.get('eligible_for_release') is not False
+                      or proof.get('source') != record['commit']
+                      or proof.get('repository') != repo
+                      or proof.get('sha256') != sha256
+                      or proof.get('bytes') != destination.stat().st_size
+                      or proof.get('version') != version):
+                      raise SystemExit('Unpublished addon preview provenance mismatch')
+                  record['unpublished_pr_preview'] = proof
+              else:
+                  raise SystemExit('Exactly one immutable published or PR-only preview proof is required')
           if slug == 'mobcapturer':
               record['english_adapter_source'] = {
                   'repository': 'Slimefun-Addon-Community/MobCapturer',
