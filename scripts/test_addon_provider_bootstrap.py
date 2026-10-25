@@ -19,6 +19,8 @@ ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / '.github/workflows/paper-26.3-addon-compile.yml'
 STAFF = 'wickidcow/SF_BuildingStaff'
 STAFF_PREVIEW_SOURCE = '9706b4ee3c170fd65066e92a3ececd6b71f6c144'
+NETWORKS = 'wickidcow/SF_NetworksExp'
+NETWORKS_PREVIEW_SOURCE = '5f1e92b62c4ee799e53635af870857bf85d9a086'
 
 
 class AddonProviderBootstrapTest(unittest.TestCase):
@@ -89,7 +91,22 @@ class AddonProviderBootstrapTest(unittest.TestCase):
         self.assertIn('git -C addon rev-parse HEAD', self.workflow)
         self.assertIn('GITHUB_EVENT_NAME', self.workflow)
         self.assertIn('"wickidcow/SF_BuildingStaff"', self.workflow)
+        self.assertIn('"wickidcow/SF_NetworksExp"', self.workflow)
         self.assertIn('row[\'source_commit\'] = pin', self.workflow)
+
+    def test_networks_is_compiled_from_the_same_source_as_candidate_zip(self):
+        rows = self.generate('pull_request', [
+            {'repository': NETWORKS, 'enabled': True, 'tier': 'required'},
+        ], [{'repository': NETWORKS, 'slug': 'networksexp',
+             'source_commit': NETWORKS_PREVIEW_SOURCE}])
+        self.assertEqual([NETWORKS], [row['repository'] for row in rows])
+        self.assertEqual(NETWORKS_PREVIEW_SOURCE, rows[0]['source_commit'])
+
+    def test_unpinned_networks_candidate_fails_closed(self):
+        with self.assertRaisesRegex(AssertionError, 'Invalid maintained diagnostic source pin'):
+            self.generate('pull_request', [
+                {'repository': NETWORKS, 'enabled': True, 'tier': 'required'},
+            ], [{'repository': NETWORKS, 'slug': 'networksexp'}])
 
     def test_unbundled_provider_is_not_invented(self):
         rows = self.generate('pull_request', [{'repository': 'wickidcow/SF_DynaTech', 'enabled': True, 'tier': 'required'}], [])
