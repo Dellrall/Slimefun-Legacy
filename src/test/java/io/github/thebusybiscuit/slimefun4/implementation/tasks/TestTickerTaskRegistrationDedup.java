@@ -125,6 +125,47 @@ class TestTickerTaskRegistrationDedup {
     }
 
     @Test
+    void blockCenterAndRotationStillRemoveTheOriginalTicker() {
+        TickerTask task = new TickerTask();
+        Location original = new Location(world, -5314, -57, -5569);
+        task.enableTicker(original);
+
+        // Bukkit Location.equals compares exact doubles/yaw/pitch. A block
+        // registry must instead use the integer coordinates it owns.
+        Location centerWithRotation = new Location(
+                world, -5313.5, -56.5, -5568.5, 139.0F, -20.0F);
+        task.disableTicker(centerWithRotation);
+
+        assertTrue(task.getTickLocations().isEmpty(),
+                "A different yaw or center offset cannot leave a ghost machine ticker");
+    }
+
+    @Test
+    void unknownRemovalsDoNotRebuildSnapshotsButRealRemovalsDo() throws Exception {
+        TickerTask task = new TickerTask();
+        Location existing = new Location(world, -5314, -57, -5569);
+        task.enableTicker(existing);
+
+        Method snapshot = TickerTask.class.getDeclaredMethod("snapshotTickingLocations");
+        snapshot.setAccessible(true);
+        Field dirty = TickerTask.class.getDeclaredField("tickingLocationsSnapshotDirty");
+        dirty.setAccessible(true);
+
+        Object first = snapshot.invoke(task);
+        assertFalse(dirty.getBoolean(task));
+
+        task.disableTicker(new Location(world, 800, 60, 800));
+        task.disableTicker(UUID.randomUUID());
+        assertFalse(dirty.getBoolean(task), "Absent blocks or UUIDs must not dirty global ticker state");
+        assertSame(first, snapshot.invoke(task));
+
+        task.disableTicker(existing);
+        assertTrue(dirty.getBoolean(task), "Removing a real ticker must invalidate the cached snapshot");
+        assertNotSame(first, snapshot.invoke(task));
+        assertTrue(task.getTickLocations().isEmpty());
+    }
+
+    @Test
     void unregisterThenRegisterDoesNotLeaveStaleDuplicates() {
         TickerTask task = new TickerTask();
         Location at = new Location(world, 17, 64, 17);
