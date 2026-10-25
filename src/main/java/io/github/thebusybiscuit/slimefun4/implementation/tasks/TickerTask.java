@@ -12,6 +12,7 @@ import io.github.thebusybiscuit.slimefun4.core.services.scheduling.TaskHandle;
 import io.github.thebusybiscuit.slimefun4.core.services.stability.MachineCircuitBreaker;
 import io.github.thebusybiscuit.slimefun4.core.services.stability.MachineFailureSnapshot;
 import io.github.thebusybiscuit.slimefun4.core.services.stability.MachineFailureTracker;
+import io.github.thebusybiscuit.slimefun4.core.ticker.FairTickerBatch;
 import io.github.thebusybiscuit.slimefun4.core.ticker.TickLocation;
 import io.github.thebusybiscuit.slimefun4.implementation.Slimefun;
 import java.util.Collections;
@@ -49,6 +50,7 @@ import org.bukkit.Location;
 public class TickerTask implements Runnable {
 
     private static final int DEFAULT_CIRCUIT_FAILURE_THRESHOLD = 4;
+    private static final int DEFAULT_CHUNK_TICKER_BUDGET = 512;
     private static final int PROFILER_TELEMETRY_INTERVAL_SERVER_TICKS = 20 * 60;
 
     /**
@@ -58,6 +60,17 @@ public class TickerTask implements Runnable {
     private final Map<ChunkPosition, Set<TickLocation>> tickingLocations = new ConcurrentHashMap<>();
     private volatile Set<Map.Entry<ChunkPosition, Set<TickLocation>>> tickingLocationsSnapshot = Collections.emptySet();
     private volatile boolean tickingLocationsSnapshotDirty = true;
+
+    /**
+     * A temporary round-robin cursor for overloaded chunks. Snapshots contain
+     * only ticker registrations, never Slimefun block data or inventories.
+     * Inactive by default and replaced when the core topology changes.
+     */
+    private final Map<ChunkPosition, ChunkTickerBudgetSnapshot> chunkTickerBudgetSnapshots =
+            new ConcurrentHashMap<>();
+
+    private record ChunkTickerBudgetSnapshot(
+            Set<TickLocation> source, FairTickerBatch<TickLocation> window) {}
 
     /**
      * This Map tracks how many bugs have occurred in a given Location.
@@ -101,6 +114,7 @@ public class TickerTask implements Runnable {
      * @param plugin the Slimefun plugin instance
      */
     public void start(@Nonnull Slimefun plugin) {
+        chunkTickerBudgetSnapshots.clear();
         this.tickRate = Slimefun.getCfg().getInt("URID.custom-ticker-delay");
         int safeTickRate = Math.max(1, tickRate);
         profilerTelemetryCycles = Math.max(1, PROFILER_TELEMETRY_INTERVAL_SERVER_TICKS / safeTickRate);
@@ -239,7 +253,7 @@ public class TickerTask implements Runnable {
 
             // On Folia this check executes on the owning region. Paper preserves the legacy asynchronous check.
             if (chunk.isLoaded()) {
-                for (TickLocation tickLocation : locations) {
+                for (TickLocation tickLocation : selectTickersForChunk(chunk, locations)) {
                     BlockPosition position = tickLocation.getPosition();
                     Location location = position.toLocation();
                     if (tickLocation.isUniversal()) {
@@ -248,6 +262,10 @@ public class TickerTask implements Runnable {
                         tickLocation(tickers, location, position, regionOwned);
                     }
                 }
+            } else {
+                // No work is possible for an unloaded chunk. Discard cached
+                // rotation state rather than retaining it indefinitely.
+                chunkTickerBudgetSnapshots.remove(chunk);
             }
         } catch (ArrayIndexOutOfBoundsException | NumberFormatException exception) {
             Slimefun.logger()
@@ -256,6 +274,46 @@ public class TickerTask implements Runnable {
                             exception,
                             () -> "An Exception has occurred while trying to resolve Chunk: " + chunk);
         }
+    }
+
+    /**
+     * Opt-in workload governor for already crowded chunks.
+     *
+     * <p>This is a callback-count budget, not a real-time millisecond cap.
+     * We cannot infer the execution time of Paper synchronized callbacks from
+     * their scheduling overhead. The circular window guarantees every ticker
+     * receives a turn over consecutive Slimefun cycles, even if the chunk was
+     * over its limit long before the setting was enabled.</p>
+     *
+     * <p>Never force-load chunks or unregister machine locations. Folia invokes
+     * this only on the region that owns the selected chunk.</p>
+     */
+    @ParametersAreNonnullByDefault
+    private Iterable<TickLocation> selectTickersForChunk(
+            ChunkPosition chunk, Set<TickLocation> locations) {
+        if (!Slimefun.getCfg().getBoolean("stability.chunk-ticker-budget.enabled")) {
+            if (!chunkTickerBudgetSnapshots.isEmpty()) {
+                chunkTickerBudgetSnapshots.clear();
+            }
+            return locations;
+        }
+
+        int configured = Slimefun.getCfg().getInt("stability.chunk-ticker-budget.max-tickers-per-chunk-per-cycle");
+        int maximum = configured > 0 ? configured : DEFAULT_CHUNK_TICKER_BUDGET;
+        if (locations.size() <= maximum) {
+            chunkTickerBudgetSnapshots.remove(chunk);
+            return locations;
+        }
+
+        // An unchanged topology reuses a stable list and cursor; do not sort
+        // or clone thousands of registrations on every ticker cycle.
+        ChunkTickerBudgetSnapshot snapshot = chunkTickerBudgetSnapshots.compute(chunk, (key, existing) ->
+                existing != null && existing.source() == locations
+                        ? existing
+                        : new ChunkTickerBudgetSnapshot(locations,
+                                new FairTickerBatch<>(locations,
+                                        existing == null ? 0 : existing.window().nextCursor())));
+        return snapshot.window().next(maximum);
     }
 
     @ParametersAreNonnullByDefault
@@ -805,25 +863,19 @@ public class TickerTask implements Runnable {
                     ? new TickLocation(new BlockPosition(l))
                     : new TickLocation(new BlockPosition(l), uuid);
 
-            /*
-              Note that all the values in #tickingLocations must be thread-safe.
-              Thus, the choice is between the CHM KeySet or a synchronized set.
-              The CHM KeySet was chosen since it at least permits multiple concurrent
-              reads without blocking.
-            */
-            Set<TickLocation> newValue = ConcurrentHashMap.newKeySet();
-            Set<TickLocation> oldValue = tickingLocations.putIfAbsent(chunk, newValue);
-
-            /**
-             * This is faster than doing computeIfAbsent(...)
-             * on a ConcurrentHashMap because it won't block the Thread for too long
-             */
-            if (oldValue != null) {
-                oldValue.add(tickPosition);
-            } else {
-                newValue.add(tickPosition);
+            // Look up the already registered chunk first. Repeated addon or
+            // chunk-load registrations should not allocate a new concurrent
+            // set, duplicate the ticker, or rebuild the whole ticker snapshot.
+            Set<TickLocation> locations = tickingLocations.get(chunk);
+            if (locations == null) {
+                Set<TickLocation> created = ConcurrentHashMap.newKeySet();
+                Set<TickLocation> previous = tickingLocations.putIfAbsent(chunk, created);
+                locations = previous != null ? previous : created;
             }
-            tickingLocationsSnapshotDirty = true;
+
+            if (locations.add(tickPosition)) {
+                tickingLocationsSnapshotDirty = true;
+            }
         }
     }
 
@@ -849,6 +901,7 @@ public class TickerTask implements Runnable {
 
                 if (locations.isEmpty()) {
                     tickingLocations.remove(chunk);
+                    chunkTickerBudgetSnapshots.remove(chunk);
                 }
             }
             tickingLocationsSnapshotDirty = true;
@@ -887,7 +940,9 @@ public class TickerTask implements Runnable {
             }
             for (ChunkPosition emptyChunk : emptyChunks) {
                 tickingLocations.remove(emptyChunk);
+                chunkTickerBudgetSnapshots.remove(emptyChunk);
             }
+            // Nonempty chunks retain their cursor index as snapshot sets change.
             tickingLocationsSnapshotDirty = true;
         }
     }
