@@ -18,9 +18,23 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / '.github/workflows/paper-26.3-addon-compile.yml'
 STAFF = 'wickidcow/SF_BuildingStaff'
-STAFF_PREVIEW_SOURCE = '9706b4ee3c170fd65066e92a3ececd6b71f6c144'
 NETWORKS = 'wickidcow/SF_NetworksExp'
-NETWORKS_PREVIEW_SOURCE = '5f1e92b62c4ee799e53635af870857bf85d9a086'
+
+# Reuse the exact reviewed r151 matrix rather than allowing synthetic CI
+# fixtures to quietly retain an obsolete source after a candidate repin.
+RELEASE_MATRIX = json.loads(
+    (ROOT / 'compatibility/sfl-addon-release-matrix.json').read_text(encoding='utf-8')
+)
+
+def pinned_source(repository):
+    matches = [row.get('source_commit', '') for row in RELEASE_MATRIX['addons']
+               if row.get('repository') == repository]
+    if len(matches) != 1 or re.fullmatch(r'[0-9a-f]{40}', matches[0]) is None:
+        raise AssertionError('Exactly one full reviewed source pin required: ' + repository)
+    return matches[0]
+
+STAFF_PREVIEW_SOURCE = pinned_source(STAFF)
+NETWORKS_PREVIEW_SOURCE = pinned_source(NETWORKS)
 
 
 class AddonProviderBootstrapTest(unittest.TestCase):
@@ -107,6 +121,17 @@ class AddonProviderBootstrapTest(unittest.TestCase):
             self.generate('pull_request', [
                 {'repository': NETWORKS, 'enabled': True, 'tier': 'required'},
             ], [{'repository': NETWORKS, 'slug': 'networksexp'}])
+
+    def test_diagnostic_sources_agree_with_packaging_and_native_storage_contracts(self):
+        workflow = (ROOT / '.github/workflows/build-sfl-addons-compat-bundle.yml').read_text(
+            encoding='utf-8')
+        native = (ROOT / 'scripts/runtime/r135_fluffy_networks/run_probe.py').read_text(
+            encoding='utf-8')
+        native_tests = (ROOT / 'scripts/test_native_storage_probe_contracts.py').read_text(
+            encoding='utf-8')
+        self.assertIn(STAFF_PREVIEW_SOURCE, workflow)
+        self.assertIn(NETWORKS_PREVIEW_SOURCE, native)
+        self.assertIn(NETWORKS_PREVIEW_SOURCE, native_tests)
 
     def test_unbundled_provider_is_not_invented(self):
         rows = self.generate('pull_request', [{'repository': 'wickidcow/SF_DynaTech', 'enabled': True, 'tier': 'required'}], [])
