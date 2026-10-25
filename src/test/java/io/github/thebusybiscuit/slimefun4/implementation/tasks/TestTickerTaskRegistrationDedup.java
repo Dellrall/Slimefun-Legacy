@@ -1,11 +1,16 @@
 package io.github.thebusybiscuit.slimefun4.implementation.tasks;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.github.bakedlibs.dough.blocks.BlockPosition;
 import io.github.thebusybiscuit.slimefun4.core.ticker.TickLocation;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.UUID;
@@ -92,6 +97,31 @@ class TestTickerTaskRegistrationDedup {
             set.add(registration);
         }
         assertEquals(4, set.size());
+    }
+
+    @Test
+    void duplicateRegistrationDoesNotRebuildExpensiveTickerSnapshot() throws Exception {
+        TickerTask task = new TickerTask();
+        Location at = new Location(world, 17, 64, 17);
+        task.enableTicker(at);
+
+        Method snapshot = TickerTask.class.getDeclaredMethod("snapshotTickingLocations");
+        snapshot.setAccessible(true);
+        Field dirty = TickerTask.class.getDeclaredField("tickingLocationsSnapshotDirty");
+        dirty.setAccessible(true);
+
+        Object first = snapshot.invoke(task);
+        assertFalse(dirty.getBoolean(task));
+
+        for (int i = 0; i < 30; i++) {
+            task.enableTicker(at.clone());
+        }
+        assertFalse(dirty.getBoolean(task), "An idempotent registration must not schedule a snapshot rebuild");
+        assertSame(first, snapshot.invoke(task));
+
+        task.enableTicker(new Location(world, 18, 64, 17));
+        assertTrue(dirty.getBoolean(task));
+        assertNotSame(first, snapshot.invoke(task));
     }
 
     @Test
