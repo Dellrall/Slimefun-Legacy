@@ -94,6 +94,20 @@ class TestAntiDupeVanillaRecipeMatching {
     }
 
     @Test
+    void ownerIdentityIsNotIgnoredDuringCargoStackingOrGeneralComparisons() {
+        ItemStack marked = markedStar();
+        ItemStack template = plainVanilla(Material.NETHER_STAR);
+        ItemStackService service = new ItemStackService();
+
+        assertTrue(service.isSimilar(marked, template, MatchContext.RECIPE_INPUT, true, true));
+        assertFalse(service.isSimilar(marked, template, MatchContext.GENERIC, true, true));
+        assertFalse(service.isSimilar(marked, template, MatchContext.STACK_MERGE, true, true));
+        assertFalse(service.isSimilar(marked, template, MatchContext.AUTO_CRAFTER_PREDICATE, true, true));
+        assertFalse(SlimefunUtils.isItemSimilarWithoutVirtualItems(marked, template, true, true),
+                "Low-level vanilla matching must remain strict outside the explicit recipe context");
+    }
+
+    @Test
     void anyPersistentValueTypeForTheSameOwnerKeyIsOnlyComparisonMetadata() {
         ItemStack candidate = metadataAwareStar(1);
         ItemMeta meta = candidate.getItemMeta();
@@ -204,7 +218,7 @@ class TestAntiDupeVanillaRecipeMatching {
     }
 
     private static boolean matches(ItemStack candidate, ItemStack expectedVanillaRecipeIngredient) {
-        return SlimefunUtils.isItemSimilarWithoutVirtualItems(
-                candidate, expectedVanillaRecipeIngredient, true, true);
+        return new ItemStackService().isSimilar(
+                candidate, expectedVanillaRecipeIngredient, MatchContext.RECIPE_INPUT, true, true);
     }
 }
