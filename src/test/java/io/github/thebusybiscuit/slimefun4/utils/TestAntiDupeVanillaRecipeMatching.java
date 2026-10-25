@@ -47,11 +47,12 @@ class TestAntiDupeVanillaRecipeMatching {
 
     @Test
     void plainVanillaStarMatchesBeforeAndAfterBetterAntiDupeMarksIt() {
-        ItemStack recipeStar = new ItemStack(Material.NETHER_STAR);
-        assertTrue(matches(new ItemStack(Material.NETHER_STAR, 3), recipeStar));
+        ItemStack recipeStar = plainVanilla(Material.NETHER_STAR);
+        assertTrue(matches(plainVanilla(Material.NETHER_STAR, 3), recipeStar));
 
-        // MockBukkit treats PDC-only metadata as absent. A real Paper stack
-        // reports it as metadata, so force that native comparator path here.
+        // MockBukkit's ItemFactory treats even an empty recipe meta as present,
+        // whereas real Paper treats the vanilla template as metadata-free.
+        // Explicit fixtures exercise the actual native matcher branches.
         ItemStack candidate = metadataAwareStar(3);
         ItemMeta meta = candidate.getItemMeta();
         meta.getPersistentDataContainer().set(OWNER, PersistentDataType.STRING, "player-owner-uuid");
@@ -68,13 +69,12 @@ class TestAntiDupeVanillaRecipeMatching {
     @Test
     void aContainerRecipeInputMatchingAcceptsTheMarkedStarAsWell() {
         ItemStack marked = markedStar();
-        ItemStack recipeStar = new ItemStack(Material.NETHER_STAR);
+        ItemStack recipeStar = plainVanilla(Material.NETHER_STAR);
 
-        // MockBukkit's ItemFactory does not count a PDC-only ItemMeta as
-        // present. Bootstrap the immutable wrapper with a temporary name
-        // so the cached native hasItemMeta bit is true, then remove only
-        // that test-only name from the wrapper's cached metadata. On a real
-        // Paper server the anti-dupe marker sets the bit itself.
+        // MockBukkit's ItemFactory has different empty-meta semantics
+        // from CraftBukkit. Bootstrap the wrapper with a temporary name
+        // so its hasItemMeta bit is true, then remove that test-only name.
+        // The plain recipe template fixture reports no metadata.
         ItemMeta setup = marked.getItemMeta();
         setup.displayName(Component.text("test-only metadata bootstrap"));
         marked.setItemMeta(setup);
@@ -100,7 +100,7 @@ class TestAntiDupeVanillaRecipeMatching {
         meta.getPersistentDataContainer().set(OWNER, PersistentDataType.INTEGER, 42);
         candidate.setItemMeta(meta);
 
-        assertTrue(matches(candidate, new ItemStack(Material.NETHER_STAR)));
+        assertTrue(matches(candidate, plainVanilla(Material.NETHER_STAR)));
         assertEquals(42,
                 candidate.getItemMeta().getPersistentDataContainer().get(OWNER, PersistentDataType.INTEGER));
     }
@@ -108,9 +108,9 @@ class TestAntiDupeVanillaRecipeMatching {
     @Test
     void normalVanillaMatchingConstraintsStillApply() {
         ItemStack candidate = markedStar();
-        assertFalse(matches(candidate, new ItemStack(Material.DIAMOND)));
-        assertFalse(matches(candidate, new ItemStack(Material.NETHER_STAR, 2)));
-        assertTrue(matches(candidate, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(candidate, plainVanilla(Material.DIAMOND)));
+        assertFalse(matches(candidate, plainVanilla(Material.NETHER_STAR, 2)));
+        assertTrue(matches(candidate, plainVanilla(Material.NETHER_STAR)));
     }
 
     @Test
@@ -119,12 +119,12 @@ class TestAntiDupeVanillaRecipeMatching {
         ItemMeta meta = candidate.getItemMeta();
         meta.getPersistentDataContainer().set(FOREIGN_ITEM_ID, PersistentDataType.STRING, "custom");
         candidate.setItemMeta(meta);
-        assertFalse(matches(candidate, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(candidate, plainVanilla(Material.NETHER_STAR)));
 
         meta.getPersistentDataContainer().remove(FOREIGN_ITEM_ID);
         meta.getPersistentDataContainer().set(SLIMEFUN_ITEM_ID, PersistentDataType.STRING, "BLISTERING_INGOT_2");
         candidate.setItemMeta(meta);
-        assertFalse(matches(candidate, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(candidate, plainVanilla(Material.NETHER_STAR)));
     }
 
     @Test
@@ -133,7 +133,7 @@ class TestAntiDupeVanillaRecipeMatching {
         ItemMeta meta = candidate.getItemMeta();
         meta.getPersistentDataContainer().set(FOREIGN_ITEM_ID, PersistentDataType.STRING, "custom");
         candidate.setItemMeta(meta);
-        assertFalse(matches(candidate, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(candidate, plainVanilla(Material.NETHER_STAR)));
     }
 
     @Test
@@ -142,25 +142,25 @@ class TestAntiDupeVanillaRecipeMatching {
         ItemMeta renamedMeta = renamed.getItemMeta();
         renamedMeta.displayName(Component.text("Special Nether Star"));
         renamed.setItemMeta(renamedMeta);
-        assertFalse(matches(renamed, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(renamed, plainVanilla(Material.NETHER_STAR)));
 
         ItemStack withLore = markedStar();
         ItemMeta loreMeta = withLore.getItemMeta();
         loreMeta.lore(java.util.List.of(Component.text("Different ingredient")));
         withLore.setItemMeta(loreMeta);
-        assertFalse(matches(withLore, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(withLore, plainVanilla(Material.NETHER_STAR)));
 
         ItemStack enchanted = markedStar();
         ItemMeta enchantedMeta = enchanted.getItemMeta();
         enchantedMeta.addEnchant(Enchantment.UNBREAKING, 1, true);
         enchanted.setItemMeta(enchantedMeta);
-        assertFalse(matches(enchanted, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(enchanted, plainVanilla(Material.NETHER_STAR)));
 
         ItemStack modeled = markedStar();
         ItemMeta modelMeta = modeled.getItemMeta();
         modelMeta.setCustomModelData(321);
         modeled.setItemMeta(modelMeta);
-        assertFalse(matches(modeled, new ItemStack(Material.NETHER_STAR)));
+        assertFalse(matches(modeled, plainVanilla(Material.NETHER_STAR)));
     }
 
     private static ItemStack markedStar() {
@@ -172,15 +172,33 @@ class TestAntiDupeVanillaRecipeMatching {
     }
 
     /**
-     * MockBukkit's ItemStack#hasItemMeta excludes items whose only extra data
-     * is PDC. Real Paper does not. Force the production branch in these
-     * focused comparisons while keeping genuine ItemMeta instances.
+     * Force the metadata-aware candidate branch. MockBukkit's empty-item
+     * semantics differ from CraftBukkit's, so the opposite side of the
+     * comparison is an explicitly metadata-free vanilla recipe template.
      */
     private static ItemStack metadataAwareStar(int amount) {
         return new ItemStack(Material.NETHER_STAR, amount) {
             @Override
             public boolean hasItemMeta() {
                 return true;
+            }
+        };
+    }
+
+    private static ItemStack plainVanilla(Material material) {
+        return plainVanilla(material, 1);
+    }
+
+    /**
+     * Vanilla recipe templates do not have custom ItemMeta. MockBukkit's
+     * ItemFactoryMock.equals(meta, null) uses Object.equals and can treat
+     * an empty nonnull ItemMeta as nonempty, so make that contract explicit.
+     */
+    private static ItemStack plainVanilla(Material material, int amount) {
+        return new ItemStack(material, amount) {
+            @Override
+            public boolean hasItemMeta() {
+                return false;
             }
         };
     }
