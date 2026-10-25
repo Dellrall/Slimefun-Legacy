@@ -32,10 +32,10 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
         ]}
 
     def write_jar(self, *, plugin="InfinityExpansion2", version="2.0.16",
-                  api="1.21", bytecode=65, folia=False):
+                  api="1.21", bytecode=65, folia=False, folia_key="folia-supported"):
         descriptor = f"name: {plugin}\nversion: {version}\napi-version: '{api}'\n"
         if folia:
-            descriptor += "folia-supported: " + (folia if isinstance(folia, str) else "true") + "\n"
+            descriptor += folia_key + ": " + (folia if isinstance(folia, str) else "true") + "\n"
         with zipfile.ZipFile(self.jar, "w") as archive:
             archive.writestr("plugin.yml", descriptor)
             archive.writestr("com/example/Addon.class",
@@ -113,6 +113,13 @@ class UnpublishedPairPreviewTest(unittest.TestCase):
         for declaration in ("true", "'true'", '"TRUE"', "yes", "true # enabled", "false"):
             with self.subTest(declaration=declaration):
                 self.write_jar(folia=declaration)
+                with self.assertRaisesRegex(RuntimeError, "Folia"):
+                    self.preview()
+
+    def test_folia_quoted_yaml_keys_and_case_variants_are_rejected(self):
+        for key in ("'folia-supported'", '"folia-supported"', "FoLiA-SuPpOrTeD"):
+            with self.subTest(key=key):
+                self.write_jar(folia="true", folia_key=key)
                 with self.assertRaisesRegex(RuntimeError, "Folia"):
                     self.preview()
 
