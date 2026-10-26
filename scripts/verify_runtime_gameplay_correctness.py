@@ -24,6 +24,11 @@ def require(text: str, needle: str, label: str) -> None:
         raise SystemExit(f"Runtime/gameplay correctness failed: missing {label}: {needle}")
 
 
+def forbid(text: str, needle: str, label: str) -> None:
+    if needle in text:
+        raise SystemExit(f"Runtime/gameplay correctness failed: found {label}: {needle}")
+
+
 def require_before(text: str, first: str, second: str, label: str) -> None:
     first_at = text.find(first)
     second_at = text.find(second)
@@ -203,14 +208,15 @@ def main() -> int:
         "src/main/java/io/github/thebusybiscuit/slimefun4/implementation/items/electric/machines/FluidPump.java",
     )
     require(fluid_pump, "BlockData originalFluid = source.getBlockData().clone();", "FluidPump source snapshot")
-    require(fluid_pump, "source.setType(Material.AIR, false);", "FluidPump source consumption before output")
+    require(fluid_pump, "source.setType(Material.AIR, true);", "FluidPump source consumption before output")
+    forbid(fluid_pump, "source.setType(Material.AIR, false);", "FluidPump source removal without fluid updates")
     require(fluid_pump, "ItemStack remainder = menu.pushItem(output, getOutputSlots());", "FluidPump output remainder capture")
     require(fluid_pump, "source.setBlockData(originalFluid, false);", "FluidPump source rollback")
     require(fluid_pump, "menu.replaceExistingItem(inputSlot, originalInput);", "FluidPump input rollback")
     require(fluid_pump, "addCharge(machine.getLocation(), (long) ENERGY_CONSUMPTION);", "FluidPump energy rollback")
     require_before(
         fluid_pump,
-        "source.setType(Material.AIR, false);",
+        "source.setType(Material.AIR, true);",
         "ItemStack remainder = menu.pushItem(output, getOutputSlots());",
         "FluidPump consumes fluid source before bucket output commit",
     )

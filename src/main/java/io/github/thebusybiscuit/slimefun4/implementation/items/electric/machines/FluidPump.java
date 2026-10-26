@@ -192,7 +192,9 @@ public class FluidPump extends SimpleSlimefunItem<BlockTicker> implements Invent
         boolean energyRemoved = false;
         boolean inputConsumed = false;
 
-        source.setType(Material.AIR, false);
+        // Apply physics so neighbouring fluid flows into the gap and infinite water sources regenerate.
+        // Fluid flow is a scheduled tick, so nothing moves before the rollback below can run.
+        source.setType(Material.AIR, true);
         if (!source.getType().isAir()) {
             return false;
         }
