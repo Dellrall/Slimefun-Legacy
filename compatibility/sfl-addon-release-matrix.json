@@ -188,12 +188,12 @@
       "repository": "wickidcow/SF_JustEnoughGuide",
       "slug": "justenoughguide",
       "artifact_base": "JustEnoughGuide",
-      "source_commit": "9355dd512f2061be6258c54bc714673b179c6252"
+      "source_commit": "9107d23c2eaa34e6477f561fb1f42d93c7e50195"
     },
     {
       "repository": "wickidcow/SF_MagicExpansion",
       "slug": "magicexpansion",
-      "source_commit": "7c2c1a927176ebd0aaab4481dcc21a51320f7f10"
+      "source_commit": "c9be11af6b32f3e0d517803b9362c7c88312b150"
     },
     {
       "repository": "wickidcow/SF_MilitaryArsenal",
