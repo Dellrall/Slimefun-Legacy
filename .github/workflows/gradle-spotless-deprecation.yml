@@ -40,12 +40,15 @@ jobs:
         run: |
           set -euo pipefail
           chmod +x gradlew
-          ./gradlew spotlessCheck --warning-mode all --console=plain --no-daemon 2>&1 | tee spotless-deprecation.log
+          # Verify plugin configuration separately: formatting drift must not hide deprecation evidence.
+          ./gradlew help --warning-mode all --console=plain --no-daemon 2>&1 | tee spotless-deprecation.log
           if grep -Fq 'Configuration.setVisible(boolean) method has been deprecated' spotless-deprecation.log; then
             echo 'Spotless/Gradle configuration still calls the deprecated Configuration.setVisible API.' >&2
             exit 1
           fi
-          echo 'Spotless formatting passed without the Configuration.setVisible deprecation.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Spotless plugin configured without the Configuration.setVisible deprecation.' >> "$GITHUB_STEP_SUMMARY"
+          # This remains a strict check: do not silently rewrite or waive 300+ source formatting changes.
+          ./gradlew spotlessCheck --warning-mode all --console=plain --no-daemon 2>&1 | tee -a spotless-deprecation.log
       - name: Retain exact-head diagnostic evidence
         if: always()
         uses: actions/upload-artifact@v7
