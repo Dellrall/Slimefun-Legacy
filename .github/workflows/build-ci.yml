@@ -45,6 +45,9 @@ jobs:
       - name: Verify Java-only core release scope
         run: python3 -m unittest scripts.test_java_only_release_scope -v
       - name: Build
+        # Enable Gradle's detailed diagnostics without changing the verified release command.
+        env:
+          GRADLE_OPTS: -Dorg.gradle.warning.mode=all
         run: |
           set -euo pipefail
           chmod +x gradlew
@@ -52,7 +55,7 @@ jobs:
           # Clean before opening the log; clean build would unlink tee's output file.
           ./gradlew clean --no-daemon
           mkdir -p build/reports
-          ./gradlew build -PslimefunDeprecationReport=true --warning-mode all --console=plain --no-daemon 2>&1 | tee build/reports/deprecation-compile.log
+          ./gradlew build -PslimefunDeprecationReport=true --console=plain --no-daemon 2>&1 | tee build/reports/deprecation-compile.log
           python3 scripts/summarize_deprecations.py build/reports/deprecation-compile.log --fail-on-warnings --require-successful-build
           cat build/reports/deprecations.md >> "$GITHUB_STEP_SUMMARY"
       - name: Upload deprecation and removal report
