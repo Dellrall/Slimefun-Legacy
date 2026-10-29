@@ -30,17 +30,34 @@ def in_scope(repo: dict) -> bool:
                  or name in ("Slimefun-Legacy", "WorldEditSlimefun")))
 
 
-def exact_runs(runs: list, sha: str) -> list:
+def latest_run_metadata(runs: list) -> list:
     selected = {}
     for run in runs:
-        if run.get("head_sha") != sha:
-            continue
         key = (run.get("workflow_id"), run.get("event"), run.get("head_branch"))
         prior = selected.get(key)
         if prior is None or (run.get("id", 0), run.get("run_attempt", 1)) > (prior.get("id", 0), prior.get("run_attempt", 1)):
             selected[key] = run
     fields = ("id", "name", "head_sha", "head_branch", "event", "status", "conclusion", "html_url", "run_attempt")
     return [{k: row.get(k) for k in fields} for row in selected.values()]
+
+
+def exact_runs(runs: list, sha: str) -> list:
+    # A workflow_run follower records default-branch metadata even when it
+    # checks out the triggering PR. Its tested source needs artifact evidence.
+    return latest_run_metadata([run for run in runs
+                                if run.get("head_sha") == sha and run.get("event") != "workflow_run"])
+
+
+def workflow_run_candidates(runs: list) -> list:
+    """Retain follower status for investigation, never as exact-source proof."""
+    candidates = latest_run_metadata([run for run in runs if run.get("event") == "workflow_run"])
+    for row in candidates:
+        row["tested_source_verified"] = False
+        row["source_verification_required"] = (
+            "workflow_run head_sha may identify the default branch, not the tested source; "
+            "inspect triggering-run provenance and retained artifact/source receipts"
+        )
+    return candidates
 
 
 def api(path: str):
@@ -94,6 +111,7 @@ def snapshot(repo: dict, output: Path) -> dict:
         result.update(source_commit=sha, tree_sha=commit["tree"]["sha"])
         run_page = api(f"/repos/{full}/actions/runs?head_sha={sha}&per_page=100")
         result["current_head_runs"] = exact_runs(run_page.get("workflow_runs", []), sha)
+        result["workflow_run_candidates"] = workflow_run_candidates(run_page.get("workflow_runs", []))
         result["run_listing_truncated"] = run_page.get("total_count", 0) > 100
         result["issues"] = [{k: issue.get(k) for k in ("number", "title", "html_url", "updated_at")}
                             for issue in pages(f"/repos/{full}/issues?state=open") if "pull_request" not in issue]
@@ -104,6 +122,7 @@ def snapshot(repo: dict, output: Path) -> dict:
             row["base"] = {k: pr["base"].get(k) for k in ("sha", "ref")}
             runs = api(f"/repos/{full}/actions/runs?head_sha={pr['head']['sha']}&per_page=100")
             row["runs"] = exact_runs(runs.get("workflow_runs", []), pr["head"]["sha"])
+            row["workflow_run_candidates"] = workflow_run_candidates(runs.get("workflow_runs", []))
             row["run_listing_truncated"] = runs.get("total_count", 0) > 100
             row["files"] = pages(f"/repos/{full}/pulls/{pr['number']}/files")
             result["pull_requests"].append(row)
