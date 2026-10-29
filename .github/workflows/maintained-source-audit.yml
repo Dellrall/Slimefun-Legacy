@@ -1,0 +1,36 @@
+name: Maintained Java Source and CI Inventory
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/maintained-source-audit.yml'
+      - 'scripts/audit_maintained_sources.py'
+      - 'scripts/test_audit_maintained_sources.py'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Verify scope and exact-head CI classification
+        run: python3 -m unittest scripts.test_audit_maintained_sources -v
+      - name: Inventory public maintained sources without executing addon code
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/audit_maintained_sources.py --output maintenance-audit
+      - name: Retain exact-source inventory and review inputs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: maintained-java-source-ci-inventory
+          path: maintenance-audit/
+          if-no-files-found: error
+          retention-days: 14
