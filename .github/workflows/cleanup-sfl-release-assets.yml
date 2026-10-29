@@ -52,10 +52,18 @@ jobs:
   clean:
     name: Keep Slimefun Legacy release core-focused
     needs: policy-tests
+    # Keep the prior PR/origin protections as defense in depth, but automatic
+    # events are never sufficient: only a separately confirmed dispatch may run.
     if: >-
       github.event_name == 'workflow_dispatch' &&
+      inputs.confirm_existing_release_asset_cleanup == true &&
+      github.event_name != 'pull_request' &&
       github.ref == 'refs/heads/master' &&
-      inputs.confirm_existing_release_asset_cleanup == true
+      (github.event_name != 'workflow_run' ||
+       (github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.head_branch == 'master' &&
+        github.event.workflow_run.head_repository.full_name == github.repository &&
+        github.event.workflow_run.event != 'pull_request'))
     permissions:
       contents: write
     runs-on: ubuntu-latest
