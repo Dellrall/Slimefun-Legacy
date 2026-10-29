@@ -27,7 +27,7 @@ class BytecodeTargetTest(unittest.TestCase):
         self.jar = self.root / "candidate.jar"
         self.report = self.root / "reports" / "bytecode.txt"
 
-    def run_gate(self, members: dict[str, bytes], java: int = 21):
+    def run_gate(self, members: dict[str, bytes], java: int = 21, *, all_classes: bool = False):
         with zipfile.ZipFile(self.jar, "w") as archive:
             for name, data in members.items():
                 archive.writestr(name, data)
@@ -35,9 +35,12 @@ class BytecodeTargetTest(unittest.TestCase):
         command = [sys.executable]
         if sys.flags.optimize:
             command.append("-O")
+        gate_args = [str(CHECKER), str(self.jar), "--expected-java", str(java),
+                     "--report", str(self.report)]
+        if all_classes:
+            gate_args.append("--all-classes")
         result = subprocess.run(
-            command + [str(CHECKER), str(self.jar), "--expected-java", str(java),
-                       "--report", str(self.report)],
+            command + gate_args,
             capture_output=True, text=True, timeout=10, check=False,
         )
         self.assertEqual(before, hashlib.sha256(self.jar.read_bytes()).hexdigest(),
@@ -126,6 +129,53 @@ class BytecodeTargetTest(unittest.TestCase):
         result, _ = self.run_gate({"external/Other.class": header(65)})
         self.assertNotEqual(0, result.returncode)
         self.assertIn("No Slimefun-owned classes", result.stderr)
+
+    def test_all_classes_opt_in_rejects_preview_in_shaded_and_external(self):
+        for path in ("io/github/thebusybiscuit/slimefun4/libraries/Preview.class",
+                     "external/Preview.class"):
+            with self.subTest(path=path):
+                result, report = self.run_gate({OWNED: header(65), path: header(65, 65535)},
+                                               all_classes=True)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(path, report)
+                self.assertIn("65.65535", report)
+                self.assertNotIn("PASS:", report)
+
+    def test_all_classes_opt_in_rejects_unsupported_shaded_major(self):
+        other = "io/github/thebusybiscuit/slimefun4/libraries/New.class"
+        result, report = self.run_gate({OWNED: header(65), other: header(69)}, all_classes=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(other, report)
+        self.assertIn("major 69", report)
+
+    def test_all_classes_opt_in_rejects_malformed_external_header(self):
+        result, _ = self.run_gate({OWNED: header(65), "external/Corrupt.class": b"bad"}, all_classes=True)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("external/Corrupt.class", result.stderr)
+
+    def test_all_classes_opt_in_allows_stable_mixed_legacy_dependencies(self):
+        result, report = self.run_gate({
+            OWNED: header(65),
+            "io/github/thebusybiscuit/slimefun4/libraries/Old.class": header(52),
+            "external/Modern.class": header(61),
+        }, all_classes=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("3 packaged classes", result.stdout)
+        self.assertIn("every packaged class", report)
+
+    def test_all_classes_opt_in_accepts_historical_valid_nonzero_minor(self):
+        result, report = self.run_gate({OWNED: header(65), "external/Old.class": header(45, 3)},
+                                       all_classes=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("PASS:", report)
+
+    def test_rejects_invalid_below_jvm_floor_in_both_scopes(self):
+        for use_all in (False, True):
+            with self.subTest(all_classes=use_all):
+                result, report = self.run_gate({OWNED: header(44)}, all_classes=use_all)
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn("below 45", report)
+                self.assertNotIn("PASS:", report)
 
     def test_existing_shaded_and_external_scope_exclusions_are_unchanged(self):
         result, report = self.run_gate({

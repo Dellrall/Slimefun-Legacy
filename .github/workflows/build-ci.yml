@@ -83,9 +83,19 @@ jobs:
       - name: Verify Java 21 bytecode target
         shell: bash
         run: |
+          set -euo pipefail
           JAR="$(find build/libs -name 'Slimefun-*.jar' ! -name '*-sources.jar' ! -name '*-javadoc.jar' -print -quit)"
           test -n "$JAR"
           python3 scripts/check_bytecode_target.py "$JAR" --expected-java 21
+          python3 scripts/check_bytecode_target.py "$JAR" --expected-java 21 --all-classes --report build/reports/bytecode-all-packaged.txt
+          cat build/reports/bytecode-all-packaged.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Retain Java 21 bytecode reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: java21-bytecode-reports
+          path: build/reports/bytecode*.txt
+          if-no-files-found: warn
       - name: Verify release artifact metadata and packaging
         shell: bash
         run: |
