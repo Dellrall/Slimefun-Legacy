@@ -80,6 +80,7 @@ jobs:
           cp "$JAR" "$RUNNER_TEMP/Slimefun-first.jar"
           sha256sum "$RUNNER_TEMP/Slimefun-first.jar" | tee "$RUNNER_TEMP/first.sha256"
           python3 scripts/check_bytecode_target.py "$RUNNER_TEMP/Slimefun-first.jar" --expected-java 21 --report "$RUNNER_TEMP/bytecode-first.txt"
+          python3 scripts/check_bytecode_target.py "$RUNNER_TEMP/Slimefun-first.jar" --expected-java 21 --all-classes --report "$RUNNER_TEMP/bytecode-first-packaged.txt"
           python3 scripts/verify_release_artifact.py "$RUNNER_TEMP/Slimefun-first.jar" --root . --json-report "$RUNNER_TEMP/release-artifact-first.json" --summary "$RUNNER_TEMP/release-artifact-first.md"
 
       - name: Second clean release build
@@ -92,6 +93,7 @@ jobs:
           cp "$JAR" "$RUNNER_TEMP/Slimefun-second.jar"
           sha256sum "$RUNNER_TEMP/Slimefun-second.jar" | tee "$RUNNER_TEMP/second.sha256"
           python3 scripts/check_bytecode_target.py "$RUNNER_TEMP/Slimefun-second.jar" --expected-java 21 --report "$RUNNER_TEMP/bytecode-second.txt"
+          python3 scripts/check_bytecode_target.py "$RUNNER_TEMP/Slimefun-second.jar" --expected-java 21 --all-classes --report "$RUNNER_TEMP/bytecode-second-packaged.txt"
           python3 scripts/verify_release_artifact.py "$RUNNER_TEMP/Slimefun-second.jar" --root . --json-report "$RUNNER_TEMP/release-artifact-second.json" --summary "$RUNNER_TEMP/release-artifact-second.md"
 
       - name: Require byte-for-byte reproducibility
@@ -105,6 +107,7 @@ jobs:
           mkdir -p dist build/release-verification
           cp "$RUNNER_TEMP/Slimefun-first.jar" "dist/${OUTPUT_NAME}"
           cp "$RUNNER_TEMP/first.sha256" "$RUNNER_TEMP/second.sha256" "$RUNNER_TEMP/bytecode-first.txt" "$RUNNER_TEMP/bytecode-second.txt" build/release-verification/
+          cp "$RUNNER_TEMP/bytecode-first-packaged.txt" "$RUNNER_TEMP/bytecode-second-packaged.txt" build/release-verification/
           cp "$RUNNER_TEMP/release-artifact-first.json" "$RUNNER_TEMP/release-artifact-first.md" "$RUNNER_TEMP/release-artifact-second.json" "$RUNNER_TEMP/release-artifact-second.md" build/release-verification/
           printf '# Reproducible release verification\n\n- Source: `%s`\n- SHA-256: `%s`\n- Result: **PASS — byte-for-byte identical**\n' "$GITHUB_SHA" "$FIRST_SHA" | tee build/release-verification/reproducible-release.md >> "$GITHUB_STEP_SUMMARY"
 
@@ -286,7 +289,7 @@ jobs:
             --repo "$PACK_REPO" \
             --pattern "$PACK_ASSET" \
             --dir resource-pack-artifact
-          PACK="resource-pack-artifact/$PACK_ASSET"
+          PACK="resource-pack-artifact/$CANONICAL_RESOURCE_PACK"
           test -s "$PACK"
           python3 scripts/verify_release_resource_pack.py . --pin "$PIN" --zip "$PACK"
           cp "$PACK" "dist/$CANONICAL_RESOURCE_PACK"
@@ -296,6 +299,14 @@ jobs:
             echo "Official resource pack SHA-256: ${PACK_SHA256}"
             echo "Official resource pack bytes: ${PACK_SIZE}"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Retain reproducible Java 21 and byte-identity verification
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reproducible-release-validation
+          path: build/release-verification/
+          if-no-files-found: warn
 
       - name: Upload raw reproducible JAR artifact
         uses: actions/upload-artifact@v7
@@ -362,7 +373,7 @@ jobs:
             --notes-file "$NOTES_FILE" --title "$TITLE"
           echo "Java-only $TAG release published from exact validated source $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Normalize and verify release assets
+      - name: Verify release assets without mutation
         # Publication is never automatic. Master pushes run release validation only.
         if: >-
           github.event_name == 'workflow_dispatch' &&
@@ -383,17 +394,8 @@ jobs:
           BUNDLE="$CANONICAL_ADDON_BUNDLE"
           RESOURCE_PACK="$CANONICAL_RESOURCE_PACK"
 
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets-before.txt
-
-          while IFS= read -r asset; do
-            case "$asset" in
-              SF_*.jar|SFL_DracFun-Reborn*.jar|SFL_AddonsNDependencies.zip|SFL_AddonsNDependencies.sha256|SFL_Addons_1.21.11-26.3.zip|SlimefunLegacy-ResourcePack-*.zip)
-                echo "Removing obsolete/non-core release asset: $asset"
-                gh release delete-asset "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" -y
-                ;;
-            esac
-          done < assets-before.txt
-
+          # Existing releases are immutable, even when their layout is unexpected.
+          # Validate and fail closed; never delete, replace or normalize assets.
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > assets-after.txt
           grep -Fxq "$CORE_JAR" assets-after.txt
           grep -Fxq "$BUNDLE" assets-after.txt
@@ -441,6 +443,6 @@ jobs:
             echo "- Addon bundle: ${BUNDLE}"
             echo "- Resource pack: ${RESOURCE_PACK}"
             echo '- Individual addon JARs: not published here'
-            echo '- Obsolete SFL_Addons* bundles: removed'
+            echo '- Obsolete SFL_Addons* bundles: absent (verified without mutation)'
             echo '- Release assets: exactly three (Java core, addons, Java pack)'
           } >> "$GITHUB_STEP_SUMMARY"

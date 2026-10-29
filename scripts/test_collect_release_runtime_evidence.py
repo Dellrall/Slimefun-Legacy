@@ -477,13 +477,18 @@ class ReleaseDispatchControls(unittest.TestCase):
         mutation_steps = {name for name, body in self.steps.items()
                           if re.search(r"\bgh\s+release\s+(create|upload|edit|delete|delete-asset)\b", body)}
         self.assertEqual(
-            {"Publish exact validated Java-only core release", "Normalize and verify release assets"},
+            {"Publish exact validated Java-only core release"},
             mutation_steps, "Release mutation moved beyond the reviewed guarded steps",
         )
+        verifier = "Verify release assets without mutation"
+        self.assertIn(verifier, self.steps, "Must retain read-only post-publication verification")
+        # Keep the existing authorization truth table on both steps while
+        # narrowing the allowed mutation surface to the create-only publisher.
+        guarded_steps = mutation_steps | {verifier}
         publish_step = self.steps["Publish exact validated Java-only core release"]
         self.assertIn('test "$GITHUB_REF" = refs/heads/master', publish_step)
         self.assertIn('test "$GITHUB_SHA" = "$(gh api', publish_step)
-        for name in mutation_steps:
+        for name in guarded_steps:
             step = self.steps[name]
             self.assertIn('RELEASE_APPROVED: ${{ inputs.publish }}', step)
             self.assertIn('test "$GITHUB_EVENT_NAME" = workflow_dispatch', step)
@@ -491,7 +496,7 @@ class ReleaseDispatchControls(unittest.TestCase):
             self.assertIn('test "$GITHUB_REF" = refs/heads/master', step)
         # Even a fully green master push must never publish or edit release assets.
         # A manual dispatch must opt in explicitly and target the current master.
-        for name in mutation_steps:
+        for name in guarded_steps:
             for event in ("workflow_dispatch", "push", "pull_request", "schedule"):
                 for publish in ("", False, True, "false", "true"):
                     for outcome in ("", None, "success", "failure", "cancelled", "skipped"):
@@ -509,6 +514,22 @@ class ReleaseDispatchControls(unittest.TestCase):
                                     self.allows(self.condition(name), event=event,
                                                 publish=publish, outcome=outcome, ref=ref),
                                 )
+
+    def test_reintroduced_verifier_mutations_fail_closed(self):
+        name = "Verify release assets without mutation"
+        original = self.steps[name]
+        for command in ("create", "upload", "edit", "delete", "delete-asset"):
+            with self.subTest(command=command), patch.dict(
+                    self.steps, {name: original + f'\n          gh release {command} "$TAG"\n'}):
+                with self.assertRaisesRegex(AssertionError, "Release mutation moved"):
+                    self.test_all_release_mutations_require_successful_exact_master_evidence()
+
+    def test_missing_readonly_verifier_fails_closed(self):
+        steps = dict(self.steps)
+        del steps["Verify release assets without mutation"]
+        with patch.dict(self.steps, steps, clear=True):
+            with self.assertRaisesRegex(AssertionError, "Must retain read-only"):
+                self.test_all_release_mutations_require_successful_exact_master_evidence()
 
     def test_unknown_or_broken_release_guards_fail_closed(self):
         for expr in ("github.unsupported == true", "inputs.publish == yes",
