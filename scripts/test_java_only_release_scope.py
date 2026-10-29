@@ -50,5 +50,29 @@ class JavaOnlyReleaseScope(unittest.TestCase):
         self.assertIn('if [[ "$ASSET_COUNT" -ne 3 ]]', java_pack_gate)
 
 
+    def test_both_clean_release_jars_check_complete_java21_package(self):
+        checker = (ROOT / "scripts/check_bytecode_target.py").read_text(encoding="utf-8")
+        self.assertIn('parser.add_argument("--all-classes"', checker)
+        for stage in ("first", "second"):
+            jar = f'"$RUNNER_TEMP/Slimefun-{stage}.jar"'
+            owned = (
+                f'python3 scripts/check_bytecode_target.py {jar} --expected-java 21 '
+                f'--report "$RUNNER_TEMP/bytecode-{stage}.txt"'
+            )
+            packaged = (
+                f'python3 scripts/check_bytecode_target.py {jar} --expected-java 21 --all-classes '
+                f'--report "$RUNNER_TEMP/bytecode-{stage}-packaged.txt"'
+            )
+            self.assertEqual(1, self.text.count(owned), f"Missing owned {stage} check")
+            self.assertEqual(1, self.text.count(packaged), f"Missing packaged {stage} check")
+        self.assertIn(
+            'cp "$RUNNER_TEMP/bytecode-first-packaged.txt" '
+            '"$RUNNER_TEMP/bytecode-second-packaged.txt" build/release-verification/',
+            self.text,
+        )
+        self.assertIn("name: reproducible-release-validation", self.text)
+        self.assertIn("path: build/release-verification/", self.text)
+
+
 if __name__ == "__main__":
     unittest.main()
