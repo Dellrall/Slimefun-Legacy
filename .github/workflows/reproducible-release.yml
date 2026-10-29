@@ -289,7 +289,7 @@ jobs:
             --repo "$PACK_REPO" \
             --pattern "$PACK_ASSET" \
             --dir resource-pack-artifact
-          PACK="resource-pack-artifact/$PACK_ASSET"
+          PACK="resource-pack-artifact/$CANONICAL_RESOURCE_PACK"
           test -s "$PACK"
           python3 scripts/verify_release_resource_pack.py . --pin "$PIN" --zip "$PACK"
           cp "$PACK" "dist/$CANONICAL_RESOURCE_PACK"
@@ -373,7 +373,7 @@ jobs:
             --notes-file "$NOTES_FILE" --title "$TITLE"
           echo "Java-only $TAG release published from exact validated source $GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
 
-      - name: Normalize and verify release assets
+      - name: Verify release assets without mutation
         # Publication is never automatic. Master pushes run release validation only.
         if: >-
           github.event_name == 'workflow_dispatch' &&
@@ -394,17 +394,8 @@ jobs:
           BUNDLE="$CANONICAL_ADDON_BUNDLE"
           RESOURCE_PACK="$CANONICAL_RESOURCE_PACK"
 
-          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' > assets-before.txt
-
-          while IFS= read -r asset; do
-            case "$asset" in
-              SF_*.jar|SFL_DracFun-Reborn*.jar|SFL_AddonsNDependencies.zip|SFL_AddonsNDependencies.sha256|SFL_Addons_1.21.11-26.3.zip|SlimefunLegacy-ResourcePack-*.zip)
-                echo "Removing obsolete/non-core release asset: $asset"
-                gh release delete-asset "$TAG" "$asset" --repo "$GITHUB_REPOSITORY" -y
-                ;;
-            esac
-          done < assets-before.txt
-
+          # Existing releases are immutable, even when their layout is unexpected.
+          # Validate and fail closed; never delete, replace or normalize assets.
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name' | sort > assets-after.txt
           grep -Fxq "$CORE_JAR" assets-after.txt
           grep -Fxq "$BUNDLE" assets-after.txt
@@ -452,6 +443,6 @@ jobs:
             echo "- Addon bundle: ${BUNDLE}"
             echo "- Resource pack: ${RESOURCE_PACK}"
             echo '- Individual addon JARs: not published here'
-            echo '- Obsolete SFL_Addons* bundles: removed'
+            echo '- Obsolete SFL_Addons* bundles: absent (verified without mutation)'
             echo '- Release assets: exactly three (Java core, addons, Java pack)'
           } >> "$GITHUB_STEP_SUMMARY"
