@@ -32,6 +32,7 @@ def main() -> int:
     expected_major = args.expected_java + 44
     histogram: collections.Counter[int] = collections.Counter()
     offenders: list[tuple[str, int]] = []
+    unsupported_minors: list[tuple[str, int, int]] = []
 
     with zipfile.ZipFile(args.jar) as archive:
         for name in sorted(archive.namelist()):
@@ -42,10 +43,15 @@ def main() -> int:
             header = archive.read(name)[:8]
             if len(header) != 8 or header[:4] != b"\xca\xfe\xba\xbe":
                 raise SystemExit(f"Invalid class header: {name}")
-            major = struct.unpack(">H", header[6:8])[0]
+            minor, major = struct.unpack(">HH", header[4:8])
             histogram[major] += 1
             if major > expected_major:
                 offenders.append((name, major))
+            # JVMS 4.1: major >= 56 uses minor 65535 for release-specific preview
+            # features; other nonzero minors are invalid. A stable distributable
+            # must load without --enable-preview. Majors 45..55 allow any minor.
+            if major >= 56 and minor != 0:
+                unsupported_minors.append((name, major, minor))
 
     if not histogram:
         raise SystemExit("No Slimefun-owned classes were found in the candidate JAR")
@@ -63,12 +69,20 @@ def main() -> int:
     if offenders:
         lines.extend(["", "Classes above target:"])
         lines.extend(f"- {name}: Java {java_for_major(major)} / major {major}" for name, major in offenders)
-    else:
+    if unsupported_minors:
+        lines.extend(["", "Classes requiring preview features or using invalid minor versions:"])
+        for name, major, minor in unsupported_minors:
+            reason = "preview bytecode is not distributable" if minor == 65535 else "invalid minor version"
+            lines.append(f"- {name}: Java {java_for_major(major)} / version {major}.{minor}: {reason}")
+    if not offenders and not unsupported_minors:
         lines.extend(["", "PASS: every Slimefun-owned class is within the configured target."])
     report.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
     if offenders:
         print(f"Bytecode target failed: {len(offenders)} class(es) exceed Java {args.expected_java}.")
+        return 1
+    if unsupported_minors:
+        print(f"Bytecode target failed: {len(unsupported_minors)} class(es) use preview or invalid minor versions.")
         return 1
     print(f"Bytecode target passed for {sum(histogram.values())} Slimefun-owned classes (Java {args.expected_java}).")
     return 0
