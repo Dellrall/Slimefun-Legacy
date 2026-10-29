@@ -3,6 +3,8 @@ from pathlib import Path
 import re
 import unittest
 
+from scripts.test_release_asset_immutability import ReleaseAssetImmutability
+
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = ROOT / ".github/workflows/reproducible-release.yml"
 
@@ -48,6 +50,10 @@ class JavaOnlyReleaseScope(unittest.TestCase):
         java_pack_gate = (ROOT / 'scripts/verify_release_resource_pack.py').read_text(encoding='utf-8')
         self.assertIn('release layout requires three Java assets', java_pack_gate)
         self.assertIn('if [[ "$ASSET_COUNT" -ne 3 ]]', java_pack_gate)
+
+    def test_release_verification_cannot_modify_published_assets(self):
+        self.assertNotRegex(self.text, r"gh\s+release\s+(?:delete(?:-asset)?|edit|upload)\b")
+        self.assertIn("name: Verify release assets without mutation", self.text)
 
 
     def test_both_clean_release_jars_check_complete_java21_package(self):
