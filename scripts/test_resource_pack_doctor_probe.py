@@ -58,6 +58,25 @@ class RetirementResetProofTest(unittest.TestCase):
             "SFLDoctorBot lost connection: Doctor retirement probe\n", ""
         ) + "SFLDoctorBot lost connection: Doctor retirement probe\n")
 
+    def test_non_reset_exit_codes_are_not_forgiven(self):
+        for exit_code in (2, 137, -9):
+            with self.subTest(exit_code=exit_code):
+                self.assert_rejected(exit_code=exit_code)
+
+    def test_proof_file_must_match_the_exact_server_proof(self):
+        self.assert_rejected(proof=PROOF.replace("26.2-7", "26.3-145"))
+        self.assert_rejected(server=SERVER.replace(PROOF, PROOF.rstrip() + " corrupted\n"))
+
+    def test_multiline_or_empty_runtime_proof_is_rejected(self):
+        self.assert_rejected(proof=PROOF + "unexpected additional proof\n")
+        self.assert_rejected(proof="RESOURCE_PACK_DOCTOR_PROBE_PASS player-retire | \n")
+
+    def test_leave_must_follow_the_kick_and_precede_the_exact_proof(self):
+        self.assert_rejected(server=SERVER.replace("[INFO]: SFLDoctorBot left the game\n", "")
+                             + "[INFO]: SFLDoctorBot left the game\n")
+        self.assert_rejected(server="[INFO]: SFLDoctorBot left the game\n"
+                             + SERVER.replace("[INFO]: SFLDoctorBot left the game\n", ""))
+
     def test_arbitrary_client_connection_reset_without_proof_is_fatal(self):
         self.assert_rejected(server="Server socket disconnected\n")
 

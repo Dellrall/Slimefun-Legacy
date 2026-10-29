@@ -21,7 +21,7 @@ def confirmed_retirement_reset(exit_code: int, client_output: str, server_output
     transports surface the resulting TCP close as ECONNRESET rather than normal end.
     Never forgive a failed login, unknown kick, other client error, or missing proof.
     """
-    if exit_code == 0:
+    if exit_code != 1:
         return False
     if not re.search(r"(?m)^Doctor client reached play: SFLDoctorBot [0-9a-f-]{36}$", client_output):
         return False
@@ -33,11 +33,21 @@ def confirmed_retirement_reset(exit_code: int, client_output: str, server_output
     retired = "RESOURCE_PACK_DOCTOR_PROBE_PASS player-retire | "
     if "RESOURCE_PACK_DOCTOR_PROBE_FAIL" in server_output:
         return False
-    if kick not in server_output or "SFLDoctorBot left the game" not in server_output:
+    proof_lines = proof_text.splitlines()
+    if len(proof_lines) != 1 or not proof_lines[0].startswith(retired):
         return False
-    if not proof_text.startswith(retired) or retired not in server_output:
+    proof_line = proof_lines[0]
+    if not proof_line[len(retired):].strip():
         return False
-    return server_output.index(kick) < server_output.index(retired)
+    server_lines = server_output.splitlines()
+    matches = [index for index, line in enumerate(server_lines) if line.endswith(proof_line)]
+    if len(matches) != 1:
+        return False
+    proof_index = matches[0]
+    kicks = [index for index, line in enumerate(server_lines[:proof_index]) if kick in line]
+    leaves = [index for index, line in enumerate(server_lines[:proof_index])
+              if "SFLDoctorBot left the game" in line]
+    return any(kick_index < leave_index < proof_index for kick_index in kicks for leave_index in leaves)
 
 
 def main() -> None:
