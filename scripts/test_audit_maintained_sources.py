@@ -114,7 +114,7 @@ class AuditScopeTest(unittest.TestCase):
         self.assertFalse(recorded["pull_requests"][0]["workflow_run_candidates"][0]["tested_source_verified"])
         self.assertFalse(recorded["source_matches_are_compiler_diagnostics"])
         self.assertTrue(recorded["read_only"])
-
+        self.assertTrue(recorded["source_snapshot_valid"])
 
 
 class AuditSnapshotReplacementTest(unittest.TestCase):
@@ -131,6 +131,22 @@ class AuditSnapshotReplacementTest(unittest.TestCase):
             self.assertFalse((old / "src/main/java/Deleted.java").exists())
             self.assertEqual("new", (old / "src/main/java/Current.java").read_text())
             self.assertFalse((root / "source.previous").exists())
+
+    def test_failed_snapshot_marks_inventory_invalid_and_preserves_prior_source(self):
+        repo = {"name": "SF_Test", "owner": {"login": "wickidcow"},
+                "private": False, "archived": False, "default_branch": "master"}
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp)
+            previous = output / "SF_Test/source"
+            previous.mkdir(parents=True)
+            (previous / "Historical.java").write_text("preserved", encoding="utf-8")
+            with patch.object(audit, "api", side_effect=OSError("simulated API outage")):
+                result = audit.snapshot(repo, output)
+            inventory = json.loads((output / "SF_Test/inventory.json").read_text())
+            self.assertEqual("blocked", result["snapshot_status"])
+            self.assertFalse(inventory["source_snapshot_valid"])
+            self.assertIn("simulated API outage", inventory["error"])
+            self.assertEqual("preserved", (previous / "Historical.java").read_text())
 
     def test_initial_source_promotion_without_previous_snapshot(self):
         with tempfile.TemporaryDirectory() as temp:
