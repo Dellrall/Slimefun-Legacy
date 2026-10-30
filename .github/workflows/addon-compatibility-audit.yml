@@ -38,7 +38,12 @@ jobs:
 
   audit-completed-run:
     name: Aggregate addon classifications
-    if: ${{ github.event_name == 'workflow_run' || github.event_name == 'workflow_dispatch' }}
+    # Superseded/cancelled matrix runs have incomplete artifacts; keep failures auditable.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch' ||
+          (github.event_name == 'workflow_run' &&
+           github.event.workflow_run.conclusion != 'cancelled' &&
+           github.event.workflow_run.conclusion != 'skipped') }}
     runs-on: ubuntu-latest
     steps:
       - name: Resolve source ref and workflow run
