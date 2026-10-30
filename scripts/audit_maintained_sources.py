@@ -93,15 +93,41 @@ def git(root: Path, *args: str) -> str:
                           capture_output=True, text=True, timeout=180).stdout
 
 
+def replace_snapshot_source(staged: Path, current: Path) -> None:
+    """Promote a complete new text snapshot without retaining deleted old files.
+
+    A failed clone/copy leaves the prior snapshot untouched; a failed rename
+    restores it. Refuse ambiguous leftover backups rather than erasing evidence.
+    """
+    if not staged.is_dir() or staged.is_symlink():
+        raise ValueError("Staged source snapshot is not a directory")
+    if current.is_symlink() or (current.exists() and not current.is_dir()):
+        raise ValueError("Existing source snapshot is not a normal directory")
+    backup = current.with_name(current.name + ".previous")
+    if backup.exists() or backup.is_symlink():
+        raise FileExistsError("Previous source snapshot backup requires manual inspection")
+    had_previous = current.exists()
+    if had_previous:
+        os.replace(current, backup)
+    try:
+        os.replace(staged, current)
+    except BaseException:
+        if had_previous:
+            os.replace(backup, current)
+        raise
+    if had_previous:
+        shutil.rmtree(backup)
+
+
 def snapshot(repo: dict, output: Path) -> dict:
     if not in_scope(repo):
         raise ValueError("Repository is outside the public maintained-source scope")
     name = repo["name"]
     full = f"{OWNER}/{name}"
     dest = output / name
-    dest.mkdir(parents=True)
+    dest.mkdir(parents=True, exist_ok=True)
     result = {"repository": full, "default_branch": repo["default_branch"], "read_only": True,
-              "source_matches_are_compiler_diagnostics": False}
+              "source_matches_are_compiler_diagnostics": False, "source_snapshot_valid": False}
     try:
         branch = urllib.parse.quote(repo["default_branch"], safe="")
         sha = api(f"/repos/{full}/git/ref/heads/{branch}")["object"]["sha"]
@@ -126,7 +152,10 @@ def snapshot(repo: dict, output: Path) -> dict:
             row["run_listing_truncated"] = runs.get("total_count", 0) > 100
             row["files"] = pages(f"/repos/{full}/pulls/{pr['number']}/files")
             result["pull_requests"].append(row)
-        with tempfile.TemporaryDirectory(prefix="sfl-audit-") as temp:
+        with tempfile.TemporaryDirectory(prefix="sfl-audit-") as temp, \
+                tempfile.TemporaryDirectory(prefix=".source-stage-", dir=dest) as staged_dir:
+            staged_source = Path(staged_dir) / "source"
+            staged_source.mkdir()
             root = Path(temp)
             git(root, "init", "--quiet")
             git(root, "remote", "add", "origin", f"https://github.com/{full}.git")
@@ -151,7 +180,7 @@ def snapshot(repo: dict, output: Path) -> dict:
                 if path.stat().st_size > 3_000_000:
                     omitted.append(rel)
                     continue
-                target = dest / "source" / rel
+                target = staged_source / rel
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(path, target)
                 copied += 1
@@ -160,7 +189,9 @@ def snapshot(repo: dict, output: Path) -> dict:
                         for key, expression in PATTERNS.items():
                             if re.search(expression, line):
                                 hits[key].append({"path": rel, "line": number, "text": line.strip()[:300]})
-            result.update(copied_text_files=copied, omitted=omitted, source_review_candidates=hits, snapshot_status="complete")
+            replace_snapshot_source(staged_source, dest / "source")
+            result.update(copied_text_files=copied, omitted=omitted, source_review_candidates=hits,
+                          source_snapshot_valid=True, snapshot_status="complete")
     except Exception as failure:
         result.update(snapshot_status="blocked", error=f"{type(failure).__name__}: {failure}")
     (dest / "inventory.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
