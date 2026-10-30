@@ -125,7 +125,7 @@ def snapshot(repo: dict, output: Path) -> dict:
     name = repo["name"]
     full = f"{OWNER}/{name}"
     dest = output / name
-    dest.mkdir(parents=True)
+    dest.mkdir(parents=True, exist_ok=True)
     result = {"repository": full, "default_branch": repo["default_branch"], "read_only": True,
               "source_matches_are_compiler_diagnostics": False, "source_snapshot_valid": False}
     try:
