@@ -116,5 +116,80 @@ class AuditScopeTest(unittest.TestCase):
         self.assertTrue(recorded["read_only"])
 
 
+
+class AuditSnapshotReplacementTest(unittest.TestCase):
+    def test_reused_output_replaces_old_tracked_files_without_stale_matches(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old = root / "source"
+            (old / "src/main/java").mkdir(parents=True)
+            (old / "src/main/java/Deleted.java").write_text("old", encoding="utf-8")
+            staged = root / "stage"
+            (staged / "src/main/java").mkdir(parents=True)
+            (staged / "src/main/java/Current.java").write_text("new", encoding="utf-8")
+            audit.replace_snapshot_source(staged, old)
+            self.assertFalse((old / "src/main/java/Deleted.java").exists())
+            self.assertEqual("new", (old / "src/main/java/Current.java").read_text())
+            self.assertFalse((root / "source.previous").exists())
+
+    def test_initial_source_promotion_without_previous_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            staged = root / "stage"
+            staged.mkdir()
+            audit.replace_snapshot_source(staged, root / "source")
+            self.assertTrue((root / "source").is_dir())
+            self.assertFalse(staged.exists())
+
+    def test_failed_promotion_restores_previous_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old = root / "source"
+            old.mkdir()
+            (old / "Keep.java").write_text("untouched", encoding="utf-8")
+            staged = root / "stage"
+            staged.mkdir()
+            original_replace = audit.os.replace
+
+            def fail_new_promotion(source, target):
+                if Path(source) == staged:
+                    raise OSError("simulated rename failure")
+                return original_replace(source, target)
+
+            with patch.object(audit.os, "replace", side_effect=fail_new_promotion):
+                with self.assertRaisesRegex(OSError, "simulated rename"):
+                    audit.replace_snapshot_source(staged, old)
+            self.assertEqual("untouched", (old / "Keep.java").read_text())
+            self.assertFalse((root / "source.previous").exists())
+            self.assertTrue(staged.exists())
+
+    def test_rejects_leftover_backup_without_modifying_sources(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            old = root / "source"
+            old.mkdir()
+            staged = root / "stage"
+            staged.mkdir()
+            (root / "source.previous").mkdir()
+            with self.assertRaises(FileExistsError):
+                audit.replace_snapshot_source(staged, old)
+            self.assertTrue(old.exists())
+            self.assertTrue(staged.exists())
+
+    def test_rejects_existing_source_symlink(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            external = root / "external"
+            external.mkdir()
+            current = root / "source"
+            current.symlink_to(external, target_is_directory=True)
+            staged = root / "stage"
+            staged.mkdir()
+            with self.assertRaises(ValueError):
+                audit.replace_snapshot_source(staged, current)
+            self.assertTrue(current.is_symlink())
+            self.assertTrue(staged.exists())
+
+
 if __name__ == "__main__":
     unittest.main()
